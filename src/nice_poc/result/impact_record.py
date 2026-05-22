@@ -3,6 +3,7 @@
 DEMAND-only 시나리오는 cost_* = 0, profit_* = revenue_*.
 SUPPLY 시나리오는 ``supply`` 인자에 leontief.propagate_supply_split 결과를 그대로 넘긴다.
 """
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -11,9 +12,15 @@ import numpy as np
 import pandas as pd
 
 IMPACT_COLUMNS = (
-    "revenue_initial", "revenue_propagation", "revenue_sum",
-    "cost_initial",    "cost_propagation",    "cost_sum",
-    "profit_initial",  "profit_propagation",  "profit_sum",
+    "revenue_initial",
+    "revenue_propagation",
+    "revenue_sum",
+    "cost_initial",
+    "cost_propagation",
+    "cost_sum",
+    "profit_initial",
+    "profit_propagation",
+    "profit_sum",
 )
 
 
@@ -76,15 +83,15 @@ def build_impact_table(
 
     return pd.DataFrame(
         {
-            "revenue_initial":     rev_init,
+            "revenue_initial": rev_init,
             "revenue_propagation": rev_prop,
-            "revenue_sum":         rev_sum,
-            "cost_initial":        cost_init,
-            "cost_propagation":    cost_prop,
-            "cost_sum":            cost_sum,
-            "profit_initial":      profit_init,
-            "profit_propagation":  profit_prop,
-            "profit_sum":          profit_sum_,
+            "revenue_sum": rev_sum,
+            "cost_initial": cost_init,
+            "cost_propagation": cost_prop,
+            "cost_sum": cost_sum,
+            "profit_initial": profit_init,
+            "profit_propagation": profit_prop,
+            "profit_sum": profit_sum_,
         },
         index=firm_ids,
     )

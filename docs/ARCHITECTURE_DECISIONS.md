@@ -81,11 +81,29 @@ src/nice_poc/
 
 초기 부트스트랩은 `deploy/postgres/init/*.sql` 을 docker entrypoint
 `/docker-entrypoint-initdb.d/` 에 마운트하여 컨테이너 최초 기동 시
-일괄 적용한다. 이후 스키마 변경은 Alembic 으로 관리한다.
+일괄 적용한다.
 
 이유: Alembic 의 첫 마이그레이션을 만들기 전 단계에 빠르게 시연
 가능한 형상을 확보하기 위함. 적재 순서 의존(impacts → firms FK 등)을
 파일 prefix 로 강제한다.
+
+### Alembic baseline (완료)
+
+baseline revision `0001_baseline` 을 박았다. 라이브 DB 에는 `alembic stamp head`
+로 메타데이터만 기록 (`alembic_version.version_num = '0001_baseline'`) — schema
+변경은 발생하지 않았다. `deploy/postgres/init/*.sql` 은 그대로 유지하여 신규
+컨테이너 기동 시에도 동일한 형상이 적용되도록 한다.
+
+이후 schema 변경 절차:
+
+```bash
+.venv/bin/alembic -c alembic.ini revision -m "add column X"   # 신규 revision 작성
+# (필요 시 --autogenerate, 단 SQLAlchemy 모델 도입 후)
+.venv/bin/alembic -c alembic.ini upgrade head                 # 라이브 DB 적용
+```
+
+DSN 은 `alembic.ini` 가 아니라 `alembic/env.py` 에서 `nice_poc.config.get_settings()`
+를 통해 런타임 주입한다 — 평문 비밀번호를 ini 에 박지 않기 위함.
 
 ---
 

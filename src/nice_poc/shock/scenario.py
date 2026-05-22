@@ -1,4 +1,5 @@
 """Scenario / Shock / ScenarioGroup dataclass. 구현명세서 §3, §11.B6."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -6,9 +7,7 @@ from datetime import UTC, datetime
 from typing import Literal
 
 DemandInput = Literal["TARIFF", "GDP", "B2C_REVENUE", "GOV_REVENUE"]
-SupplyInput = Literal[
-    "IMPORT_PRICE", "IMPORT_SHUTDOWN", "DOMESTIC_PRICE", "DOMESTIC_SHUTDOWN"
-]
+SupplyInput = Literal["IMPORT_PRICE", "IMPORT_SHUTDOWN", "DOMESTIC_PRICE", "DOMESTIC_SHUTDOWN"]
 InputType = DemandInput | SupplyInput
 TargetType = Literal["HS6", "KSIC", "FIRMLIST"]
 ScenarioType = Literal["DEMAND", "SUPPLY", "MIXED"]
@@ -36,9 +35,10 @@ class Scenario:
 @dataclass(frozen=True, slots=True)
 class Shock:
     """모든 input_type 의 파라미터를 한 라벨로 보유. 미사용은 None."""
+
     shock_id: str
     scenario_id: str
-    shock_type: str          # 수출 / B2C / Govt / 수입 / 국내
+    shock_type: str  # 수출 / B2C / Govt / 수입 / 국내
     target_type: TargetType
     input_type: InputType
     target_value: str | list[str] | None = None

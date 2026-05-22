@@ -8,6 +8,7 @@
 필터해서 넘긴다(스펙 §5.2 의 Cypher 매칭이 ``data/load_graph`` 단계에서 끝남).
 본 모듈은 **순수 수치 변환**만 담당.
 """
+
 from __future__ import annotations
 
 import pandas as pd
@@ -89,11 +90,7 @@ def _firm_export_amount(
 
     df = exports
     if shock.target_value is not None and "hs6" in df.columns:
-        target = (
-            [shock.target_value]
-            if isinstance(shock.target_value, str)
-            else shock.target_value
-        )
+        target = [shock.target_value] if isinstance(shock.target_value, str) else shock.target_value
         df = df[df["hs6"].isin(target)]
     if shock.target_nation and "iso_alpha2" in df.columns:
         df = df[df["iso_alpha2"].isin(shock.target_nation)]

@@ -1,4 +1,5 @@
 """구현명세서 §9.1 / §11.4 — TARIFF 산식의 v1.1 부호 보정 검증."""
+
 from __future__ import annotations
 
 import numpy as np

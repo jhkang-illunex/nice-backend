@@ -7,6 +7,7 @@
 PoC 1차에서는 B 행렬 미구현 — Supply 매출 전방은 호출자가 B 를 제공하지 않으면
 ``H.T`` 로 폴백(보수적 근사). 정확한 B 는 5주차 ``matrix/matrix_B.py``.
 """
+
 from __future__ import annotations
 
 import numpy as np

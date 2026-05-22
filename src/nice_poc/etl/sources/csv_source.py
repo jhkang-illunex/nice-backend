@@ -11,6 +11,7 @@
         ├── hs_codes.csv
         └── countries.csv
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -29,9 +30,16 @@ class CsvSource:
     def firms(self) -> pd.DataFrame:
         df = self._read("firms.csv")
         numeric = [
-            "base_year", "sales_year_fin", "sales_year_vat_observed",
-            "vat_fs_est_sales", "vat_fs_est_purchase", "inventory",
-            "value_added_year_fin", "employees_count", "cri_score", "cri_year",
+            "base_year",
+            "sales_year_fin",
+            "sales_year_vat_observed",
+            "vat_fs_est_sales",
+            "vat_fs_est_purchase",
+            "inventory",
+            "value_added_year_fin",
+            "employees_count",
+            "cri_score",
+            "cri_year",
         ]
         for c in numeric:
             if c in df.columns:
@@ -40,8 +48,7 @@ class CsvSource:
 
     def supplies(self) -> pd.DataFrame:
         df = self._read("supplies.csv")
-        for c in ("year", "amount", "number_observed_month",
-                  "purchase_weight", "sales_weight"):
+        for c in ("year", "amount", "number_observed_month", "purchase_weight", "sales_weight"):
             if c in df.columns:
                 df[c] = pd.to_numeric(df[c], errors="coerce")
         return df

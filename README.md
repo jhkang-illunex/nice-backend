@@ -2,6 +2,12 @@
 
 NICE Open Innovation PoC — 공급망/수요망 충격 시뮬레이션 백엔드.
 
+![CI](https://github.com/jhkang-illunex/nice-backend/actions/workflows/ci.yml/badge.svg)
+
+> 배지는 GitHub repo 가 public 일 때만 외부에서 렌더링됩니다. private 인 경우
+> 로그인한 멤버에게만 정상 표시되며, README 를 익명 미러에서 볼 때는 broken
+> 이미지로 보일 수 있습니다.
+
 ## 현재 상태 — 데이터 수령 대기
 
 | 영역 | 상태 |
@@ -58,6 +64,14 @@ PostgreSQL 스키마는 컨테이너 최초 기동 시 `deploy/postgres/init/*.s
 
 ```bash
 docker compose down -v && docker compose up -d
+```
+
+이후 스키마 변경은 Alembic 으로 추적합니다 (baseline `0001_baseline` 박힘, ADR-004):
+
+```bash
+.venv/bin/alembic current                       # 현재 revision 확인
+.venv/bin/alembic revision -m "add column X"    # 신규 마이그레이션 작성
+.venv/bin/alembic upgrade head                  # 라이브 DB 적용
 ```
 
 Neo4j 제약/인덱스는 1회만 수동 적용 (구현명세서 §1 의존 모듈 진입 전):

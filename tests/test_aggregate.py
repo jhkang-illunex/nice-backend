@@ -1,4 +1,5 @@
 """구현명세서 §11.4 test_aggregate.py — Summary 12키 + Scenario_Summary."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -8,17 +9,16 @@ from nice_poc.result import aggregate, impact_record
 
 
 def _make_table(values: dict[str, list[float]]) -> pd.DataFrame:
-    idx = pd.Index([f"F{i:03d}" for i in range(len(next(iter(values.values()))))],
-                   name="firm_id")
+    idx = pd.Index([f"F{i:03d}" for i in range(len(next(iter(values.values()))))], name="firm_id")
     return pd.DataFrame(values, index=idx)
 
 
 def test_build_impact_table_demand_only() -> None:
     fid = pd.Index(["A", "B", "C"], name="firm_id")
     demand = {
-        "initial":     np.array([100.0, 0.0, 0.0]),
+        "initial": np.array([100.0, 0.0, 0.0]),
         "propagation": np.array([0.0, 30.0, 5.0]),
-        "total":       np.array([100.0, 30.0, 5.0]),
+        "total": np.array([100.0, 30.0, 5.0]),
     }
     tab = impact_record.build_impact_table(fid, demand=demand)
 
@@ -31,29 +31,31 @@ def test_build_impact_table_demand_only() -> None:
 def test_build_impact_table_supply_adds_revenue_and_cost() -> None:
     fid = pd.Index(["A", "B"], name="firm_id")
     supply = {
-        "cost_initial":        np.array([10.0, 0.0]),
-        "cost_propagation":    np.array([0.0, 2.0]),
-        "cost_total":          np.array([10.0, 2.0]),
-        "revenue_initial":     np.array([5.0, 0.0]),
+        "cost_initial": np.array([10.0, 0.0]),
+        "cost_propagation": np.array([0.0, 2.0]),
+        "cost_total": np.array([10.0, 2.0]),
+        "revenue_initial": np.array([5.0, 0.0]),
         "revenue_propagation": np.array([0.0, 1.0]),
-        "revenue_total":       np.array([5.0, 1.0]),
+        "revenue_total": np.array([5.0, 1.0]),
     }
     tab = impact_record.build_impact_table(fid, supply=supply)
     np.testing.assert_allclose(tab["profit_sum"], [5 - 10, 1 - 2])
 
 
 def test_summary_card_full_has_12_keys_with_run_id() -> None:
-    tab = _make_table({
-        "revenue_initial":     [100, 0,   0],
-        "revenue_propagation": [0,   30,  0],
-        "revenue_sum":         [100, 30,  0],
-        "cost_initial":        [0,   0,   0],
-        "cost_propagation":    [0,   0,   0],
-        "cost_sum":            [0,   0,   0],
-        "profit_initial":      [100, 0,   0],
-        "profit_propagation":  [0,   30,  0],
-        "profit_sum":          [100, 30,  0],
-    })
+    tab = _make_table(
+        {
+            "revenue_initial": [100, 0, 0],
+            "revenue_propagation": [0, 30, 0],
+            "revenue_sum": [100, 30, 0],
+            "cost_initial": [0, 0, 0],
+            "cost_propagation": [0, 0, 0],
+            "cost_sum": [0, 0, 0],
+            "profit_initial": [100, 0, 0],
+            "profit_propagation": [0, 30, 0],
+            "profit_sum": [100, 30, 0],
+        }
+    )
 
     s = aggregate.summary_card_full(tab, run_id="R1")
 
@@ -75,16 +77,18 @@ def test_by_scenario_seq_returns_indexed_df() -> None:
 
 
 def test_affected_firms_sorted_by_abs_revenue() -> None:
-    tab = _make_table({
-        "revenue_initial":     [0, 0, 0, 0],
-        "revenue_propagation": [0, 0, 0, 0],
-        "revenue_sum":         [50, -300, 100, 10],
-        "cost_initial":        [0, 0, 0, 0],
-        "cost_propagation":    [0, 0, 0, 0],
-        "cost_sum":            [0, 0, 0, 0],
-        "profit_initial":      [0, 0, 0, 0],
-        "profit_propagation":  [0, 0, 0, 0],
-        "profit_sum":          [50, -300, 100, 10],
-    })
+    tab = _make_table(
+        {
+            "revenue_initial": [0, 0, 0, 0],
+            "revenue_propagation": [0, 0, 0, 0],
+            "revenue_sum": [50, -300, 100, 10],
+            "cost_initial": [0, 0, 0, 0],
+            "cost_propagation": [0, 0, 0, 0],
+            "cost_sum": [0, 0, 0, 0],
+            "profit_initial": [0, 0, 0, 0],
+            "profit_propagation": [0, 0, 0, 0],
+            "profit_sum": [50, -300, 100, 10],
+        }
+    )
     out = aggregate.affected_firms(tab, top_n=3)
     assert list(out.index) == ["F001", "F002", "F000"]

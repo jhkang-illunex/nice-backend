@@ -6,6 +6,7 @@ H_ij = (i 가 j 에게 공급한 중간재 금액) / (j 의 총매출)
 - 분모 우선순위: sales_year_fin → vat_fs_est_sales → ml_estimate_sales (§2.2.2)
 - 분자합 > 분모 보정: 열합 col_sum > 1 이면 해당 열 정규화 (§2.2.3)
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

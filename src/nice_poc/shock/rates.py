@@ -4,6 +4,7 @@
 모든 함수는 순수 (Shock → float).
 연율화(× duration_month/12)는 ``annualize()`` 로 일괄 적용.
 """
+
 from __future__ import annotations
 
 from nice_poc.shock.scenario import Shock
@@ -14,6 +15,7 @@ def annualize(rate: float, duration_month: int) -> float:
 
 
 # --- DEMAND ----------------------------------------------------------------
+
 
 def tariff_revenue_rate(s: Shock) -> float:
     """§11.2.1/2 — 부호 보정 후 (수요변화 + 가격항) 합산.
@@ -44,6 +46,7 @@ def b2c_or_gov_revenue_rate(s: Shock) -> float:
 
 
 # --- SUPPLY ----------------------------------------------------------------
+
 
 def import_price_cost_rate(s: Shock) -> float:
     """§11.2.3 — Cost_value = Δp_m × (1 + ε_m)."""
@@ -81,6 +84,7 @@ def domestic_price_revenue_rate(s: Shock) -> float:
 
 
 # --- dispatch --------------------------------------------------------------
+
 
 def revenue_rate(s: Shock) -> float:
     match s.input_type:

@@ -2,6 +2,7 @@
 
 PG (FK 참조용) + Neo4j (그래프 매개 노드) 양쪽에 적재.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

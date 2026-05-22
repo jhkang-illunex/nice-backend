@@ -1,4 +1,5 @@
 """구현명세서 §9.1 test_spectral.py — ρ 추정 정확도, row_normalize 후 ρ < 1."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -28,11 +29,15 @@ def test_is_safe_threshold() -> None:
 
 
 def test_row_normalize_caps_row_sum() -> None:
-    M = sp.csr_matrix(np.array([
-        [0.4, 0.4, 0.4],   # sum = 1.2 → normalize
-        [0.2, 0.3, 0.0],   # sum = 0.5 → keep
-        [0.0, 0.0, 0.0],
-    ]))
+    M = sp.csr_matrix(
+        np.array(
+            [
+                [0.4, 0.4, 0.4],  # sum = 1.2 → normalize
+                [0.2, 0.3, 0.0],  # sum = 0.5 → keep
+                [0.0, 0.0, 0.0],
+            ]
+        )
+    )
     N = sr.row_normalize(M)
     row_sum = np.asarray(np.abs(N).sum(axis=1)).ravel()
     assert (row_sum <= 1.0 + 1e-12).all()

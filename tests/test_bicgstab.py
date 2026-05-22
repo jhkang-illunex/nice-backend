@@ -1,4 +1,5 @@
 """구현명세서 §9.1 test_bicgstab.py — 직접 역행렬 vs BiCGSTAB 일치 (소규모)."""
+
 from __future__ import annotations
 
 import numpy as np

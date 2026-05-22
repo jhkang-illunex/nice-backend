@@ -1,4 +1,5 @@
 """ETL 순수 로직 단위 테스트 — DB 의존성 없음."""
+
 from __future__ import annotations
 
 from pathlib import Path

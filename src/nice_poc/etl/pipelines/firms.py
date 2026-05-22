@@ -3,6 +3,7 @@
 Neo4j 관계: :IN_SECTOR, :BELONGS_TO (rep_bizno 있을 때), :LOCATED_IN (KR 기본),
              :OBSERVED_IN (base_year)
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,12 +12,24 @@ from nice_poc.etl.sinks import Neo4jSink, PgSink
 from nice_poc.etl.sources import FirmsSource
 
 FIRMS_PG_COLUMNS = (
-    "firm_id", "biz_no", "rep_bizno", "firm_name", "sector_code",
-    "firm_data_type", "firm_confidence_level", "base_year",
-    "sales_year_fin", "sales_year_vat_observed",
-    "vat_fs_est_sales", "vat_fs_est_purchase",
-    "inventory", "value_added_year_fin", "employees_count",
-    "cri_score", "cri_year", "watch_grade",
+    "firm_id",
+    "biz_no",
+    "rep_bizno",
+    "firm_name",
+    "sector_code",
+    "firm_data_type",
+    "firm_confidence_level",
+    "base_year",
+    "sales_year_fin",
+    "sales_year_vat_observed",
+    "vat_fs_est_sales",
+    "vat_fs_est_purchase",
+    "inventory",
+    "value_added_year_fin",
+    "employees_count",
+    "cri_score",
+    "cri_year",
+    "watch_grade",
 )
 
 FIRM_MERGE = """

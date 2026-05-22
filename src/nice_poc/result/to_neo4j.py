@@ -3,6 +3,7 @@
 PoC 1차 규모(≤ 1만 firm) 에서는 UNWIND 한 번이면 충분.
 규모 확대 시 ``apoc.periodic.iterate`` 로 전환.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

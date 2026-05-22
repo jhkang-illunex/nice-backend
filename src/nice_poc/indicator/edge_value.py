@@ -2,6 +2,7 @@
 
 Edge_ij = pass_through × purchase_weight_ij = s × (z_ij / 매입_j)
 """
+
 from __future__ import annotations
 
 import pandas as pd

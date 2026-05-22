@@ -2,6 +2,7 @@
 
 변화량 |Δ| 가 노드의 기준값(매출/매입) 의 100% 를 초과하면 sign × 한도로 cap.
 """
+
 from __future__ import annotations
 
 import numpy as np

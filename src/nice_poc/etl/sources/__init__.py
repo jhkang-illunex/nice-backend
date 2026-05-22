@@ -3,6 +3,7 @@
 도메인별로 ``DataFrame`` 을 yield 한다. 컬럼 계약은 docstring 참조.
 구현체: :class:`~nice_poc.etl.sources.csv_source.CsvSource`.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -38,9 +39,9 @@ class TradeSource(Protocol):
 
 
 class MastersSource(Protocol):
-    def sectors(self) -> pd.DataFrame:    # code, name, level, parent_code, color
+    def sectors(self) -> pd.DataFrame:  # code, name, level, parent_code, color
         ...
-    def hs_codes(self) -> pd.DataFrame:   # code, name, hs2, hs4, elasticity
+    def hs_codes(self) -> pd.DataFrame:  # code, name, hs2, hs4, elasticity
         ...
     def countries(self) -> pd.DataFrame:  # iso_alpha2, name_kr, name_en
         ...

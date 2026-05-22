@@ -3,6 +3,7 @@
 연도별 멀티엣지(MERGE 키 = year). purchase_weight / sales_weight 는 ETL 단계에서
 계산된 값이 있다면 그대로 적재, 없으면 amount 만 적재하고 후처리에 위임.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

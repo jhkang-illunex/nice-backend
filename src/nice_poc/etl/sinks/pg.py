@@ -3,6 +3,7 @@
 INSERT … ON CONFLICT (pk) DO UPDATE 를 통한 idempotent 적재.
 psycopg3 ``cursor.executemany`` 가 내부 배치 → 1만 건 수준은 충분.
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence

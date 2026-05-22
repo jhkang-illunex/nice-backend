@@ -25,6 +25,7 @@
         ''',
     )
 """
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -74,8 +75,7 @@ def upload_to_pg(
     dry_run: bool = False,
     sink: PgSink | None = None,
 ) -> UploadReport:
-    df = _read_csv(csv_path, rename=rename, columns=columns,
-                   delimiter=delimiter, encoding=encoding)
+    df = _read_csv(csv_path, rename=rename, columns=columns, delimiter=delimiter, encoding=encoding)
     rows_read = len(df)
     if dry_run:
         return UploadReport(rows_read=rows_read, rows_loaded=0, dry_run=True)
@@ -95,8 +95,7 @@ def upload_to_neo4j(
     dry_run: bool = False,
     sink: Neo4jSink | None = None,
 ) -> UploadReport:
-    df = _read_csv(csv_path, rename=rename, columns=columns,
-                   delimiter=delimiter, encoding=encoding)
+    df = _read_csv(csv_path, rename=rename, columns=columns, delimiter=delimiter, encoding=encoding)
     rows_read = len(df)
     if dry_run:
         return UploadReport(rows_read=rows_read, rows_loaded=0, dry_run=True)

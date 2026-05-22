@@ -1,4 +1,5 @@
 """구현명세서 §9.1 test_cap.py — max-delta cap 사후 |Δx| ≤ sales 보장."""
+
 from __future__ import annotations
 
 import numpy as np

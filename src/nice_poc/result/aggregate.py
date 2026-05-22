@@ -1,4 +1,5 @@
 """Summary / Scenario_Summary / affected firms. 구현명세서 §11.B3, §11.B4."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -28,17 +29,17 @@ def summary_card_full(
     affected = impact_table["revenue_sum"] != 0
 
     out: dict[str, Any] = {
-        "Revenue_total_Sum":         float(impact_table["revenue_sum"].sum()),
-        "Revenue_total_initial":     float(impact_table["revenue_initial"].sum()),
+        "Revenue_total_Sum": float(impact_table["revenue_sum"].sum()),
+        "Revenue_total_initial": float(impact_table["revenue_initial"].sum()),
         "Revenue_total_propagation": float(impact_table["revenue_propagation"].sum()),
-        "Cost_total_Sum":            float(impact_table["cost_sum"].sum()),
-        "Cost_total_initial":        float(impact_table["cost_initial"].sum()),
-        "Cost_total_propagation":    float(impact_table["cost_propagation"].sum()),
-        "Profit_Sum":                float(impact_table["profit_sum"].sum()),
-        "Profit_total_initial":      float(impact_table["profit_initial"].sum()),
-        "Profit_total_propagation":  float(impact_table["profit_propagation"].sum()),
-        "Firm_total_number":         int(affected.sum()),
-        "Firm_total_list":           impact_table.index[affected].astype(str).tolist(),
+        "Cost_total_Sum": float(impact_table["cost_sum"].sum()),
+        "Cost_total_initial": float(impact_table["cost_initial"].sum()),
+        "Cost_total_propagation": float(impact_table["cost_propagation"].sum()),
+        "Profit_Sum": float(impact_table["profit_sum"].sum()),
+        "Profit_total_initial": float(impact_table["profit_initial"].sum()),
+        "Profit_total_propagation": float(impact_table["profit_propagation"].sum()),
+        "Firm_total_number": int(affected.sum()),
+        "Firm_total_list": impact_table.index[affected].astype(str).tolist(),
     }
     if run_id is not None:
         out["run_id"] = run_id

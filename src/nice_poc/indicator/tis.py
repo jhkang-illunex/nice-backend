@@ -4,6 +4,7 @@ TIS_i      = Exposure_i × Risk_i
 Exposure_i = |Δx_i| / sales_i
 Risk_i     = cri_score_i / 10            (1~10 정규화)
 """
+
 from __future__ import annotations
 
 import numpy as np

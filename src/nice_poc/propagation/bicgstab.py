@@ -4,6 +4,7 @@
 - M : sparse coefficient matrix (Demand: H, Supply 비용 후방: H, Supply 매출 전방: B.T)
 - b : 1차 충격 벡터 (Δy 또는 Δcost)
 """
+
 from __future__ import annotations
 
 import numpy as np

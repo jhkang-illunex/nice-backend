@@ -5,6 +5,7 @@
     data = load_graph.from_neo4j(year=2024)
     firms, edges, exports = data["firms"], data["edges"], data["exports"]
 """
+
 from __future__ import annotations
 
 import pandas as pd

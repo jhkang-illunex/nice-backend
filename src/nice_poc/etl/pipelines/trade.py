@@ -2,6 +2,7 @@
 
 direction 컬럼(EXP/IMP)에 따라 적절한 관계로 적재.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

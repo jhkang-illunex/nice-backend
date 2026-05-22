@@ -2,6 +2,7 @@
 
 배치 단위로 트랜잭션을 끊어 1만+ 행에서도 메모리 안전.
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence

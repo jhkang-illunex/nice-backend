@@ -13,6 +13,7 @@ Generic 업로드 (임의 CSV)::
     upload-pg     <csv> --table <name> --pk <col>[,col2,...] [--rename old=new,...] [--dry-run]
     upload-neo4j  <csv> --cypher-file <path>                 [--rename old=new,...] [--dry-run]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -62,8 +63,9 @@ def _parse() -> argparse.Namespace:
 
     neo = sub.add_parser("upload-neo4j", help="임의 CSV → Neo4j Cypher 실행")
     neo.add_argument("csv", type=Path)
-    neo.add_argument("--cypher-file", type=Path, required=True,
-                     help="UNWIND $rows AS row ... 형태의 Cypher 파일")
+    neo.add_argument(
+        "--cypher-file", type=Path, required=True, help="UNWIND $rows AS row ... 형태의 Cypher 파일"
+    )
     neo.add_argument("--columns", help="콤마 구분")
     neo.add_argument("--rename", help="old1=new1,old2=new2")
     neo.add_argument("--delimiter", default=",")

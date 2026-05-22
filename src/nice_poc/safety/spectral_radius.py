@@ -1,4 +1,5 @@
 """ρ(A) 사전 체크 + row-normalize. 구현명세서 §5.1, 그래프모델 v2.1 §8.3.3."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -21,8 +22,14 @@ def estimate(M: sp.spmatrix, *, max_iter: int = 500, tol: float = 1e-6) -> float
     if n <= 2:
         return float(np.max(np.abs(np.linalg.eigvals(M.toarray()))))
     try:
-        vals = eigs(M.astype("float64"), k=1, which="LM", maxiter=max_iter, tol=tol,
-                    return_eigenvectors=False)
+        vals = eigs(
+            M.astype("float64"),
+            k=1,
+            which="LM",
+            maxiter=max_iter,
+            tol=tol,
+            return_eigenvectors=False,
+        )
         return float(np.abs(vals[0]))
     except (ArpackError, ArpackNoConvergence, ValueError, TypeError):
         return _power_iteration(M, max_iter=max_iter, tol=tol)
