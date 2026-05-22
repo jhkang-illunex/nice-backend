@@ -26,10 +26,17 @@ NICE Open Innovation PoC — 공급망/수요망 충격 시뮬레이션 백엔�
 
 `docs/` 디렉토리 참조.
 
+원본 설계서 (docx):
 - `NICE_폴리글랏_아키텍처_설계서.docx`
 - `NICE_Neo4j_그래프모델_설계서_v2.3.docx`
 - `NICE_Python_구현명세서.docx`
-- `ARCHITECTURE_DECISIONS.md` — 부트스트랩 시점 ADR
+
+저장소 내 운영 문서 (md):
+- [`ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md) — ADR 5건 (Neo4j 토폴로지 / PG / 패키지명 / DDL 적재 / 의존성)
+- [`CSV_SCHEMA.md`](docs/CSV_SCHEMA.md) — 6 도메인 CSV 컬럼 매트릭스
+- [`DATA_INTAKE.md`](docs/DATA_INTAKE.md) — 실 데이터 수령 시 6단계 적재 절차
+- [`PROGRESS.md`](docs/PROGRESS.md) — 작업 내역 (불변, 4 commit + 49 tests)
+- [`POST_INTAKE_TASKS.md`](docs/POST_INTAKE_TASKS.md) — 데이터 도착 후 작업 큐 (P0~P7)
 
 ## 스토리지 토폴로지
 
