@@ -200,22 +200,26 @@ table = impact_record.build_impact_table(h.firm_ids, demand={
     "total":       capped_total.to_numpy(),
 })
 
-# 9) Neo4j :IMPACTS 적재
-to_neo4j.write_impacts(
+# 9) Neo4j + PG 동시 적재 + MV refresh (폴리글랏 §5.5)
+from nice_poc.result import dual_write
+report = dual_write.write_impacts_dual(
     run_id=RUN_ID, scenario_id=SCENARIO_ID, target_year=YEAR,
     impact_table=table, impact_score=tis_df["tis"],
     capped_flag=flag, rho_a=float(rho),
     capped_ratio=max_delta_cap.capped_ratio(flag),
 )
+print(report)   # pg_runs=1, neo4j_impacts=N, pg_impacts=N, mv_refreshed=(...)
 
 # 10) Summary 카드 12키
 print(aggregate.summary_card_full(table, run_id=RUN_ID))
 ```
 
 성공 기준:
-- `nodes` count 가 Firm 수만큼
+- `report.pg_runs == 1`, `report.neo4j_impacts == report.pg_impacts`
+- `report.mv_refreshed == ("mv_impacts_by_sector", "mv_impacts_by_hq")`
+- `SELECT count(*) FROM impacts WHERE run_id='RUN_001'` = firm 수
 - `MATCH (r:SimulationRun {run_id:'RUN_001'})-[i:IMPACTS]->()` 카운트가 firm 수와 일치
-- Summary 카드의 `Revenue_total_Sum` 이 0 이 아님 (Δy 가 적용된 시나리오면)
+- `SELECT revenue_total FROM mv_impacts_by_sector WHERE run_id='RUN_001'` 합계가 Summary 와 정합
 
 ---
 

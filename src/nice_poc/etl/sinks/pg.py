@@ -68,9 +68,15 @@ class PgSink:
         return total
 
     def refresh_mv(self, name: str, *, concurrently: bool = True) -> None:
-        kw = "CONCURRENTLY" if concurrently else ""
-        with self.engine.begin() as conn:
-            conn.execute(text(f"REFRESH MATERIALIZED VIEW {kw} {name}"))
+        # CONCURRENTLY 는 트랜잭션 블록 내 실행 금지. AUTOCOMMIT 격리로 분기.
+        kw = "CONCURRENTLY " if concurrently else ""
+        sql = text(f"REFRESH MATERIALIZED VIEW {kw}{name}")
+        if concurrently:
+            with self.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+                conn.execute(sql)
+        else:
+            with self.engine.begin() as conn:
+                conn.execute(sql)
 
     def count(self, table: str) -> int:
         with self.engine.connect() as conn:

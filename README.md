@@ -15,7 +15,7 @@ NICE Open Innovation PoC — 공급망/수요망 충격 시뮬레이션 백엔�
 | 인프라 (PG/Neo4j/Redis) | docker-compose 기동, healthy |
 | PG 스키마 | 8 테이블 + MV 2 + 확장 3 (vector/pg_trgm/btree_gin) 적용 완료 |
 | Neo4j 스키마 | 제약 9 + 인덱스 17 + APOC 5.24 적용 완료 |
-| Python 모듈 | 1~4주차 (PoC 1차 시연 가능 분량) 구현 + 41 단위 테스트 pass |
+| Python 모듈 | 1~4주차 (PoC 1차 시연 가능 분량) + 폴리글랏 §5.5 dual_write 구현 + 49 단위 테스트 pass |
 | ETL | 디렉토리 컨벤션 + generic upload(임의 컬럼명 매핑) 둘 다 작동 |
 | **레코드** | **0** — 실 데이터 수령 후 적재 시작 |
 
