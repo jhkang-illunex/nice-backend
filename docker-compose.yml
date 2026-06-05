@@ -1,5 +1,105 @@
+## 2-서버 토폴로지
+##
+## ┌─ server1 (graph) ─────────────────┐   ┌─ server2 (data/RAG) ──────────────────┐
+## │  neo4j           : 그래프 본질      │   │  postgres        : 결과/색인/벡터       │
+## │  graph-analysis  : 임팩트 전파 REST │   │  redis           : 캐시                │
+## └───────────────────────────────────┘   │  rag-server      : HSCode/RAG REST     │
+##                                         │  ingestion       : 잡 컨테이너 (oneshot) │
+##                                         │  llm  (옵션)     : 자체 LLM (ollama)    │
+##                                         │  embed (옵션)    : 자체 임베딩 (TEI)     │
+##                                         │  GPU (실배포 시)  : rag/llm/embed 에 부착│
+##                                         └────────────────────────────────────────┘
+##
+## profiles
+##   server1                                  : neo4j + graph-analysis
+##   server2                                  : postgres + redis + rag-server
+##   ingest                                   : ingestion 잡 (보통 server2)
+##   llm-local / embed-local                  : 자체 LLM/임베딩 컨테이너 (OpenAI-호환)
+##
+## 기동 패턴
+##   dev (한 호스트, 인프라+앱+로컬 LLM/Embed):
+##     docker compose --profile server1 --profile server2 \
+##                    --profile llm-local --profile embed-local up -d --build
+##   실배포 server1            : docker compose --profile server1 up -d --build
+##   실배포 server2 (CPU)      : docker compose --profile server2 up -d --build
+##   실배포 server2 (GPU)      : docker compose -f docker-compose.yml -f docker-compose.gpu.yml \
+##                                              --profile server2 up -d --build
+##   ingestion 잡 실행          : docker compose --profile ingest run --rm ingestion \
+##                                python -m nice_ingest run hscode \
+##                                --file=/work/관세청_HS부호_20260101.xlsx
+##
+## LLM/Embed 백엔드 전환 = .env 의 LLM_BASE_URL / EMBED_BASE_URL 1줄 변경.
+## (자체 호스팅 → 외부 OpenAI/Anthropic proxy 모두 동일 OpenAI-호환 REST)
+
 services:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Server 1 — Graph layer
+  # ─────────────────────────────────────────────────────────────────────────────
+  neo4j:
+    profiles: ["server1"]
+    image: neo4j:5.24-community
+    container_name: nice-neo4j
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-nice-poc-2026}
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_server_memory_heap_initial__size: 2G
+      NEO4J_server_memory_heap_max__size: 4G
+      NEO4J_server_memory_pagecache_size: 8G
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+      NEO4J_dbms_security_procedures_allowlist: apoc.*
+      NEO4J_apoc_export_file_enabled: "true"
+      NEO4J_apoc_import_file_enabled: "true"
+      NEO4J_apoc_import_file_use__neo4j__config: "true"
+    ports:
+      - "${NEO4J_HTTP_PORT:-7474}:7474"
+      - "${NEO4J_BOLT_PORT:-7687}:7687"
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+      - neo4j-import:/import
+      - neo4j-plugins:/plugins
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u $${NEO4J_AUTH%/*} -p $${NEO4J_AUTH#*/} 'RETURN 1' || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    restart: unless-stopped
+    networks: [nice-net]
+
+  graph-analysis:
+    profiles: ["server1"]
+    build:
+      context: .
+      dockerfile: deploy/graph-analysis/Dockerfile
+    image: nice/graph-analysis:${APP_TAG:-dev}
+    container_name: nice-graph-analysis
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      NEO4J_HOST: ${NEO4J_HOST_INTERNAL:-neo4j}
+      NEO4J_BOLT_PORT: ${NEO4J_BOLT_PORT_INTERNAL:-7687}
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-nice-poc-2026}
+      NEO4J_DATABASE: ${NEO4J_DATABASE:-neo4j}
+      # 결과 dual-write 시 PG 참조 — 분리 배포면 POSTGRES_HOST 를 server2 로 override
+      POSTGRES_HOST: ${POSTGRES_HOST_INTERNAL:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT_INTERNAL:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-nice}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nice}
+      POSTGRES_DB: ${POSTGRES_DB:-nice}
+    ports:
+      - "${GRAPH_API_PORT:-18001}:8000"
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [nice-net]
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Server 2 — Data + RAG layer
+  # ─────────────────────────────────────────────────────────────────────────────
   postgres:
+    profiles: ["server2"]
     image: pgvector/pgvector:pg16
     container_name: nice-pg
     environment:
@@ -30,37 +130,10 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
-
-  neo4j:
-    image: neo4j:5.24-community
-    container_name: nice-neo4j
-    environment:
-      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-nice-poc-2026}
-      NEO4J_PLUGINS: '["apoc"]'
-      NEO4J_server_memory_heap_initial__size: 2G
-      NEO4J_server_memory_heap_max__size: 4G
-      NEO4J_server_memory_pagecache_size: 8G
-      NEO4J_dbms_security_procedures_unrestricted: apoc.*
-      NEO4J_dbms_security_procedures_allowlist: apoc.*
-      NEO4J_apoc_export_file_enabled: "true"
-      NEO4J_apoc_import_file_enabled: "true"
-      NEO4J_apoc_import_file_use__neo4j__config: "true"
-    ports:
-      - "${NEO4J_HTTP_PORT:-7474}:7474"
-      - "${NEO4J_BOLT_PORT:-7687}:7687"
-    volumes:
-      - neo4j-data:/data
-      - neo4j-logs:/logs
-      - neo4j-import:/import
-      - neo4j-plugins:/plugins
-    healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u $${NEO4J_AUTH%/*} -p $${NEO4J_AUTH#*/} 'RETURN 1' || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-    restart: unless-stopped
+    networks: [nice-net]
 
   redis:
+    profiles: ["server2"]
     image: redis:7-alpine
     container_name: nice-redis
     command:
@@ -81,6 +154,111 @@ services:
       timeout: 3s
       retries: 5
     restart: unless-stopped
+    networks: [nice-net]
+
+  rag-server:
+    profiles: ["server2"]
+    build:
+      context: .
+      dockerfile: deploy/rag-server/Dockerfile
+    image: nice/rag-server:${APP_TAG:-dev}
+    container_name: nice-rag-server
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      POSTGRES_HOST: ${POSTGRES_HOST_INTERNAL:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT_INTERNAL:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-nice}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nice}
+      POSTGRES_DB: ${POSTGRES_DB:-nice}
+      REDIS_HOST: ${REDIS_HOST_INTERNAL:-redis}
+      REDIS_PORT: ${REDIS_PORT_INTERNAL:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      # OpenAI-호환 백엔드 URL — 자체 호스팅 / 외부 API 모두 동일 인터페이스
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://llm:11434/v1}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b-instruct}
+      LLM_API_KEY: ${LLM_API_KEY:-noop}
+      EMBED_BASE_URL: ${EMBED_BASE_URL:-http://embed:8080/v1}
+      EMBED_MODEL: ${EMBED_MODEL:-Qwen/Qwen3-Embedding-0.6B}
+      EMBED_API_KEY: ${EMBED_API_KEY:-noop}
+      EMBED_DIM: ${EMBED_DIM:-1024}
+      EMBED_NORMALIZE: ${EMBED_NORMALIZE:-true}
+      EMBED_QUERY_INSTRUCTION: ${EMBED_QUERY_INSTRUCTION:-}
+    ports:
+      - "${RAG_API_PORT:-18002}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [nice-net]
+
+  ingestion:
+    profiles: ["ingest"]
+    build:
+      context: .
+      dockerfile: deploy/ingestion/Dockerfile
+    image: nice/ingestion:${APP_TAG:-dev}
+    container_name: nice-ingestion
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      POSTGRES_HOST: ${POSTGRES_HOST_INTERNAL:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT_INTERNAL:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-nice}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nice}
+      POSTGRES_DB: ${POSTGRES_DB:-nice}
+      NEO4J_HOST: ${NEO4J_HOST_INTERNAL:-neo4j}
+      NEO4J_BOLT_PORT: ${NEO4J_BOLT_PORT_INTERNAL:-7687}
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-nice-poc-2026}
+      NEO4J_DATABASE: ${NEO4J_DATABASE:-neo4j}
+    volumes:
+      - ./:/work:ro
+    working_dir: /work
+    restart: "no"
+    networks: [nice-net]
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 자체 LLM / 임베딩 — 옵션 (profile 로 토글). 외부 API 로 전환 시엔
+  # 이 두 서비스를 띄우지 않고 LLM_BASE_URL / EMBED_BASE_URL 만 갈아끼움.
+  # ─────────────────────────────────────────────────────────────────────────────
+  llm:
+    profiles: ["llm-local"]
+    image: ollama/ollama:latest
+    container_name: nice-llm
+    ports:
+      - "${LLM_PORT:-11434}:11434"
+    volumes:
+      - llm-models:/root/.ollama
+    # 로컬 dev 는 CPU 로 충분(소형 모델). 실배포 GPU 부착은 gpu.yml override.
+    restart: unless-stopped
+    networks: [nice-net]
+
+  embed:
+    profiles: ["embed-local"]
+    # TEI CPU 이미지 — Qwen3-Embedding 시리즈 호환(1.5+ 부터). 0.6B 는 CPU 에서도
+    # 동작하지만 처리량은 GPU 대비 10~30× 느림. 대용량 일괄 적재는 인내심 필요.
+    # 차원: 1024 (Matryoshka 로 truncate 가능, EMBED_DIM 으로 호출 측에서 지정).
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.6
+    container_name: nice-embed
+    command:
+      - "--model-id"
+      - "${EMBED_MODEL:-Qwen/Qwen3-Embedding-0.6B}"
+      - "--port"
+      - "8080"
+      - "--max-batch-tokens"
+      - "16384"
+    ports:
+      - "${EMBED_PORT:-18080}:8080"
+    volumes:
+      - embed-models:/data
+    environment:
+      HUGGINGFACE_HUB_CACHE: /data
+      HF_HOME: /data
+    restart: unless-stopped
+    networks: [nice-net]
 
 volumes:
   pg-data:
@@ -89,3 +267,9 @@ volumes:
   neo4j-import:
   neo4j-plugins:
   redis-data:
+  llm-models:
+  embed-models:
+
+networks:
+  nice-net:
+    driver: bridge

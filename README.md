@@ -38,39 +38,78 @@ NICE Open Innovation PoC — 공급망/수요망 충격 시뮬레이션 백엔�
 - [`PROGRESS.md`](docs/PROGRESS.md) — 작업 내역 (불변, 4 commit + 49 tests)
 - [`POST_INTAKE_TASKS.md`](docs/POST_INTAKE_TASKS.md) — 데이터 도착 후 작업 큐 (P0~P7)
 
-## 스토리지 토폴로지
+## 서버 토폴로지 (2 호스트)
 
-| 저장소 | 역할 | 인스턴스 |
-|---|---|---|
-| Neo4j 5.x Community | 그래프 본질 (Firm, SUPPLIES, Scenario, drill-down) | docker-compose 신규 싱글 노드 |
-| PostgreSQL 16 + pgvector | 결과 테이블, 정렬·집계, 검색 | docker-compose 신규 |
-| Redis 7 | KPI/좌표/시계열 캐시 | docker-compose 신규 |
+| 서버 | 컴포넌트 | 패키지 / 이미지 | 역할 | GPU |
+|---|---|---|---|---|
+| **server1** (graph)    | `neo4j` (nice-neo4j)            | `neo4j:5.24-community`        | 그래프 본질 (Firm, SUPPLIES, Scenario, drill-down) | — |
+|                         | `graph-analysis`                | `nice_graph` / `nice/graph-analysis:dev` | 임팩트 전파 REST API (Leontief / BiCGStab) | — |
+| **server2** (data/RAG) | `postgres` (nice-pg, pgvector)  | `pgvector/pgvector:pg16`      | 결과/색인/벡터 + HSK / 마스터 적재처 | — |
+|                         | `redis` (nice-redis)            | `redis:7-alpine`              | KPI/좌표/시계열 + RAG 캐시 | — |
+|                         | `rag-server`                    | `nice_rag` / `nice/rag-server:dev` | HSCode/문서 RAG REST (OpenAI-호환 LLM·임베딩 호출) | ✓ (실배포) |
+|                         | `ingestion`                     | `nice_ingest` / `nice/ingestion:dev` | Excel/CSV → PG + Neo4j dual-write 잡 (plugin pipelines) | — |
+|                         | `llm` (옵션)                    | `ollama/ollama`               | 자체 LLM (OpenAI `/v1/`) — URL 변경으로 외부 API 전환 | ✓ (실배포) |
+|                         | `embed` (옵션)                  | `text-embeddings-inference`   | 자체 임베딩 (OpenAI `/v1/embeddings`) — URL 변경으로 외부 API 전환 | ✓ (실배포) |
 
-근거는 `docs/ARCHITECTURE_DECISIONS.md` ADR-001/002 참조.
+코드는 monorepo 안 4개 패키지로 분리되어 있습니다:
+
+```
+src/
+  nice_poc/      # 공용 도메인 코어 (propagation, matrix, shock, db, etl, ...)
+  nice_graph/    # graph-analysis 진입점 (nice_poc 재사용)
+  nice_rag/      # rag-server (config + clients/{llm,embed} + api/routers/hsk)
+  nice_ingest/   # ingestion CLI + pipelines/<name>/ 플러그인 (현재 hscode)
+```
+
+LLM / 임베딩 백엔드 교체 = `.env` 의 `LLM_BASE_URL` / `EMBED_BASE_URL` 1줄 변경.
+자체 호스팅(ollama/vLLM/TEI) ↔ 외부(OpenAI / Anthropic proxy) 가 같은 OpenAI-호환 인터페이스.
 
 ## 빠른 시작
 
 ```bash
 cp .env.example .env
 
-# 인프라 기동 (Neo4j + PG + Redis)
-docker compose up -d
+# (a) 로컬 dev — 인프라 + 앱 + 자체 LLM/Embed 전부 한 호스트에서
+docker compose --profile server1 --profile server2 \
+               --profile llm-local --profile embed-local up -d --build
 
-# Python 환경
+# (b) 로컬 dev — 인프라 + 앱만 (LLM/Embed 는 외부 URL 사용)
+docker compose --profile server1 --profile server2 up -d --build
+
+# (c) 실배포 server1 (graph 박스)
+docker compose --profile server1 up -d --build
+
+# (d) 실배포 server2 (data/RAG 박스, CPU, 외부 LLM/Embed)
+docker compose --profile server2 up -d --build
+
+# (e) 실배포 server2 (data/RAG 박스, GPU, 자체 LLM/Embed)
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml \
+               --profile server2 --profile llm-local --profile embed-local \
+               up -d --build
+
+# (f) ingestion 잡 — HSCode 1차 적재 (구현 후)
+docker compose --profile ingest run --rm ingestion \
+    python -m nice_ingest run hscode --file=/work/관세청_HS부호_20260101.xlsx
+
+# (g) ingestion 잡 — 등록 파이프라인 확인
+docker compose --profile ingest run --rm ingestion python -m nice_ingest list
+
+# Python 환경 (호스트, 로컬 개발)
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[dev,ingest]"
 
 # 헬스체크
-uvicorn nice_poc.api.main:app --reload --port 8000
-curl http://localhost:8000/health
-curl http://localhost:8000/health/deep
+curl http://localhost:${GRAPH_API_PORT:-18001}/health        # server1
+curl http://localhost:${GRAPH_API_PORT:-18001}/health/deep
+curl http://localhost:${RAG_API_PORT:-18002}/health          # server2
+curl http://localhost:${RAG_API_PORT:-18002}/health/deep     # + llm/embed 도달성
 ```
 
 PostgreSQL 스키마는 컨테이너 최초 기동 시 `deploy/postgres/init/*.sql` 이
 자동 적용됩니다. 재적용이 필요하면 볼륨 삭제 후 재기동:
 
 ```bash
-docker compose down -v && docker compose up -d
+docker compose --profile server2 down -v && docker compose --profile server2 up -d
 ```
 
 이후 스키마 변경은 Alembic 으로 추적합니다 (baseline `0001_baseline` 박힘, ADR-004):

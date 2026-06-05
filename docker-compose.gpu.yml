@@ -1,0 +1,48 @@
+## GPU override — 실배포 server2 의 GPU 자원 부착.
+##
+## 영향 서비스: rag-server (자체 임베딩 로딩 시), llm(ollama → vLLM 전환 시),
+##              embed(TEI GPU 이미지).
+##
+## 사용:
+##   docker compose -f docker-compose.yml -f docker-compose.gpu.yml \
+##     --profile server2 --profile llm-local --profile embed-local up -d
+##
+## 조건:
+##   - 호스트에 nvidia-container-toolkit 설치 + `docker info | grep -i nvidia` 확인
+##   - 로컬 dev (CPU only) 에서는 이 파일을 -f 로 끼지 말 것
+
+services:
+  rag-server:
+    environment:
+      NICE_DEVICE: cuda
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  llm:
+    # ollama 는 NVIDIA 런타임이 보이면 자동으로 GPU 사용.
+    # vLLM 으로 전환 시: image: vllm/vllm-openai:latest, command 에 --model ... 추가.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  embed:
+    # CPU 이미지 → GPU 이미지로 교체.
+    image: ghcr.io/huggingface/text-embeddings-inference:1.6
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
