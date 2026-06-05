@@ -1,33 +1,48 @@
-## GPU override — 실배포 server2 의 GPU 자원 부착.
+## GPU override — server2 의 LLM 추론에만 GPU 부착 (vLLM).
 ##
-## 영향 서비스: rag-server (자체 임베딩 로딩 시), llm(ollama → vLLM 전환 시),
-##              embed(TEI GPU 이미지).
+## 왜 vLLM 만인가
+##   - rag-server : 임베딩을 EMBED_BASE_URL 로 위임 → 자체 텐서 연산 없음 → CPU 충분
+##   - embed (TEI): PoC 단계는 CPU 모드로 운영 (Qwen3-Embedding-0.6B, ~50-150 docs/s).
+##                   처리량이 부족해지면 그때 TEI GPU 이미지로 교체 (주석 하단 참조).
+##   - llm        : 7B+ chat 모델은 CPU 추론이 사실상 불가 → GPU 가 본질적으로 필요.
+##                   ollama(개발용 dev 기본) → vLLM(prod GPU) 로 image 교체.
 ##
 ## 사용:
 ##   docker compose -f docker-compose.yml -f docker-compose.gpu.yml \
-##     --profile server2 --profile llm-local --profile embed-local up -d
+##     --profile server2 --profile llm-local up -d
 ##
 ## 조건:
 ##   - 호스트에 nvidia-container-toolkit 설치 + `docker info | grep -i nvidia` 확인
 ##   - 로컬 dev (CPU only) 에서는 이 파일을 -f 로 끼지 말 것
+##
+## vLLM 모델 표기 — ollama 와 다른 형식
+##   ollama (dev) : LLM_MODEL=qwen2.5:7b-instruct
+##   vLLM   (gpu) : LLM_MODEL=Qwen/Qwen2.5-7B-Instruct        (HuggingFace model id)
+##   .env 의 LLM_MODEL 를 prod 환경에서 HF model id 로 갱신해야 함.
+##
+## (선택) embed 도 GPU 로 가야 할 때 — TEI GPU 이미지 + GPU 자원 블록 복사
+##   services.embed:
+##     image: ghcr.io/huggingface/text-embeddings-inference:1.6
+##     deploy:
+##       resources:
+##         reservations:
+##           devices: [{driver: nvidia, count: 1, capabilities: [gpu]}]
 
 services:
-  rag-server:
-    environment:
-      NICE_DEVICE: cuda
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: compute,utility
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-
   llm:
-    # ollama 는 NVIDIA 런타임이 보이면 자동으로 GPU 사용.
-    # vLLM 으로 전환 시: image: vllm/vllm-openai:latest, command 에 --model ... 추가.
+    # ollama → vLLM 으로 교체. vLLM 은 OpenAI 호환 /v1/ 표준 서버.
+    image: vllm/vllm-openai:latest
+    command:
+      - "--model"
+      - "${LLM_MODEL:-Qwen/Qwen2.5-7B-Instruct}"
+      - "--port"
+      - "11434"  # base 의 LLM_BASE_URL=http://llm:11434/v1 와 호환 유지
+      - "--gpu-memory-utilization"
+      - "${LLM_GPU_MEMORY_UTIL:-0.85}"
+    volumes:
+      # HF 모델 캐시 — vLLM 컨테이너 재기동 시 재다운로드 회피
+      - hf-cache:/root/.cache/huggingface
+    ipc: host  # vLLM 권장 — multi-process tensor parallel 안전성
     deploy:
       resources:
         reservations:
@@ -36,13 +51,5 @@ services:
               count: 1
               capabilities: [gpu]
 
-  embed:
-    # CPU 이미지 → GPU 이미지로 교체.
-    image: ghcr.io/huggingface/text-embeddings-inference:1.6
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+volumes:
+  hf-cache:

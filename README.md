@@ -84,10 +84,12 @@ docker compose --profile server1 up -d --build
 # (d) 실배포 server2 (data/RAG 박스, CPU, 외부 LLM/Embed)
 docker compose --profile server2 up -d --build
 
-# (e) 실배포 server2 (data/RAG 박스, GPU, 자체 LLM/Embed)
+# (e) 실배포 server2 (data/RAG 박스, GPU 는 vLLM 만, embed 는 CPU 그대로)
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml \
                --profile server2 --profile llm-local --profile embed-local \
                up -d --build
+# ↑ gpu.yml 은 llm 서비스만 vLLM + GPU 로 교체. rag-server/embed 는 CPU 그대로.
+# .env 의 LLM_MODEL 을 HF id 형식으로 갱신해야 함 (Qwen/Qwen2.5-7B-Instruct).
 
 # (f) ingestion 잡 — HSCode 1차 적재 (구현 후)
 docker compose --profile ingest run --rm ingestion \
@@ -193,19 +195,26 @@ docker exec -i nice-neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" < deploy/ne
 
 ### 백엔드 추상화 — 환경변수 1줄로 swap
 
-```
-LLM_BASE_URL    → http://llm:11434/v1   (ollama)        ─┐
-                  http://llm:8000/v1    (vLLM)            ├─ 모두 OpenAI-호환
-                  https://api.openai.com/v1               │
-                  https://proxy.example.com/v1 (LiteLLM)  ─┘
-
-EMBED_BASE_URL  → http://embed:8080/v1  (TEI CPU)        ─┐
-                  http://embed:8080/v1  (TEI GPU)          ├─ /v1/embeddings 표준
-                  https://api.openai.com/v1               ─┘
-```
-
 `nice_rag/clients/{llm,embed}.py` 는 httpx 한 줄로 `{base_url}/chat/completions`
 또는 `{base_url}/embeddings` 만 호출 — 백엔드 식별 코드/SDK 분기 없음.
+
+| 백엔드 | URL | LLM_MODEL 표기 | GPU |
+|---|---|---|---|
+| ollama (dev 기본)             | `http://llm:11434/v1`           | `qwen2.5:7b-instruct` (tag)        | ✗ 로컬 CPU |
+| vLLM (prod, gpu.yml override) | `http://llm:11434/v1`           | `Qwen/Qwen2.5-7B-Instruct` (HF id) | ✓ 필수 |
+| 외부 OpenAI                   | `https://api.openai.com/v1`     | `gpt-4o-mini` 등                   | — |
+| 외부 LiteLLM proxy            | `https://proxy.example.com/v1`  | proxy 매핑 따름                     | — |
+
+| 임베딩 백엔드 | URL | EMBED_MODEL | GPU |
+|---|---|---|---|
+| TEI CPU (PoC 기본, profile embed-local)  | `http://embed:8080/v1` | `Qwen/Qwen3-Embedding-0.6B` | ✗ CPU 충분 |
+| TEI GPU (대용량 적재 시)                  | `http://embed:8080/v1` | 동일                         | ✓ (옵션) |
+| 외부 OpenAI                              | `https://api.openai.com/v1` | `text-embedding-3-large` 등 | — |
+
+**GPU 가 실제 본질적으로 필요한 컴포넌트는 LLM 추론(7B+) 뿐**입니다. rag-server 는
+임베딩 자체 로딩을 안 하고(원격 호출), embed(TEI) 는 0.6B 모델이라 CPU 로도 PoC
+처리량 (~50-150 docs/s) 이 나옵니다. `docker-compose.gpu.yml` 은 `llm` 만 vLLM 으로
+바꿔 GPU 를 부착하며, rag/embed 의 GPU 부착은 의도적으로 비웠습니다.
 
 ### 멱등성/재실행 보장
 

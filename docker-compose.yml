@@ -226,20 +226,24 @@ services:
   # ─────────────────────────────────────────────────────────────────────────────
   llm:
     profiles: ["llm-local"]
+    # dev 기본 = ollama (CPU 로컬 추론 가능, 소형 모델).
+    # prod GPU 에서는 docker-compose.gpu.yml 이 이 서비스를 vLLM 으로 교체한다
+    # (image / command / ipc / GPU 자원 override). base 의 LLM_BASE_URL 포트
+    # (11434) 가 유지되도록 vLLM 도 --port 11434 로 listen — rag-server 코드 무수정.
     image: ollama/ollama:latest
     container_name: nice-llm
     ports:
       - "${LLM_PORT:-11434}:11434"
     volumes:
       - llm-models:/root/.ollama
-    # 로컬 dev 는 CPU 로 충분(소형 모델). 실배포 GPU 부착은 gpu.yml override.
     restart: unless-stopped
     networks: [nice-net]
 
   embed:
     profiles: ["embed-local"]
-    # TEI CPU 이미지 — Qwen3-Embedding 시리즈 호환(1.5+ 부터). 0.6B 는 CPU 에서도
-    # 동작하지만 처리량은 GPU 대비 10~30× 느림. 대용량 일괄 적재는 인내심 필요.
+    # TEI CPU — Qwen3-Embedding 시리즈 호환(1.5+ 부터). 0.6B 는 CPU 에서도 동작하며
+    # PoC 운영에 충분. GPU 가속이 필요해지면 docker-compose.gpu.yml 의 주석 블록을
+    # 활성(image GPU 태그 + GPU 자원 reservation) 하면 됨.
     # 차원: 1024 (Matryoshka 로 truncate 가능, EMBED_DIM 으로 호출 측에서 지정).
     image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.6
     container_name: nice-embed
