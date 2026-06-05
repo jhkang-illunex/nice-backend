@@ -9,8 +9,8 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from nice_rag import __version__
-from nice_rag.api.routers import health
+from nice_rag.api.routers import health, hsk
 
 app = FastAPI(title="NICE rag-server", version=__version__)
 app.include_router(health.router)
-# /api/hsk 라우터는 검색/임베딩 백엔드 wiring 후 활성 — 다음 commit 에서 include.
+app.include_router(hsk.router)
