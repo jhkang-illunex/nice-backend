@@ -40,29 +40,36 @@ NICE Open Innovation PoC — 공급망/수요망 충격 시뮬레이션 백엔�
 - [`PROGRESS.md`](docs/PROGRESS.md) — 작업 내역 (불변, 4 commit + 49 tests)
 - [`POST_INTAKE_TASKS.md`](docs/POST_INTAKE_TASKS.md) — 데이터 도착 후 작업 큐 (P0~P7)
 - [`RAG_API.md`](docs/RAG_API.md) — rag-server REST API 입출력 명세 (`/api/hsk/{search,agent}` 등)
+- [`NETWORK_API.md`](docs/NETWORK_API.md) — graph-analysis REST API 입출력 명세 (`/api/network/{summary,centrality/*,path,components,neighbors}` 등)
 
-## 서버 토폴로지 (RAG-only)
+## 서버 토폴로지 (RAG + Network)
 
-| 서버 | 컴포넌트 | 패키지 / 이미지 | 역할 | GPU |
+본 compose 는 **두 개 독립 REST 서비스** 를 정의:
+- **rag** (HSCode 검색/에이전트, `rag.hsk` 사용)
+- **network** (그래프 분석, `public.node/edge` 사용)
+
+| 영역 | 컴포넌트 | 패키지 / 이미지 | 역할 | GPU |
 |---|---|---|---|---|
-| **외부 (운영)**          | **PostgreSQL** (`172.30.1.101:5433`, NICE 운영 인스턴스) | (외부) | `rag` schema 에 한정 사용. PG 14+ + vector + pg_trgm 설치 완료. 기존 31 public 테이블 무수정 | — |
-| **server2** (RAG)      | `redis` (nice-redis)            | `redis:7-alpine`              | KPI/좌표/시계열 + RAG 캐시 | — |
-|                         | `rag-server`                    | `nice_rag` / `nice/rag-server:dev` | HSCode/문서 RAG REST (OpenAI-호환 LLM·임베딩 호출) | ✓ (실배포) |
-|                         | `ingestion`                     | `nice_ingest` / `nice/ingestion:dev` | hscode → `rag.hsk` 적재 + hsk_embed 임베딩 잡 (plugin pipelines) | — |
-|                         | `llm` (옵션)                    | `ollama/ollama`               | 자체 LLM (OpenAI `/v1/`) — URL 변경으로 외부 API 전환 | ✓ (실배포) |
-|                         | `embed` (옵션)                  | `text-embeddings-inference`   | 자체 임베딩 (OpenAI `/v1/embeddings`) — URL 변경으로 외부 API 전환 | ✓ (실배포) |
+| **외부 (운영)** | **PostgreSQL** (`172.30.1.101:5433`, NICE 운영) | (외부) | `rag` schema (RAG) + `public.node/edge` (Network) — 운영 31 public 테이블 무수정 | — |
+| **rag**         | `redis` (nice-redis)            | `redis:7-alpine`              | RAG 캐시/세션 | — |
+|                  | `rag-server`                   | `nice_rag` / `nice/rag-server:dev` | HSCode RAG REST (OpenAI-호환 LLM·임베딩 호출) | — |
+|                  | `ingestion` (`ingest` profile) | `nice_ingest` / `nice/ingestion:dev` | hscode → `rag.hsk` 적재 + hsk_embed 임베딩 잡 | — |
+|                  | `llm` (옵션, `llm-local`)      | `ollama/ollama` (dev) → `vllm/vllm-openai` (gpu.yml prod) | 자체 LLM (OpenAI `/v1/`) — URL 변경으로 외부 API 전환 | ✓ (gpu.yml 활성 시) |
+|                  | `embed` (옵션, `embed-local`)  | `text-embeddings-inference`   | 자체 임베딩 (OpenAI `/v1/embeddings`) — URL 변경으로 외부 API 전환 | — |
+| **network**     | `graph-analysis`                | `nice_graph` / `nice/graph-analysis:dev` | `public.node/edge` → networkx 분석 REST | — |
 
-graph-analysis / Neo4j 는 본 compose 외 별도 인프라/형상에서 운영합니다. 코드는
-monorepo 안 4개 패키지로 분리되어 있고, graph 측 패키지는 그대로 보존 — 미래에
-별도 compose 또는 인스턴스로 재추가 가능:
+코드는 monorepo 안 4개 패키지로 분리되어 있고, 각 패키지가 한 컨테이너의 진입점:
 
 ```
 src/
-  nice_poc/      # 공용 도메인 코어 (현재는 RAG 만 활용)
-  nice_graph/    # graph-analysis 진입점 — 본 compose 외 별도 운영
-  nice_rag/      # rag-server (config + clients/{llm,embed} + api/routers/hsk)
+  nice_poc/      # 공용 도메인 코어 (PG 클라이언트, propagation/matrix/shock 등)
+  nice_graph/    # graph-analysis 진입점 (network profile)
+  nice_rag/      # rag-server (rag profile)
   nice_ingest/   # ingestion CLI + pipelines/{hscode, hsk_embed}
 ```
+
+Neo4j 는 현 compose 에 미포함 — `nice_graph` 의 현재 데모는 PG 의 node/edge
+만으로 동작합니다. Neo4j 기반의 propagation/Leontief 통합은 별 단계.
 
 LLM / 임베딩 백엔드 교체 = `.env` 의 `LLM_BASE_URL` / `EMBED_BASE_URL` 1줄 변경.
 자체 호스팅(ollama/vLLM/TEI) ↔ 외부(OpenAI / Anthropic proxy) 가 같은 OpenAI-호환 인터페이스.
@@ -73,15 +80,15 @@ LLM / 임베딩 백엔드 교체 = `.env` 의 `LLM_BASE_URL` / `EMBED_BASE_URL` 
 cp .env.example .env
 
 # (a) 전체 띄움 — rag-server + redis + 자체 LLM/Embed
-docker compose --profile server2 --profile llm-local --profile embed-local up -d --build
+docker compose --profile rag --profile network --profile llm-local --profile embed-local up -d --build
 
 # (b) RAG 코어만 — LLM/Embed 는 외부 API 사용
-docker compose --profile server2 up -d --build
+docker compose --profile rag up -d --build
 # 단 .env 의 LLM_BASE_URL / EMBED_BASE_URL 을 외부 URL 로 설정 필요
 
 # (c) 실배포 — GPU 가 있는 prod 호스트 (vLLM)
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml \
-               --profile server2 --profile llm-local --profile embed-local up -d --build
+               --profile rag --profile network --profile llm-local --profile embed-local up -d --build
 # ↑ gpu.yml 은 llm 서비스만 vLLM + GPU 로 교체. rag-server/embed 는 CPU 그대로.
 # .env 의 LLM_MODEL 을 HF id 형식으로 갱신 (예: Qwen/Qwen2.5-7B-Instruct).
 
@@ -106,8 +113,8 @@ curl http://localhost:${RAG_API_PORT:-18002}/health/deep     # + postgres/redis/
 ```
 
 PostgreSQL 은 **원격 NICE 운영 인스턴스(`172.30.1.101`)** 를 사용합니다 — compose
-정의에서 로컬 PG 컨테이너는 제거됨. 따라서 `--profile server2` 가 띄우는 것은
-`redis + rag-server` 2개 뿐입니다.
+정의에서 로컬 PG 컨테이너는 제거됨. 따라서 `--profile rag --profile network` 가 띄우는 것은
+`redis + rag-server + graph-analysis` 3개입니다.
 
 `.env` 의 PG 관련 변수만 운영 인스턴스를 가리키고 있으면 됩니다:
 
@@ -145,9 +152,9 @@ docker exec -i nice-neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" < deploy/ne
 | 패키지 | 컨테이너 | DBMS | 책임 |
 |---|---|---|---|
 | `nice_poc`    | (공용)            | —              | 도메인 코어 — propagation/matrix/shock/indicator/safety/result/db 클라이언트 |
-| `nice_graph`  | `graph-analysis`  | Neo4j (+ PG 결과 dual-write) | 임팩트 전파 REST API. `nice_poc` 의 라우터(scenarios/runs/network/firms/aggregates/kpi)를 그대로 마운트 |
+| `nice_graph`  | `graph-analysis`  | PostgreSQL (read-only) | `public.node/edge` → networkx 네트워크 분석 REST API (centrality / path / components / neighbors) — 데모 단계 |
 | `nice_rag`    | `rag-server`      | PostgreSQL + Redis | HSCode/문서 RAG REST API + LLM/임베딩 클라이언트 — `clients/{llm,embed}` 가 OpenAI-호환 base_url 만 호출 |
-| `nice_ingest` | `ingestion`       | PG + Neo4j (dual) | 잡 컨테이너 CLI + `pipelines/<name>/` 플러그인 (현재: `hscode`, `hsk_embed`) |
+| `nice_ingest` | `ingestion`       | PG (rag.hsk) | 잡 컨테이너 CLI + `pipelines/<name>/` 플러그인 (현재: `hscode`, `hsk_embed`) |
 
 ### HSCode RAG — 4단계 파이프라인
 
@@ -291,7 +298,7 @@ docker compose --profile ingest run --rm ingestion alembic downgrade -1
 .venv/bin/alembic upgrade head --sql
 ```
 
-### API — `rag-server` (server2)
+### API — `rag-server` (rag)
 
 ```bash
 # 1) 헬스 — pg/redis/llm/embed 도달성 한 번에
@@ -330,7 +337,7 @@ curl "http://localhost:18001/api/firms/{firm_id}/network"        # drill-down
 
 ```bash
 # 0) 인프라 + 자체 LLM/Embed
-docker compose --profile server2 --profile embed-local --profile llm-local up -d --build
+docker compose --profile rag --profile network --profile embed-local --profile llm-local up -d --build
 
 # 1) hsk 테이블 생성
 docker compose --profile ingest run --rm ingestion alembic upgrade head
