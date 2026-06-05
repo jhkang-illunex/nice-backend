@@ -2,7 +2,7 @@
 ##
 ## 왜 vLLM 만인가
 ##   - rag-server : 임베딩을 EMBED_BASE_URL 로 위임 → 자체 텐서 연산 없음 → CPU 충분
-##   - embed (TEI): PoC 단계는 CPU 모드로 운영 (Qwen3-Embedding-0.6B, ~50-150 docs/s).
+##   - embed (TEI): PoC 단계는 CPU 모드로 운영 (BAAI/bge-m3, 실측 ~8-13 docs/s).
 ##                   처리량이 부족해지면 그때 TEI GPU 이미지로 교체 (주석 하단 참조).
 ##   - llm        : 7B+ chat 모델은 CPU 추론이 사실상 불가 → GPU 가 본질적으로 필요.
 ##                   ollama(개발용 dev 기본) → vLLM(prod GPU) 로 image 교체.

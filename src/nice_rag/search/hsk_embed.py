@@ -1,10 +1,15 @@
-"""HSK 임베딩 헬퍼 — Qwen3-Embedding-0.6B 권장 패턴 적용.
+"""HSK 임베딩 헬퍼 — OpenAI-호환 임베딩 API (현 운영: BAAI/bge-m3).
 
-권장사항(모델 카드 §Usage):
-  1. **query 측에만** instruct prefix 부착, document 측은 raw text 그대로.
-  2. 코사인 유사도 색인 사용 → 임베딩 정규화(L2) 권장.
-  3. 출력 1024-d. Matryoshka 로 32~1024 사이 truncate 가능
-     (호출 측 ``EMBED_DIM`` 으로 지정; 본 헬퍼는 truncate 후 재정규화).
+권장사항 (모델 family 별로 다름):
+  - BGE-M3 (현 default)   : query 도 raw text 사용. instruct prefix 권장 X.
+                            ``EMBED_QUERY_INSTRUCTION`` 비워두면 raw 호출 — 표준.
+  - Qwen3-Embedding 류    : query 에 "Instruct: ...\\nQuery: ..." prefix 권장.
+                            ``EMBED_QUERY_INSTRUCTION`` 채우면 자동 적용.
+
+공통:
+  1. 코사인 유사도 색인 사용 → 임베딩 정규화(L2) 권장 (``EMBED_NORMALIZE=True``).
+  2. 출력 차원은 모델별 (BGE-M3 = 1024, Qwen3-0.6B = 1024). Matryoshka 지원 모델은
+     ``EMBED_DIM`` 으로 truncate 후 재정규화.
 
 본 헬퍼는 *모델 무관* 코드만 두고, 모델 ID 는 ``RagSettings`` 에서 주입한다 —
 ``EMBED_MODEL`` 환경변수만 바꾸면 다른 모델로 swap 가능(차원만 맞으면 됨).
@@ -48,7 +53,11 @@ def _postprocess(vec: Sequence[float], *, dim: int, normalize: bool) -> list[flo
 
 
 def _format_query(text: str, instruction: str) -> str:
-    """Qwen3 retrieval 표준 포맷 — `Instruct: {task}\\nQuery: {q}`."""
+    """Instruct-style retrieval 포맷 — `Instruct: {task}\\nQuery: {q}`.
+
+    Qwen3-Embedding 류가 권장하는 패턴. BGE-M3 같이 raw query 를 선호하는 모델
+    에서는 호출 측이 ``instruction`` 을 빈 문자열로 두면 raw 텍스트가 그대로 반환.
+    """
     instruction = (instruction or "").strip()
     if not instruction:
         return text
@@ -67,7 +76,7 @@ def embed_documents(texts: Iterable[str]) -> list[list[float]]:
 
 
 def embed_query(text: str) -> list[float]:
-    """쿼리 임베딩 — Qwen3 권장 instruct prefix 적용."""
+    """쿼리 임베딩 — ``EMBED_QUERY_INSTRUCTION`` 이 비어 있지 않을 때만 prefix 적용."""
     s = get_rag_settings()
     client = get_embed_client()
     formatted = _format_query(text, s.embed_query_instruction)

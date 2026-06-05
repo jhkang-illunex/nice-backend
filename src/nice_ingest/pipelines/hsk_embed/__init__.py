@@ -11,7 +11,7 @@ from nice_ingest.registry import Pipeline, register
 register(
     Pipeline(
         name="hsk_embed",
-        description="hsk.search_text → Qwen3-Embedding-0.6B → hsk.embedding (UPDATE)",
+        description="hsk.search_text → 임베딩 백엔드(EMBED_MODEL) → hsk.embedding (UPDATE)",
         add_args=add_args,
         run=run,
     )

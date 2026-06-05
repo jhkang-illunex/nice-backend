@@ -150,7 +150,7 @@ services:
       LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b-instruct}
       LLM_API_KEY: ${LLM_API_KEY:-noop}
       EMBED_BASE_URL: ${EMBED_BASE_URL:-http://embed:8080/v1}
-      EMBED_MODEL: ${EMBED_MODEL:-Qwen/Qwen3-Embedding-0.6B}
+      EMBED_MODEL: ${EMBED_MODEL:-BAAI/bge-m3}
       EMBED_API_KEY: ${EMBED_API_KEY:-noop}
       EMBED_DIM: ${EMBED_DIM:-1024}
       EMBED_NORMALIZE: ${EMBED_NORMALIZE:-true}
@@ -212,15 +212,15 @@ services:
 
   embed:
     profiles: ["embed-local"]
-    # TEI CPU — Qwen3-Embedding 시리즈 호환(1.5+ 부터). 0.6B 는 CPU 에서도 동작하며
-    # PoC 운영에 충분. GPU 가속이 필요해지면 docker-compose.gpu.yml 의 주석 블록을
-    # 활성(image GPU 태그 + GPU 자원 reservation) 하면 됨.
-    # 차원: 1024 (Matryoshka 로 truncate 가능, EMBED_DIM 으로 호출 측에서 지정).
+    # TEI CPU — BAAI/bge-m3 (XLM-R 기반 다국어 retrieval). 0.6B 정도 크기로 CPU
+    # 에서도 PoC 운영 가능. GPU 가속이 필요해지면 docker-compose.gpu.yml 의 주석
+    # 블록을 활성(image GPU 태그 + GPU 자원 reservation) 하면 됨.
+    # 차원: 1024 (모델 출력 그대로). 다른 모델로 swap 시 EMBED_MODEL 한 줄 변경.
     image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.6
     container_name: nice-embed
     command:
       - "--model-id"
-      - "${EMBED_MODEL:-Qwen/Qwen3-Embedding-0.6B}"
+      - "${EMBED_MODEL:-BAAI/bge-m3}"
       - "--port"
       - "8080"
       - "--max-batch-tokens"

@@ -18,7 +18,7 @@ NICE Open Innovation PoC — 공급망/수요망 충격 시뮬레이션 백엔�
 | Python 모듈 | 1~4주차 (PoC 1차 시연 가능 분량) + 폴리글랏 §5.5 dual_write 구현 + 49 단위 테스트 pass |
 | 서비스 분리 | `nice_poc`(코어) / `nice_graph` / `nice_rag` / `nice_ingest` 4 패키지 · 이미지 3개 분리 |
 | ETL | 디렉토리 컨벤션 + generic upload(임의 컬럼명 매핑) 둘 다 작동 |
-| HSCode RAG | `hsk` 테이블(alembic 0002) + hscode 적재 + Qwen3-Embedding-0.6B + RRF hybrid + LLM 에이전트 (코드 완료) |
+| HSCode RAG | `hsk` 테이블(alembic 0002) + hscode 적재 + BAAI/bge-m3 + RRF hybrid + LLM 에이전트 (코드 완료) |
 | **레코드** | **0** — 실 데이터 수령 후 적재 시작 |
 
 **실 데이터가 도착하면** → [docs/DATA_INTAKE.md](docs/DATA_INTAKE.md) 의 6단계
@@ -183,7 +183,7 @@ docker exec -i nice-neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" < deploy/ne
                     │   build_document_text(name_ko, std, ...)            │
                     ▼                                                     │
                     EMBED_BASE_URL (TEI / vLLM / OpenAI)                   │
-                    Qwen3-Embedding-0.6B  ─ 1024-d, L2 norm                │
+                    BAAI/bge-m3  ─ 1024-d, L2 norm                          │
                                                                           ▼
                       ┌────────────────────────────────────────────────────────┐
                       │  hsk.embedding 12,469 rows × vector(1024)  채움 완료     │
@@ -218,7 +218,7 @@ docker exec -i nice-neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" < deploy/ne
 
 | 임베딩 백엔드 | URL | EMBED_MODEL | GPU |
 |---|---|---|---|
-| TEI CPU (PoC 기본, profile embed-local)  | `http://embed:8080/v1` | `Qwen/Qwen3-Embedding-0.6B` | ✗ CPU 충분 |
+| TEI CPU (PoC 기본, profile embed-local)  | `http://embed:8080/v1` | `BAAI/bge-m3` (XLM-R 기반, 1024-d) | ✗ CPU 충분 |
 | TEI GPU (대용량 적재 시)                  | `http://embed:8080/v1` | 동일                         | ✓ (옵션) |
 | 외부 OpenAI                              | `https://api.openai.com/v1` | `text-embedding-3-large` 등 | — |
 
@@ -244,7 +244,7 @@ docker exec -i nice-neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" < deploy/ne
 # 등록된 파이프라인 나열
 docker compose --profile ingest run --rm ingestion python -m nice_ingest list
 #   hscode      관세청 HS부호 xlsx → pg.hsk (1차 적재; 색인/임베딩은 별 단계)
-#   hsk_embed   hsk.search_text → Qwen3-Embedding-0.6B → hsk.embedding (UPDATE)
+#   hsk_embed   hsk.search_text → 임베딩 백엔드(EMBED_MODEL) → hsk.embedding (UPDATE)
 
 # 1차 적재 — Excel → hsk
 docker compose --profile ingest run --rm ingestion \

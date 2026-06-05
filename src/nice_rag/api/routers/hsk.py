@@ -96,7 +96,7 @@ def search(
     q: str = Query(..., min_length=1, max_length=200),
     limit: int = Query(10, ge=1, le=50),
 ) -> list[HskHit]:
-    """키워드 → Qwen3-Embedding-0.6B query → RRF(vec + trgm + ts)."""
+    """키워드 → 임베딩 백엔드(EMBED_MODEL) query → RRF(vec + trgm + ts)."""
     qvec = _embed_or_503(q)
     hits = _search_or_503(q, qvec, limit)
     return [_to_hit(h) for h in hits]
