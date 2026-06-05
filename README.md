@@ -16,7 +16,9 @@ NICE Open Innovation PoC — 공급망/수요망 충격 시뮬레이션 백엔�
 | PG 스키마 | 8 테이블 + MV 2 + 확장 3 (vector/pg_trgm/btree_gin) 적용 완료 |
 | Neo4j 스키마 | 제약 9 + 인덱스 17 + APOC 5.24 적용 완료 |
 | Python 모듈 | 1~4주차 (PoC 1차 시연 가능 분량) + 폴리글랏 §5.5 dual_write 구현 + 49 단위 테스트 pass |
+| 서비스 분리 | `nice_poc`(코어) / `nice_graph` / `nice_rag` / `nice_ingest` 4 패키지 · 이미지 3개 분리 |
 | ETL | 디렉토리 컨벤션 + generic upload(임의 컬럼명 매핑) 둘 다 작동 |
+| HSCode RAG | `hsk` 테이블(alembic 0002) + hscode 적재 + Qwen3-Embedding-0.6B + RRF hybrid + LLM 에이전트 (코드 완료) |
 | **레코드** | **0** — 실 데이터 수령 후 적재 시작 |
 
 **실 데이터가 도착하면** → [docs/DATA_INTAKE.md](docs/DATA_INTAKE.md) 의 6단계
@@ -127,30 +129,246 @@ docker exec -i nice-neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" < deploy/ne
 docker exec -i nice-neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" < deploy/neo4j/indexes.cypher
 ```
 
+## 시스템 구현
+
+### 패키지 책임
+
+| 패키지 | 컨테이너 | DBMS | 책임 |
+|---|---|---|---|
+| `nice_poc`    | (공용)            | —              | 도메인 코어 — propagation/matrix/shock/indicator/safety/result/db 클라이언트 |
+| `nice_graph`  | `graph-analysis`  | Neo4j (+ PG 결과 dual-write) | 임팩트 전파 REST API. `nice_poc` 의 라우터(scenarios/runs/network/firms/aggregates/kpi)를 그대로 마운트 |
+| `nice_rag`    | `rag-server`      | PostgreSQL + Redis | HSCode/문서 RAG REST API + LLM/임베딩 클라이언트 — `clients/{llm,embed}` 가 OpenAI-호환 base_url 만 호출 |
+| `nice_ingest` | `ingestion`       | PG + Neo4j (dual) | 잡 컨테이너 CLI + `pipelines/<name>/` 플러그인 (현재: `hscode`, `hsk_embed`) |
+
+### HSCode RAG — 4단계 파이프라인
+
+```
+                      ┌────────────────────────────────────────────────────────┐
+                      │  관세청_HS부호_xxxxxxxx.xlsx  (12,469 rows × 21 cols)    │
+                      └───────────────────────────┬────────────────────────────┘
+                                                  │
+                          (1차 적재)               │  nice_ingest run hscode --file=...
+                                                  ▼
+                      ┌────────────────────────────────────────────────────────┐
+                      │  PostgreSQL.hsk  ─ hs_code(PK) + 텍스트 + 단가/규격 + ...│
+                      │       STORED GENERATED:                                │
+                      │         hs2/hs4/hs6 = substr(hs_code, 1, N)            │
+                      │         search_text = concat_ws(' | ', 5필드)          │
+                      │         search_tsv  = to_tsvector('simple', ...)       │
+                      │       embedding vector(1024)  ─── NULL (3차에서 채움)   │
+                      └───────────────────────────┬────────────────────────────┘
+                                                  │
+                          (2차 색인 — 자동)        │  alembic 0002_hsk 이 8개 인덱스 부여
+                                                  │  btree(valid_to, hs2/4/6) + GIN(tsv, trgm×2)
+                                                  │  + HNSW(embedding vector_cosine_ops)
+                                                  ▼
+                          (3차 임베딩)             │  nice_ingest run hsk_embed --batch-size 64
+                                                  │
+                          ┌───────────────────────┴───────────────────────┐
+                          ▼                                               ▼
+                    embed_documents()                              UPDATE hsk SET embedding=...
+                    │   build_document_text(name_ko, std, ...)            │
+                    ▼                                                     │
+                    EMBED_BASE_URL (TEI / vLLM / OpenAI)                   │
+                    Qwen3-Embedding-0.6B  ─ 1024-d, L2 norm                │
+                                                                          ▼
+                      ┌────────────────────────────────────────────────────────┐
+                      │  hsk.embedding 12,469 rows × vector(1024)  채움 완료     │
+                      └───────────────────────────┬────────────────────────────┘
+                                                  │
+                          (4차 검색/에이전트)       │  GET /api/hsk/{search,agent}
+                                                  ▼
+                      ┌────────────────────────────────────────────────────────┐
+                      │  hsk_index.search_hybrid  ─ 단일 SQL CTE 안 RRF        │
+                      │      vec rank (embedding <=> qvec)                     │
+                      │    + trg rank (search_text <-> qtext)                  │
+                      │    + ts  rank (ts_rank with plainto_tsquery)           │
+                      │      score = Σ 1/(rrf_k + rank_i)                      │
+                      └───────────────────────────┬────────────────────────────┘
+                                                  │
+                                                  ▼
+                      [/api/hsk/search] → list[HskHit]
+                      [/api/hsk/agent]  → LLM_BASE_URL (Qwen2.5-7B 등) → HskAnswer + citations
+```
+
+### 백엔드 추상화 — 환경변수 1줄로 swap
+
+```
+LLM_BASE_URL    → http://llm:11434/v1   (ollama)        ─┐
+                  http://llm:8000/v1    (vLLM)            ├─ 모두 OpenAI-호환
+                  https://api.openai.com/v1               │
+                  https://proxy.example.com/v1 (LiteLLM)  ─┘
+
+EMBED_BASE_URL  → http://embed:8080/v1  (TEI CPU)        ─┐
+                  http://embed:8080/v1  (TEI GPU)          ├─ /v1/embeddings 표준
+                  https://api.openai.com/v1               ─┘
+```
+
+`nice_rag/clients/{llm,embed}.py` 는 httpx 한 줄로 `{base_url}/chat/completions`
+또는 `{base_url}/embeddings` 만 호출 — 백엔드 식별 코드/SDK 분기 없음.
+
+### 멱등성/재실행 보장
+
+| 단계 | 멱등 메커니즘 |
+|---|---|
+| 1차 적재 (hscode)         | `INSERT ... ON CONFLICT (hs_code) DO UPDATE` — 같은 Excel 재실행 안전 |
+| 3차 임베딩 (hsk_embed)    | 기본 `only_missing=true` (embedding IS NULL row 만) — 중단 시 자연 재개. `--rebuild` 로 전체 재임베딩 |
+| 알렘빅                    | `0001_baseline` → `0002_hsk` 선형 + downgrade 정의 — 롤백 가능 |
+| 트리거                    | `updated_at` 자동 갱신 (변경 추적) |
+
+## CLI 레퍼런스
+
+### `nice_ingest` — 데이터/임베딩 잡
+
+```bash
+# 등록된 파이프라인 나열
+docker compose --profile ingest run --rm ingestion python -m nice_ingest list
+#   hscode      관세청 HS부호 xlsx → pg.hsk (1차 적재; 색인/임베딩은 별 단계)
+#   hsk_embed   hsk.search_text → Qwen3-Embedding-0.6B → hsk.embedding (UPDATE)
+
+# 1차 적재 — Excel → hsk
+docker compose --profile ingest run --rm ingestion \
+    python -m nice_ingest run hscode \
+    --file=/work/관세청_HS부호_20260101.xlsx \
+    [--active-only] [--dry-run]
+
+# 3차 임베딩 — search_text → embedding
+docker compose --profile ingest run --rm ingestion \
+    python -m nice_ingest run hsk_embed \
+    [--batch-size 64] [--rebuild] [--limit N] [--dry-run]
+```
+
+옵션 매트릭스:
+
+| 파이프라인 | 옵션 | 의미 |
+|---|---|---|
+| `hscode`    | `--file PATH`     | (필수) Excel 경로 — 컨테이너 안 `/work/` 가 호스트 루트 |
+| `hscode`    | `--active-only`   | `valid_to >= today` 인 row 만 적재 |
+| `hscode`    | `--dry-run`       | DB 미접속, 파싱/통계만 |
+| `hsk_embed` | `--batch-size N`  | 임베딩 API 1회 호출 텍스트 수 (TEI CPU 32~128 권장) |
+| `hsk_embed` | `--rebuild`       | 기존 `embedding` 도 재임베딩 (기본은 NULL row 만) |
+| `hsk_embed` | `--limit N`       | 디버깅용 처리 상한 |
+| `hsk_embed` | `--dry-run`       | UPDATE 미실행, 임베딩 호출까지만 |
+
+### 새 파이프라인 추가 (firms / supplies / trade 등)
+
+```
+src/nice_ingest/pipelines/<name>/
+├── __init__.py    # register(Pipeline(name, description, add_args, run))
+└── pipeline.py    # add_args(parser) + run(ns) -> int
+```
+
+`registry._autoload()` 가 `pkgutil.iter_modules` 로 자동 발견 — CLI 수정 불요.
+
+### `alembic` — 스키마 마이그레이션
+
+```bash
+# 컨테이너 안에서 실행 (ingestion 이미지에 alembic 포함)
+docker compose --profile ingest run --rm ingestion alembic current
+docker compose --profile ingest run --rm ingestion alembic upgrade head
+docker compose --profile ingest run --rm ingestion alembic downgrade -1
+
+# 신규 revision 작성 (호스트의 venv 에서 작업 후 git add)
+.venv/bin/alembic revision -m "add column X"
+
+# offline 모드 — 라이브 DB 없이 raw DDL 만 출력 (검수용)
+.venv/bin/alembic upgrade head --sql
+```
+
+### API — `rag-server` (server2)
+
+```bash
+# 1) 헬스 — pg/redis/llm/embed 도달성 한 번에
+curl http://localhost:18002/health/deep
+
+# 2) HSCode 검색 — 키워드 → RRF(vec + trgm + ts) → 후보 리스트
+curl "http://localhost:18002/api/hsk/search?q=농가+사육용+말&limit=5"
+
+# 3) HSCode 자연어 에이전트 — 검색 + LLM 한국어 요약/근거 인용
+curl "http://localhost:18002/api/hsk/agent?q=경주마+수입할+때+적용되는+HS코드&k=5"
+```
+
+응답 status code 의미:
+
+| code | 원인 | 해결 |
+|---|---|---|
+| 200  | 정상                                        | — |
+| 200 + `"후보 없음"` 메시지 | 검색 결과 0건                | 쿼리 조정 또는 임베딩 적재 확인 |
+| 501  | (이번 단계에 없음 — 모든 stub 가 본체로 활성됨) | — |
+| 503  | embed 백엔드 불통                          | `embed` 컨테이너 / `EMBED_BASE_URL` 확인 |
+| 503  | llm 백엔드 불통                            | `llm` 컨테이너 / `LLM_BASE_URL` 확인 |
+| 503  | hsk 테이블 미마이그레이션 / DB 불통          | `alembic upgrade head` 또는 `nice-pg` healthy 확인 |
+
+### API — `graph-analysis` (server1)
+
+```bash
+curl http://localhost:18001/health/deep                          # neo4j/pg 도달성
+curl http://localhost:18001/api/scenarios                        # 시나리오 리스트
+curl -X POST http://localhost:18001/api/runs -d '{...}'          # 시뮬 트리거
+curl "http://localhost:18001/api/firms/{firm_id}/network"        # drill-down
+```
+
+엔드포인트 전체 목록은 `nice_poc.api.routers` 의 라우터별 `prefix` 참조.
+
+### end-to-end 운영 흐름 (4 명령)
+
+```bash
+# 0) 인프라 + 자체 LLM/Embed
+docker compose --profile server2 --profile embed-local --profile llm-local up -d --build
+
+# 1) hsk 테이블 생성
+docker compose --profile ingest run --rm ingestion alembic upgrade head
+
+# 2) Excel → hsk (12,469 row)
+docker compose --profile ingest run --rm ingestion \
+    python -m nice_ingest run hscode --file=/work/관세청_HS부호_20260101.xlsx
+
+# 3) hsk.search_text → embedding (TEI CPU 기준 2~4분)
+docker compose --profile ingest run --rm ingestion \
+    python -m nice_ingest run hsk_embed --batch-size 64
+
+# 4) 검증
+curl "http://localhost:18002/api/hsk/agent?q=농가+사육용+말&k=5"
+```
+
 ## 디렉토리 구조
 
 ```
 .
 ├── docs/                       # 설계서 (docx) + ADR
+├── alembic/versions/           # 0001_baseline, 0002_hsk, ...
 ├── deploy/
 │   ├── postgres/init/          # docker entrypoint 가 자동 적용
-│   └── neo4j/                  # 수동 적용 cypher
-├── src/nice_poc/
+│   ├── neo4j/                  # 수동 적용 cypher
+│   ├── graph-analysis/         # Dockerfile (slim, base deps)
+│   ├── rag-server/             # Dockerfile (.[rag])
+│   └── ingestion/              # Dockerfile (.[ingest] — openpyxl)
+├── src/nice_poc/               # 공용 도메인 코어 (변경 없음)
 │   ├── config/                 # pydantic-settings (.env 로딩)
 │   ├── db/                     # Neo4j / PG / Redis 클라이언트
-│   ├── api/                    # FastAPI 진입점 + 라우터
+│   ├── api/                    # FastAPI 라우터 (graph-analysis 가 재사용)
 │   ├── data/                   # Neo4j → DataFrame + scipy.sparse
-│   ├── matrix/                 # A / A1 / H / R / B 행렬
-│   ├── shock/                  # 8종 시나리오 Δy
-│   ├── propagation/            # BiCGSTAB / Sparse LU / 한주동 BFS
-│   ├── indicator/              # Edge Value / TIS / Network CRI
-│   ├── safety/                 # ρ(A) / row-normalize / cap / hub
+│   ├── matrix/ shock/ propagation/ indicator/ safety/
 │   ├── estimate/               # 보조 ML (extras=ml)
-│   └── result/                 # impact_table + :IMPACTS 적재
+│   ├── result/                 # impact_table + :IMPACTS 적재
+│   └── etl/                    # 기존 CSV 적재 (firms/supplies/trade/...)
+├── src/nice_graph/             # graph-analysis 진입점
+│   └── api/main.py             # nice_poc 라우터 마운트
+├── src/nice_rag/               # rag-server
+│   ├── config.py               # RagSettings (LLM/EMBED_BASE_URL 등)
+│   ├── clients/{llm,embed}.py  # OpenAI-호환 base_url 클라이언트
+│   ├── search/{hsk_embed,hsk_index}.py  # 임베딩 헬퍼 + RRF hybrid SQL
+│   └── api/routers/{health,hsk}.py      # /health, /api/hsk/{search,agent}
+├── src/nice_ingest/            # 잡 CLI + 플러그인 파이프라인
+│   ├── __main__.py registry.py
+│   └── pipelines/
+│       ├── hscode/             # Excel → pg.hsk
+│       └── hsk_embed/          # search_text → embedding
 ├── tests/
-├── docker-compose.yml
-├── pyproject.toml
-└── .env.example
+├── docker-compose.yml          # 7 services × 5 profiles
+├── docker-compose.gpu.yml      # rag/llm/embed GPU override
+├── pyproject.toml              # hatch packages 4개 + [rag]/[ingest] extras
+└── .env.example                # LLM/EMBED_BASE_URL 등 전체
 ```
 
 `cache/`(PoC 2차), `sync/`(운영 1.0), `search/`(운영 1.1) 은 phase 진입 시
