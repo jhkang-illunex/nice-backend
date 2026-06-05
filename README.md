@@ -46,10 +46,10 @@ NICE Open Innovation PoC — 공급망/수요망 충격 시뮬레이션 백엔�
 |---|---|---|---|---|
 | **server1** (graph)    | `neo4j` (nice-neo4j)            | `neo4j:5.24-community`        | 그래프 본질 (Firm, SUPPLIES, Scenario, drill-down) | — |
 |                         | `graph-analysis`                | `nice_graph` / `nice/graph-analysis:dev` | 임팩트 전파 REST API (Leontief / BiCGStab) | — |
-| **server2** (data/RAG) | `postgres` (nice-pg, pgvector)  | `pgvector/pgvector:pg16`      | 결과/색인/벡터 + HSK / 마스터 적재처 | — |
-|                         | `redis` (nice-redis)            | `redis:7-alpine`              | KPI/좌표/시계열 + RAG 캐시 | — |
+| **외부 (운영)**          | **PostgreSQL** (`172.30.1.101`, NICE 운영 인스턴스) | (외부) | 결과/색인/벡터 + HSK / 마스터 적재처. **DBA 가 PG 14+ 업그레이드 + `vector`/`pg_trgm` 확장 설치 + nice user 권한 부여 진행 중** — 완료 후 `rag` schema 에 한정해 사용 (기존 31 테이블 무수정) | — |
+| **server2** (RAG)      | `redis` (nice-redis)            | `redis:7-alpine`              | KPI/좌표/시계열 + RAG 캐시 | — |
 |                         | `rag-server`                    | `nice_rag` / `nice/rag-server:dev` | HSCode/문서 RAG REST (OpenAI-호환 LLM·임베딩 호출) | ✓ (실배포) |
-|                         | `ingestion`                     | `nice_ingest` / `nice/ingestion:dev` | Excel/CSV → PG + Neo4j dual-write 잡 (plugin pipelines) | — |
+|                         | `ingestion`                     | `nice_ingest` / `nice/ingestion:dev` | Excel/CSV → 원격 PG + Neo4j dual-write 잡 (plugin pipelines) | — |
 |                         | `llm` (옵션)                    | `ollama/ollama`               | 자체 LLM (OpenAI `/v1/`) — URL 변경으로 외부 API 전환 | ✓ (실배포) |
 |                         | `embed` (옵션)                  | `text-embeddings-inference`   | 자체 임베딩 (OpenAI `/v1/embeddings`) — URL 변경으로 외부 API 전환 | ✓ (실배포) |
 
@@ -109,12 +109,23 @@ curl http://localhost:${RAG_API_PORT:-18002}/health          # server2
 curl http://localhost:${RAG_API_PORT:-18002}/health/deep     # + llm/embed 도달성
 ```
 
-PostgreSQL 스키마는 컨테이너 최초 기동 시 `deploy/postgres/init/*.sql` 이
-자동 적용됩니다. 재적용이 필요하면 볼륨 삭제 후 재기동:
+PostgreSQL 은 **원격 NICE 운영 인스턴스(`172.30.1.101`)** 를 사용합니다 — compose
+정의에서 로컬 PG 컨테이너는 제거됨. 따라서 `--profile server2` 가 띄우는 것은
+`redis + rag-server` 2개 뿐입니다.
 
-```bash
-docker compose --profile server2 down -v && docker compose --profile server2 up -d
+`.env` 의 PG 관련 변수만 운영 인스턴스를 가리키고 있으면 됩니다:
+
+```env
+POSTGRES_HOST=172.30.1.101
+POSTGRES_PORT=5432
+POSTGRES_USER=nice
+POSTGRES_PASSWORD=...
+POSTGRES_DB=nice_innovation
 ```
+
+`deploy/postgres/init/*.sql` 은 더 이상 자동 적용되지 않습니다(로컬 PG 폐기).
+운영 PG 의 31 개 기존 테이블/스키마는 **무수정** 이며, 우리 RAG 는 별도
+`rag` 스키마에 격리됩니다 (`rag.hsk`, `rag.alembic_version` 등).
 
 이후 스키마 변경은 Alembic 으로 추적합니다 (baseline `0001_baseline` 박힘, ADR-004):
 

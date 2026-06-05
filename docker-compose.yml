@@ -81,12 +81,12 @@ services:
       NEO4J_USER: ${NEO4J_USER:-neo4j}
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:-nice-poc-2026}
       NEO4J_DATABASE: ${NEO4J_DATABASE:-neo4j}
-      # 결과 dual-write 시 PG 참조 — 분리 배포면 POSTGRES_HOST 를 server2 로 override
-      POSTGRES_HOST: ${POSTGRES_HOST_INTERNAL:-postgres}
-      POSTGRES_PORT: ${POSTGRES_PORT_INTERNAL:-5432}
+      # 결과 dual-write 시 PG 참조 — 원격 NICE 운영 인스턴스
+      POSTGRES_HOST: ${POSTGRES_HOST:-172.30.1.101}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_USER: ${POSTGRES_USER:-nice}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nice}
-      POSTGRES_DB: ${POSTGRES_DB:-nice}
+      POSTGRES_DB: ${POSTGRES_DB:-nice_innovation}
     ports:
       - "${GRAPH_API_PORT:-18001}:8000"
     depends_on:
@@ -97,41 +97,11 @@ services:
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Server 2 — Data + RAG layer
+  #
+  # PostgreSQL 은 원격 NICE 운영 인스턴스(POSTGRES_HOST=172.30.1.101)를 사용하므로
+  # compose 정의에서 제외. 어드민 PG 14+ 업그레이드 + 확장(vector/pg_trgm) 설치
+  # 완료 후, rag-server/ingestion 의 POSTGRES_HOST 가 .env 값(원격)으로 자동 적용.
   # ─────────────────────────────────────────────────────────────────────────────
-  postgres:
-    profiles: ["server2"]
-    image: pgvector/pgvector:pg16
-    container_name: nice-pg
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-nice}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nice}
-      POSTGRES_DB: ${POSTGRES_DB:-nice}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
-    volumes:
-      - pg-data:/var/lib/postgresql/data
-      - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro
-    shm_size: "1g"
-    command:
-      - postgres
-      - -c
-      - shared_buffers=2GB
-      - -c
-      - effective_cache_size=4GB
-      - -c
-      - maintenance_work_mem=512MB
-      - -c
-      - work_mem=64MB
-      - -c
-      - max_connections=100
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nice} -d ${POSTGRES_DB:-nice}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-    networks: [nice-net]
-
   redis:
     profiles: ["server2"]
     image: redis:7-alpine
@@ -166,11 +136,12 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-local}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      POSTGRES_HOST: ${POSTGRES_HOST_INTERNAL:-postgres}
-      POSTGRES_PORT: ${POSTGRES_PORT_INTERNAL:-5432}
+      # PG 는 원격(NICE 운영). 컨테이너 → 호스트 외부로 직접 도달.
+      POSTGRES_HOST: ${POSTGRES_HOST:-172.30.1.101}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_USER: ${POSTGRES_USER:-nice}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nice}
-      POSTGRES_DB: ${POSTGRES_DB:-nice}
+      POSTGRES_DB: ${POSTGRES_DB:-nice_innovation}
       REDIS_HOST: ${REDIS_HOST_INTERNAL:-redis}
       REDIS_PORT: ${REDIS_PORT_INTERNAL:-6379}
       REDIS_DB: ${REDIS_DB:-0}
@@ -187,8 +158,6 @@ services:
     ports:
       - "${RAG_API_PORT:-18002}:8000"
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     restart: unless-stopped
@@ -204,11 +173,13 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-local}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      POSTGRES_HOST: ${POSTGRES_HOST_INTERNAL:-postgres}
-      POSTGRES_PORT: ${POSTGRES_PORT_INTERNAL:-5432}
+      # PG 는 원격(NICE 운영)
+      POSTGRES_HOST: ${POSTGRES_HOST:-172.30.1.101}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_USER: ${POSTGRES_USER:-nice}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nice}
-      POSTGRES_DB: ${POSTGRES_DB:-nice}
+      POSTGRES_DB: ${POSTGRES_DB:-nice_innovation}
+      # Neo4j 는 server1 의 컨테이너 — INTERNAL alias 유지
       NEO4J_HOST: ${NEO4J_HOST_INTERNAL:-neo4j}
       NEO4J_BOLT_PORT: ${NEO4J_BOLT_PORT_INTERNAL:-7687}
       NEO4J_USER: ${NEO4J_USER:-neo4j}
@@ -265,7 +236,9 @@ services:
     networks: [nice-net]
 
 volumes:
-  pg-data:
+  # pg-data 는 nice-pg 제거로 더 이상 사용되지 않으나, docker volume 으로 보존되어
+  # 어드민 작업 중 fallback 데이터로 살아 있음. 완전 정리는 `docker volume rm
+  # nice-backend_pg-data` 로 별도 결정.
   neo4j-data:
   neo4j-logs:
   neo4j-import:
