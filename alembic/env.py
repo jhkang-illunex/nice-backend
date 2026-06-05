@@ -35,6 +35,11 @@ config.set_main_option("sqlalchemy.url", get_settings().postgres_dsn)
 target_metadata = None
 
 
+# 운영 PG 의 public 스키마(NICE 운영 31 테이블)와 격리 — alembic_version 까지
+# 모두 rag schema 에 둔다. 운영자 시야에서 우리 PoC 흔적이 한 schema 로 묶임.
+_VERSION_TABLE_SCHEMA = "rag"
+
+
 def run_migrations_offline() -> None:
     """Offline 모드 — Engine 없이 URL 만으로 SQL 스크립트를 생성."""
     url = config.get_main_option("sqlalchemy.url")
@@ -43,6 +48,8 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        version_table_schema=_VERSION_TABLE_SCHEMA,
+        include_schemas=True,
     )
 
     with context.begin_transaction():
@@ -58,7 +65,12 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            version_table_schema=_VERSION_TABLE_SCHEMA,
+            include_schemas=True,
+        )
 
         with context.begin_transaction():
             context.run_migrations()

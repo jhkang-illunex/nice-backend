@@ -53,7 +53,7 @@ HEADER_TO_COLUMN: dict[str, str] = {
 COLUMNS: list[str] = list(HEADER_TO_COLUMN.values())
 
 UPSERT_SQL = """
-INSERT INTO hsk (
+INSERT INTO rag.hsk (
     hs_code, valid_from, valid_to,
     name_ko, name_en, hs_content, standard_trade_name,
     qty_unit_max_price, weight_unit_max_price,

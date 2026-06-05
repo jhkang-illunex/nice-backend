@@ -31,7 +31,7 @@ WITH
   vec AS (
     SELECT hs_code,
            ROW_NUMBER() OVER (ORDER BY embedding <=> CAST(:qvec AS vector)) AS rk
-    FROM hsk
+    FROM rag.hsk
     WHERE embedding IS NOT NULL
       AND (:active_only = false OR valid_to >= CURRENT_DATE)
       AND (:hs_prefix_like = '' OR hs_code LIKE :hs_prefix_like)
@@ -41,7 +41,7 @@ WITH
   trg AS (
     SELECT hs_code,
            ROW_NUMBER() OVER (ORDER BY search_text <-> :qtext) AS rk
-    FROM hsk
+    FROM rag.hsk
     WHERE search_text IS NOT NULL
       AND (:active_only = false OR valid_to >= CURRENT_DATE)
       AND (:hs_prefix_like = '' OR hs_code LIKE :hs_prefix_like)
@@ -51,7 +51,7 @@ WITH
   ts AS (
     SELECT hs_code,
            ROW_NUMBER() OVER (ORDER BY ts_rank(search_tsv, plainto_tsquery('simple', :qtext)) DESC) AS rk
-    FROM hsk
+    FROM rag.hsk
     WHERE search_tsv @@ plainto_tsquery('simple', :qtext)
       AND (:active_only = false OR valid_to >= CURRENT_DATE)
       AND (:hs_prefix_like = '' OR hs_code LIKE :hs_prefix_like)
@@ -74,7 +74,7 @@ WITH
   )
 SELECT h.hs_code, h.name_ko, h.name_en, h.search_text AS description, f.score AS score
 FROM fused f
-JOIN hsk h USING (hs_code)
+JOIN rag.hsk h USING (hs_code)
 ORDER BY f.score DESC, h.hs_code ASC
 LIMIT :limit
 """)

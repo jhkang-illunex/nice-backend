@@ -33,9 +33,12 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    # rag schema 는 운영자가 사전 생성 보장(없어도 안전망). 모든 객체는 rag 안에.
+    op.execute("CREATE SCHEMA IF NOT EXISTS rag;")
+
     op.execute(
         """
-        CREATE TABLE IF NOT EXISTS hsk (
+        CREATE TABLE IF NOT EXISTS rag.hsk (
             hs_code                 CHAR(10) PRIMARY KEY,
 
             valid_from              DATE NOT NULL,
@@ -68,20 +71,22 @@ def upgrade() -> None:
             hs4 CHAR(4) GENERATED ALWAYS AS (substr(hs_code, 1, 4)) STORED,
             hs6 CHAR(6) GENERATED ALWAYS AS (substr(hs_code, 1, 6)) STORED,
 
-            -- 검색/임베딩의 단일 진실 텍스트
+            -- 검색/임베딩의 단일 진실 텍스트.
+            -- concat_ws 는 STABLE(text cast 경로) 이라 STORED 에 못 씀 → ||+coalesce 패턴.
+            -- 빈 필드는 ' |  | ' 형태로 빈 슬롯이 남지만 임베딩/trigram 매칭에 큰 영향 없음.
             search_text TEXT GENERATED ALWAYS AS (
-                concat_ws(' | ',
-                    NULLIF(name_ko, ''),
-                    NULLIF(standard_trade_name, ''),
-                    NULLIF(nature_integrated_name, ''),
-                    NULLIF(name_en, ''),
-                    NULLIF(hs_content, '')
-                )
+                coalesce(name_ko, '')               || ' | ' ||
+                coalesce(standard_trade_name, '')   || ' | ' ||
+                coalesce(nature_integrated_name, '')|| ' | ' ||
+                coalesce(name_en, '')               || ' | ' ||
+                coalesce(hs_content, '')
             ) STORED,
 
             -- 전문 검색 토큰 (simple — mecab_ko 도입 시 교체)
+            -- 'simple'::regconfig 캐스팅이 핵심 — text 형태의 첫 인자는 STABLE 이라
+            -- STORED GENERATED 의 IMMUTABLE 요구사항을 깨뜨림. regconfig 면 IMMUTABLE.
             search_tsv tsvector GENERATED ALWAYS AS (
-                to_tsvector('simple',
+                to_tsvector('simple'::regconfig,
                     coalesce(name_ko, '') || ' ' ||
                     coalesce(standard_trade_name, '') || ' ' ||
                     coalesce(nature_integrated_name, '') || ' ' ||
@@ -98,34 +103,34 @@ def upgrade() -> None:
         """
     )
 
-    op.execute("CREATE INDEX IF NOT EXISTS hsk_valid_to_idx ON hsk (valid_to);")
-    op.execute("CREATE INDEX IF NOT EXISTS hsk_hs2_idx ON hsk (hs2);")
-    op.execute("CREATE INDEX IF NOT EXISTS hsk_hs4_idx ON hsk (hs4);")
-    op.execute("CREATE INDEX IF NOT EXISTS hsk_hs6_idx ON hsk (hs6);")
+    op.execute("CREATE INDEX IF NOT EXISTS hsk_valid_to_idx ON rag.hsk (valid_to);")
+    op.execute("CREATE INDEX IF NOT EXISTS hsk_hs2_idx ON rag.hsk (hs2);")
+    op.execute("CREATE INDEX IF NOT EXISTS hsk_hs4_idx ON rag.hsk (hs4);")
+    op.execute("CREATE INDEX IF NOT EXISTS hsk_hs6_idx ON rag.hsk (hs6);")
 
     op.execute(
         "CREATE INDEX IF NOT EXISTS hsk_search_tsv_idx "
-        "ON hsk USING GIN (search_tsv);"
+        "ON rag.hsk USING GIN (search_tsv);"
     )
     op.execute(
         "CREATE INDEX IF NOT EXISTS hsk_name_ko_trgm_idx "
-        "ON hsk USING GIN (name_ko gin_trgm_ops);"
+        "ON rag.hsk USING GIN (name_ko gin_trgm_ops);"
     )
     op.execute(
         "CREATE INDEX IF NOT EXISTS hsk_search_text_trgm_idx "
-        "ON hsk USING GIN (search_text gin_trgm_ops);"
+        "ON rag.hsk USING GIN (search_text gin_trgm_ops);"
     )
 
     # HNSW (cosine). m / ef_construction 은 기본값으로 시작 — 12k 규모면 충분.
     op.execute(
         "CREATE INDEX IF NOT EXISTS hsk_embedding_hnsw_idx "
-        "ON hsk USING hnsw (embedding vector_cosine_ops);"
+        "ON rag.hsk USING hnsw (embedding vector_cosine_ops);"
     )
 
     # updated_at 자동 갱신 트리거 (upsert 시 갱신 추적)
     op.execute(
         """
-        CREATE OR REPLACE FUNCTION hsk_touch_updated_at()
+        CREATE OR REPLACE FUNCTION rag.hsk_touch_updated_at()
         RETURNS trigger AS $$
         BEGIN
             NEW.updated_at = now();
@@ -136,15 +141,15 @@ def upgrade() -> None:
     )
     op.execute(
         """
-        DROP TRIGGER IF EXISTS hsk_touch_updated_at_trg ON hsk;
+        DROP TRIGGER IF EXISTS hsk_touch_updated_at_trg ON rag.hsk;
         CREATE TRIGGER hsk_touch_updated_at_trg
-            BEFORE UPDATE ON hsk
-            FOR EACH ROW EXECUTE FUNCTION hsk_touch_updated_at();
+            BEFORE UPDATE ON rag.hsk
+            FOR EACH ROW EXECUTE FUNCTION rag.hsk_touch_updated_at();
         """
     )
 
 
 def downgrade() -> None:
-    op.execute("DROP TRIGGER IF EXISTS hsk_touch_updated_at_trg ON hsk;")
-    op.execute("DROP FUNCTION IF EXISTS hsk_touch_updated_at();")
-    op.execute("DROP TABLE IF EXISTS hsk CASCADE;")
+    op.execute("DROP TRIGGER IF EXISTS hsk_touch_updated_at_trg ON rag.hsk;")
+    op.execute("DROP FUNCTION IF EXISTS rag.hsk_touch_updated_at();")
+    op.execute("DROP TABLE IF EXISTS rag.hsk CASCADE;")

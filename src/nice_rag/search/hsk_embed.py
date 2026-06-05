@@ -99,7 +99,7 @@ class BulkEmbedReport:
 _SELECT_CANDIDATES = text(
     """
     SELECT hs_code, search_text
-    FROM hsk
+    FROM rag.hsk
     WHERE search_text IS NOT NULL
       AND (:only_missing = false OR embedding IS NULL)
     ORDER BY hs_code
@@ -108,7 +108,7 @@ _SELECT_CANDIDATES = text(
 
 # CAST 는 named param 으로 받은 textual vector 를 vector(1024) 로 변환.
 _UPDATE_EMBEDDING = text(
-    "UPDATE hsk SET embedding = CAST(:embedding AS vector) WHERE hs_code = :hs_code"
+    "UPDATE rag.hsk SET embedding = CAST(:embedding AS vector) WHERE hs_code = :hs_code"
 )
 
 
