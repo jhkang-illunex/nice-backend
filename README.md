@@ -41,27 +41,27 @@ NICE Open Innovation PoC — 공급망/수요망 충격 시뮬레이션 백엔�
 - [`POST_INTAKE_TASKS.md`](docs/POST_INTAKE_TASKS.md) — 데이터 도착 후 작업 큐 (P0~P7)
 - [`RAG_API.md`](docs/RAG_API.md) — rag-server REST API 입출력 명세 (`/api/hsk/{search,agent}` 등)
 
-## 서버 토폴로지 (2 호스트)
+## 서버 토폴로지 (RAG-only)
 
 | 서버 | 컴포넌트 | 패키지 / 이미지 | 역할 | GPU |
 |---|---|---|---|---|
-| **server1** (graph)    | `neo4j` (nice-neo4j)            | `neo4j:5.24-community`        | 그래프 본질 (Firm, SUPPLIES, Scenario, drill-down) | — |
-|                         | `graph-analysis`                | `nice_graph` / `nice/graph-analysis:dev` | 임팩트 전파 REST API (Leontief / BiCGStab) | — |
-| **외부 (운영)**          | **PostgreSQL** (`172.30.1.101`, NICE 운영 인스턴스) | (외부) | 결과/색인/벡터 + HSK / 마스터 적재처. **DBA 가 PG 14+ 업그레이드 + `vector`/`pg_trgm` 확장 설치 + nice user 권한 부여 진행 중** — 완료 후 `rag` schema 에 한정해 사용 (기존 31 테이블 무수정) | — |
+| **외부 (운영)**          | **PostgreSQL** (`172.30.1.101:5433`, NICE 운영 인스턴스) | (외부) | `rag` schema 에 한정 사용. PG 14+ + vector + pg_trgm 설치 완료. 기존 31 public 테이블 무수정 | — |
 | **server2** (RAG)      | `redis` (nice-redis)            | `redis:7-alpine`              | KPI/좌표/시계열 + RAG 캐시 | — |
 |                         | `rag-server`                    | `nice_rag` / `nice/rag-server:dev` | HSCode/문서 RAG REST (OpenAI-호환 LLM·임베딩 호출) | ✓ (실배포) |
-|                         | `ingestion`                     | `nice_ingest` / `nice/ingestion:dev` | Excel/CSV → 원격 PG + Neo4j dual-write 잡 (plugin pipelines) | — |
+|                         | `ingestion`                     | `nice_ingest` / `nice/ingestion:dev` | hscode → `rag.hsk` 적재 + hsk_embed 임베딩 잡 (plugin pipelines) | — |
 |                         | `llm` (옵션)                    | `ollama/ollama`               | 자체 LLM (OpenAI `/v1/`) — URL 변경으로 외부 API 전환 | ✓ (실배포) |
 |                         | `embed` (옵션)                  | `text-embeddings-inference`   | 자체 임베딩 (OpenAI `/v1/embeddings`) — URL 변경으로 외부 API 전환 | ✓ (실배포) |
 
-코드는 monorepo 안 4개 패키지로 분리되어 있습니다:
+graph-analysis / Neo4j 는 본 compose 외 별도 인프라/형상에서 운영합니다. 코드는
+monorepo 안 4개 패키지로 분리되어 있고, graph 측 패키지는 그대로 보존 — 미래에
+별도 compose 또는 인스턴스로 재추가 가능:
 
 ```
 src/
-  nice_poc/      # 공용 도메인 코어 (propagation, matrix, shock, db, etl, ...)
-  nice_graph/    # graph-analysis 진입점 (nice_poc 재사용)
+  nice_poc/      # 공용 도메인 코어 (현재는 RAG 만 활용)
+  nice_graph/    # graph-analysis 진입점 — 본 compose 외 별도 운영
   nice_rag/      # rag-server (config + clients/{llm,embed} + api/routers/hsk)
-  nice_ingest/   # ingestion CLI + pipelines/<name>/ 플러그인 (현재 hscode)
+  nice_ingest/   # ingestion CLI + pipelines/{hscode, hsk_embed}
 ```
 
 LLM / 임베딩 백엔드 교체 = `.env` 의 `LLM_BASE_URL` / `EMBED_BASE_URL` 1줄 변경.
@@ -72,42 +72,37 @@ LLM / 임베딩 백엔드 교체 = `.env` 의 `LLM_BASE_URL` / `EMBED_BASE_URL` 
 ```bash
 cp .env.example .env
 
-# (a) 로컬 dev — 인프라 + 앱 + 자체 LLM/Embed 전부 한 호스트에서
-docker compose --profile server1 --profile server2 \
-               --profile llm-local --profile embed-local up -d --build
+# (a) 전체 띄움 — rag-server + redis + 자체 LLM/Embed
+docker compose --profile server2 --profile llm-local --profile embed-local up -d --build
 
-# (b) 로컬 dev — 인프라 + 앱만 (LLM/Embed 는 외부 URL 사용)
-docker compose --profile server1 --profile server2 up -d --build
-
-# (c) 실배포 server1 (graph 박스)
-docker compose --profile server1 up -d --build
-
-# (d) 실배포 server2 (data/RAG 박스, CPU, 외부 LLM/Embed)
+# (b) RAG 코어만 — LLM/Embed 는 외부 API 사용
 docker compose --profile server2 up -d --build
+# 단 .env 의 LLM_BASE_URL / EMBED_BASE_URL 을 외부 URL 로 설정 필요
 
-# (e) 실배포 server2 (data/RAG 박스, GPU 는 vLLM 만, embed 는 CPU 그대로)
+# (c) 실배포 — GPU 가 있는 prod 호스트 (vLLM)
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml \
-               --profile server2 --profile llm-local --profile embed-local \
-               up -d --build
+               --profile server2 --profile llm-local --profile embed-local up -d --build
 # ↑ gpu.yml 은 llm 서비스만 vLLM + GPU 로 교체. rag-server/embed 는 CPU 그대로.
-# .env 의 LLM_MODEL 을 HF id 형식으로 갱신해야 함 (Qwen/Qwen2.5-7B-Instruct).
+# .env 의 LLM_MODEL 을 HF id 형식으로 갱신 (예: Qwen/Qwen2.5-7B-Instruct).
 
-# (f) ingestion 잡 — HSCode 1차 적재 (구현 후)
+# (d) ingestion 잡 — HSCode 적재
 docker compose --profile ingest run --rm ingestion \
-    python -m nice_ingest run hscode --file=/work/관세청_HS부호_20260101.xlsx
+    python -m nice_ingest run hscode --file=/work/hsk.xlsx
 
-# (g) ingestion 잡 — 등록 파이프라인 확인
+# (e) ingestion 잡 — 임베딩 일괄
+docker compose --profile ingest run --rm ingestion \
+    python -m nice_ingest run hsk_embed --batch-size 32
+
+# (f) 등록 파이프라인 확인
 docker compose --profile ingest run --rm ingestion python -m nice_ingest list
 
 # Python 환경 (호스트, 로컬 개발)
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev,ingest]"
+pip install -e ".[dev,ingest,rag]"
 
 # 헬스체크
-curl http://localhost:${GRAPH_API_PORT:-18001}/health        # server1
-curl http://localhost:${GRAPH_API_PORT:-18001}/health/deep
-curl http://localhost:${RAG_API_PORT:-18002}/health          # server2
-curl http://localhost:${RAG_API_PORT:-18002}/health/deep     # + llm/embed 도달성
+curl http://localhost:${RAG_API_PORT:-18002}/health          # liveness
+curl http://localhost:${RAG_API_PORT:-18002}/health/deep     # + postgres/redis/llm/embed 도달성
 ```
 
 PostgreSQL 은 **원격 NICE 운영 인스턴스(`172.30.1.101`)** 를 사용합니다 — compose
@@ -320,7 +315,7 @@ curl "http://localhost:18002/api/hsk/agent?q=경주마+수입할+때+적용되�
 | 503  | llm 백엔드 불통                            | `llm` 컨테이너 / `LLM_BASE_URL` 확인 |
 | 503  | hsk 테이블 미마이그레이션 / DB 불통          | `alembic upgrade head` 또는 `nice-pg` healthy 확인 |
 
-### API — `graph-analysis` (server1)
+### API — `graph-analysis` (별도 인프라 운영 시)
 
 ```bash
 curl http://localhost:18001/health/deep                          # neo4j/pg 도달성
