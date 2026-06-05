@@ -39,6 +39,7 @@ NICE Open Innovation PoC — 공급망/수요망 충격 시뮬레이션 백엔�
 - [`DATA_INTAKE.md`](docs/DATA_INTAKE.md) — 실 데이터 수령 시 6단계 적재 절차
 - [`PROGRESS.md`](docs/PROGRESS.md) — 작업 내역 (불변, 4 commit + 49 tests)
 - [`POST_INTAKE_TASKS.md`](docs/POST_INTAKE_TASKS.md) — 데이터 도착 후 작업 큐 (P0~P7)
+- [`RAG_API.md`](docs/RAG_API.md) — rag-server REST API 입출력 명세 (`/api/hsk/{search,agent}` 등)
 
 ## 서버 토폴로지 (2 호스트)
 
