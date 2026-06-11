@@ -99,6 +99,9 @@ services:
       LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-60}
       # qwen3 류 thinking 모델 제어 ('none'=추론 끔). 빈 값이면 body 미포함.
       LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-}
+      # 문장형 질의 → LLM 품목 추출 전처리 (키워드 질의는 미호출, 실패 시 폴백)
+      RAG_QUERY_EXTRACT: ${RAG_QUERY_EXTRACT:-true}
+      RAG_EXTRACT_TIMEOUT_S: ${RAG_EXTRACT_TIMEOUT_S:-15}
       EMBED_BASE_URL: ${EMBED_BASE_URL:-http://embed:8080/v1}
       EMBED_MODEL: ${EMBED_MODEL:-BAAI/bge-m3}
       EMBED_API_KEY: ${EMBED_API_KEY:-noop}

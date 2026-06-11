@@ -17,6 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from nice_rag.clients import get_llm_client
 from nice_rag.config import get_rag_settings
+from nice_rag.search.extract import extract_goods
 from nice_rag.search.hsk_embed import embed_query
 from nice_rag.search.hsk_index import HybridHit, search_hybrid
 from nice_rag.search.searchlog import log_search
@@ -216,8 +217,9 @@ def search(
         description="true 면 현재 유효한(valid_to >= 오늘) 코드만 검색.",
     ),
 ) -> list[HskHit]:
-    # 정규화(색인과 동일 규칙) + 통칭→공식용어 동의어 확장
-    q_norm = expand_query(q) or q
+    # 문장형이면 품목만 추출(실패 시 원 질의) → 정규화 + 동의어 확장
+    q_search = extract_goods(q) or q
+    q_norm = expand_query(q_search) or q_search
     qvec = _embed_or_503(q_norm)
     hits = _search_or_503(q_norm, qvec, limit, hs_prefix=hs_prefix, active_only=active_only)
     log_search(q, q_norm, hits)
@@ -272,7 +274,8 @@ def agent(
     ),
 ) -> HskAnswer:
     s = get_rag_settings()
-    q_norm = expand_query(q) or q
+    q_search = extract_goods(q) or q
+    q_norm = expand_query(q_search) or q_search
     qvec = _embed_or_503(q_norm)
     hits = _search_or_503(q_norm, qvec, k, hs_prefix=hs_prefix, active_only=active_only)
     log_search(q, q_norm, hits)

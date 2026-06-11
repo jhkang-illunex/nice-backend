@@ -54,6 +54,13 @@ class RagSettings(BaseSettings):
     # 의미 코사인·수렴 가드가 함께 적용되므로 점수 단독 기준은 완화해도 안전.
     syn_verify_threshold: float = Field(default=0.030, alias="RAG_SYN_VERIFY_THRESHOLD")
 
+    # ── 문장형 질의 품목 추출 (LLM 전처리) ─────────────────────────────────
+    # 문장형 질의의 비품목 토큰('코드'·'수입' 등) 오염을 LLM 추출로 제거.
+    # 키워드형 질의는 LLM 미호출. 실패/타임아웃 시 원 질의로 폴백.
+    query_extract_enabled: bool = Field(default=True, alias="RAG_QUERY_EXTRACT")
+    # CPU 추론(dev)은 prompt eval 만 수~수십 초 — 환경별로 조정.
+    query_extract_timeout_s: float = Field(default=15.0, alias="RAG_EXTRACT_TIMEOUT_S")
+
 
 @lru_cache
 def get_rag_settings() -> RagSettings:
