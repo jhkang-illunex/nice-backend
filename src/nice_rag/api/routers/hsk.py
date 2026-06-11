@@ -19,6 +19,7 @@ from nice_rag.clients import get_llm_client
 from nice_rag.config import get_rag_settings
 from nice_rag.search.hsk_embed import embed_query
 from nice_rag.search.hsk_index import HybridHit, search_hybrid
+from nice_rag.search.searchlog import log_search
 from nice_rag.search.synonyms import expand_query
 
 router = APIRouter(prefix="/api/hsk", tags=["hsk"])
@@ -219,6 +220,7 @@ def search(
     q_norm = expand_query(q) or q
     qvec = _embed_or_503(q_norm)
     hits = _search_or_503(q_norm, qvec, limit, hs_prefix=hs_prefix, active_only=active_only)
+    log_search(q, q_norm, hits)
     return [_to_hit(h) for h in hits]
 
 
@@ -273,6 +275,7 @@ def agent(
     q_norm = expand_query(q) or q
     qvec = _embed_or_503(q_norm)
     hits = _search_or_503(q_norm, qvec, k, hs_prefix=hs_prefix, active_only=active_only)
+    log_search(q, q_norm, hits)
     citations = [_to_hit(h) for h in hits]
 
     if not hits:

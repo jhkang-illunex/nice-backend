@@ -7,14 +7,23 @@
 
 확장은 치환이 아니라 *덧붙임* — 원 질의 토큰은 보존되어 trigram(name_ko)
 시그널은 영향이 적고, ts(가중 tsvector)·vec(임베딩)이 추가 용어로 보강된다.
+
+사전은 2계층: 코드 내 빌트인(_BUILTIN, 검증된 시드) + ``rag.synonyms`` 테이블
+(hsk_synonym_learn 배치가 self-play 검증 후 자동 등록). DB 항목이 빌트인을
+덮어쓰며, DB 불가 시 빌트인만으로 동작한다 (폐쇄망 안전).
 """
 
 from __future__ import annotations
 
+import logging
+import time
+
 from nice_rag.search.normalize import normalize_query
 
+log = logging.getLogger(__name__)
+
 # 통칭(정규화 후 부분일치) → 색인 용어. 검증: 2026-06-11 확장 평가의 실패 사례.
-SYNONYMS: dict[str, str] = {
+_BUILTIN: dict[str, str] = {
     # 곡물 — KIS 계층에 '듀럼' 단계 명칭이 없어 1001 호 용어로 확장
     "듀럼밀": "밀 종자",
     "듀럼 밀": "밀 종자",
@@ -37,11 +46,43 @@ SYNONYMS: dict[str, str] = {
 }
 
 
+# DB 사전 캐시 — 검색 hot path 에서 매번 SELECT 하지 않도록 TTL 캐싱
+_CACHE_TTL_S = 60.0
+_cache: dict[str, str] | None = None
+_cache_at: float = 0.0
+
+
+def _load_db_synonyms() -> dict[str, str]:
+    try:
+        from sqlalchemy import text
+
+        from nice_poc.db import get_pg_engine
+
+        with get_pg_engine().connect() as c:
+            rows = c.execute(
+                text("SELECT alias, expansion FROM rag.synonyms WHERE enabled")
+            ).fetchall()
+        return {r[0]: r[1] for r in rows}
+    except Exception:  # noqa: BLE001 — DB 불가 시 빌트인만으로 동작
+        log.warning("rag.synonyms load failed — builtin only", exc_info=True)
+        return {}
+
+
+def get_synonyms() -> dict[str, str]:
+    """빌트인 + DB 동의어 병합 (DB 우선, TTL 캐시)."""
+    global _cache, _cache_at
+    now = time.monotonic()
+    if _cache is None or now - _cache_at > _CACHE_TTL_S:
+        _cache = {**_BUILTIN, **_load_db_synonyms()}
+        _cache_at = now
+    return _cache
+
+
 def expand_query(query: str) -> str:
     """정규화된 질의에 매칭되는 통칭의 색인 용어를 덧붙여 반환."""
     q_norm = normalize_query(query)
     additions: list[str] = []
-    for alias, official in SYNONYMS.items():
+    for alias, official in get_synonyms().items():
         if alias in q_norm and official not in q_norm:
             additions.append(official)
     if not additions:

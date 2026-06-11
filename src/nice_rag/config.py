@@ -44,6 +44,16 @@ class RagSettings(BaseSettings):
         alias="EMBED_QUERY_INSTRUCTION",
     )
 
+    # ── 검색 자기보완 루프 ──────────────────────────────────────────────────
+    # RRF 산식: 3시그널 만점 ≈ 0.0492(=3/61), 2시그널 1위 ≈ 0.0328(=2/61),
+    # 단일 시그널 1위 ≈ 0.0164(=1/61). 실측상 0.033 미만은 한 시그널만 매칭된
+    # 불안정 구간 (예: '에어프라이어'→'에어해머' 0.0325 같은 trigram 오매칭).
+    lowconf_threshold: float = Field(default=0.033, alias="RAG_LOWCONF_THRESHOLD")
+    # self-play 검증: 확장(원질의+후보) 검색의 top1 최소 점수. 결합 질의는
+    # trigram 이 희석되어 만점이 어려우므로 2시그널 정렬(0.0328) 근방으로 설정.
+    # 의미 코사인·수렴 가드가 함께 적용되므로 점수 단독 기준은 완화해도 안전.
+    syn_verify_threshold: float = Field(default=0.030, alias="RAG_SYN_VERIFY_THRESHOLD")
+
 
 @lru_cache
 def get_rag_settings() -> RagSettings:
