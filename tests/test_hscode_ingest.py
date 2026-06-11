@@ -42,3 +42,15 @@ def test_normalize_never_produces_chapter_00() -> None:
 def test_transform_row_rejects_bad_code() -> None:
     row = transform_row({"hs_code": "abc", "valid_from": "2024-01-01", "valid_to": "2026-12-31"})
     assert row is None
+
+
+def test_expand_query_known_aliases() -> None:
+    from nice_rag.search.synonyms import expand_query
+
+    assert "축전지" in expand_query("리튬이온전지 수입")
+    assert "전자석" in expand_query("네오디뮴 영구자석")
+    assert "밀" in expand_query("듀럼밀")
+    # 매칭 없는 질의는 정규화만 적용
+    assert expand_query("천연가스") == "천연가스"
+    # 정규화 동작 포함 (괄호 제거)
+    assert expand_query("화장품(립스틱)").startswith("화장품 립스틱")

@@ -19,7 +19,7 @@ from nice_rag.clients import get_llm_client
 from nice_rag.config import get_rag_settings
 from nice_rag.search.hsk_embed import embed_query
 from nice_rag.search.hsk_index import HybridHit, search_hybrid
-from nice_rag.search.normalize import normalize_query
+from nice_rag.search.synonyms import expand_query
 
 router = APIRouter(prefix="/api/hsk", tags=["hsk"])
 log = logging.getLogger(__name__)
@@ -98,8 +98,10 @@ class ErrorResponse(BaseModel):
 _AGENT_SYSTEM_PROMPT = (
     "당신은 한국 관세청 HS 부호 전문가입니다. "
     "다음은 사용자 질의에 대해 trigram + 임베딩 hybrid 검색으로 추려진 후보 HS 부호 리스트입니다. "
-    "후보 내에서만 근거를 인용해 한국어로 간결히 답변하세요. "
-    "확신이 없으면 '확실하지 않음'이라고 답하세요. 추측 금지."
+    "반드시 후보 리스트에 있는 10자리 HS 부호를 그대로 인용해, "
+    "한 줄에 'HS부호 — 품목명' 형식으로 관련도 순으로 나열하세요. "
+    "후보에 없는 부호나 품목명을 새로 만들지 마세요(품목명 바꿔쓰기 금지). "
+    "적합한 후보가 없으면 '확실하지 않음'이라고 답하세요. 추측 금지."
 )
 
 
@@ -135,9 +137,22 @@ def _embed_or_503(q: str) -> list[float]:
         ) from exc
 
 
-def _search_or_503(query: str, qvec: list[float], limit: int) -> list[HybridHit]:
+def _search_or_503(
+    query: str,
+    qvec: list[float],
+    limit: int,
+    *,
+    hs_prefix: str | None = None,
+    active_only: bool = False,
+) -> list[HybridHit]:
     try:
-        return search_hybrid(query_text=query, query_vec=qvec, limit=limit)
+        return search_hybrid(
+            query_text=query,
+            query_vec=qvec,
+            limit=limit,
+            hs_prefix=hs_prefix,
+            active_only=active_only,
+        )
     except SQLAlchemyError as exc:
         log.exception("hsk search failed")
         raise HTTPException(
@@ -189,11 +204,21 @@ def search(
         le=50,
         description="반환할 후보 개수. 운영 권장 5~10.",
     ),
+    hs_prefix: str | None = Query(
+        None,
+        pattern=r"^\d{2,8}$",
+        description="HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리). 예: 85 (전기기기), 8703 (승용차).",
+        examples=["85"],
+    ),
+    active_only: bool = Query(
+        False,
+        description="true 면 현재 유효한(valid_to >= 오늘) 코드만 검색.",
+    ),
 ) -> list[HskHit]:
-    # 색인 텍스트와 동일 규칙으로 질의 정규화 — 괄호/단위문자 비대칭 제거
-    q_norm = normalize_query(q) or q
+    # 정규화(색인과 동일 규칙) + 통칭→공식용어 동의어 확장
+    q_norm = expand_query(q) or q
     qvec = _embed_or_503(q_norm)
-    hits = _search_or_503(q_norm, qvec, limit)
+    hits = _search_or_503(q_norm, qvec, limit, hs_prefix=hs_prefix, active_only=active_only)
     return [_to_hit(h) for h in hits]
 
 
@@ -234,11 +259,20 @@ def agent(
         le=20,
         description="LLM 에 컨텍스트로 제공할 검색 후보 수. 4~8 권장.",
     ),
+    hs_prefix: str | None = Query(
+        None,
+        pattern=r"^\d{2,8}$",
+        description="HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리).",
+    ),
+    active_only: bool = Query(
+        False,
+        description="true 면 현재 유효한(valid_to >= 오늘) 코드만 검색.",
+    ),
 ) -> HskAnswer:
     s = get_rag_settings()
-    q_norm = normalize_query(q) or q
+    q_norm = expand_query(q) or q
     qvec = _embed_or_503(q_norm)
-    hits = _search_or_503(q_norm, qvec, k)
+    hits = _search_or_503(q_norm, qvec, k, hs_prefix=hs_prefix, active_only=active_only)
     citations = [_to_hit(h) for h in hits]
 
     if not hits:
