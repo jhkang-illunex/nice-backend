@@ -181,25 +181,3 @@ def bulk_embed_hsk(
         )
 
     return report
-
-
-def build_document_text(
-    name_ko: str,
-    name_en: str | None = None,
-    description: str | None = None,
-    standard_trade_name: str | None = None,
-    nature_name: str | None = None,
-) -> str:
-    """hsk row 의 텍스트 필드들을 임베딩용 단일 문자열로 정규화.
-
-    중복 방지를 위해 None/공백 제거 후 ' | ' 로 결합. 컬럼 순서는 한국어 검색
-    품질에 가장 직접적인 한글품목명 → 한국표준무역분류명 → 성질 → 영문 → 설명.
-    """
-    parts: list[str] = []
-    for v in (name_ko, standard_trade_name, nature_name, name_en, description):
-        if v is None:
-            continue
-        s = str(v).strip()
-        if s:
-            parts.append(s)
-    return " | ".join(parts)

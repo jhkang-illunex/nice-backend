@@ -1,9 +1,15 @@
 """HSK hybrid 검색 — Reciprocal Rank Fusion(RRF) on 3 시그널.
 
 시그널
-  vec : pgvector  (embedding <=> qvec)   ── 의미 매칭
-  trg : pg_trgm   (search_text <-> q)    ── n-gram 부분일치 (오타/짧은 한글)
-  ts  : tsvector  (ts_rank with plainto) ── 토큰 매칭
+  vec : pgvector  (embedding <=> qvec)   ── 의미 매칭 (search_text 임베딩)
+  trg : pg_trgm   (name_ko <-> q)        ── 품목명 n-gram 부분일치 (오타/짧은 한글)
+  ts  : tsvector  (ts_rank with plainto) ── 토큰 매칭 (가중: A=품목명 B=계층 C=분류 D=조항)
+
+trg 를 search_text 가 아닌 name_ko 에 거는 이유: trigram 전체 문자열 유사도는
+자카드 기반이라 긴 문서일수록 희석된다 — detail chain 이 포함된 search_text
+에서는 짧은 질의가 '짧은 오답 문서' 와 더 유사해지는 길이 편향이 발생
+(실측: 정답이 trg 211위까지 밀림). 짧고 변별력 있는 품목명이 적합하고,
+계층/조항 텍스트 커버리지는 ts·vec 시그널이 담당한다.
 
 각 시그널의 rank 를 RRF 점수로 결합::
 
@@ -40,12 +46,12 @@ WITH
   ),
   trg AS (
     SELECT hs_code,
-           ROW_NUMBER() OVER (ORDER BY search_text <-> :qtext) AS rk
+           ROW_NUMBER() OVER (ORDER BY name_ko <-> :qtext) AS rk
     FROM rag.hsk
-    WHERE search_text IS NOT NULL
+    WHERE name_ko IS NOT NULL
       AND (:active_only = false OR valid_to >= CURRENT_DATE)
       AND (:hs_prefix_like = '' OR hs_code LIKE :hs_prefix_like)
-    ORDER BY search_text <-> :qtext
+    ORDER BY name_ko <-> :qtext
     LIMIT :pool
   ),
   ts AS (
@@ -55,6 +61,8 @@ WITH
     WHERE search_tsv @@ plainto_tsquery('simple', :qtext)
       AND (:active_only = false OR valid_to >= CURRENT_DATE)
       AND (:hs_prefix_like = '' OR hs_code LIKE :hs_prefix_like)
+    -- ORDER BY 없는 LIMIT 은 임의 행을 잘라 ts_rank 상위 후보가 풀에서 탈락할 수 있음
+    ORDER BY ts_rank(search_tsv, plainto_tsquery('simple', :qtext)) DESC
     LIMIT :pool
   ),
   ids AS (

@@ -156,15 +156,30 @@ def _to_numeric(v: Any) -> float | None:
 
 
 def _normalize_hs_code(v: Any) -> str | None:
-    """HS부호 → 10자리 zero-padded 문자열. 비숫자 / 길이 초과는 None."""
+    """HS부호 → 10자리 문자열 정규화. 비숫자 / 길이 초과는 None.
+
+    관세청 파일의 HS부호 셀은 전량 텍스트라 선행 0 이 보존되고, 10자리 미만은
+    후행 0 이 생략된 형태다 — 따라서 텍스트 셀은 오른쪽 0 패딩만 한다.
+    예: '01059910' → 0105991000, '271020974' → 2710209740, '0507901' → 0507901000.
+    왼쪽 패딩(zfill)은 '0001059910'(존재하지 않는 00류, 987행) 과
+    '0271020974'(02류로 위장한 유령 코드, 9자리 셀) 오염의 원인이었다.
+
+    숫자형 셀은 선행 0 이 소실된 경우라 홀수 길이면 1개 복원 후 우측 패딩
+    (현 고시본에는 숫자형 셀이 없지만 포맷 변경 대비 방어).
+    """
     if v is None:
         return None
-    s = str(v).strip()
+    if isinstance(v, (int, float)):
+        s = str(int(v))
+        if len(s) % 2 == 1:
+            s = "0" + s
+    else:
+        s = str(v).strip()
     if not s.isdigit():
         return None
     if len(s) > 10:
         return None
-    return s.zfill(10)
+    return s.ljust(10, "0")
 
 
 def transform_row(raw: dict[str, Any]) -> dict[str, Any] | None:

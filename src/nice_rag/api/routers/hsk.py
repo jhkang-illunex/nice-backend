@@ -19,6 +19,7 @@ from nice_rag.clients import get_llm_client
 from nice_rag.config import get_rag_settings
 from nice_rag.search.hsk_embed import embed_query
 from nice_rag.search.hsk_index import HybridHit, search_hybrid
+from nice_rag.search.normalize import normalize_query
 
 router = APIRouter(prefix="/api/hsk", tags=["hsk"])
 log = logging.getLogger(__name__)
@@ -48,10 +49,11 @@ class HskHit(BaseModel):
     description: str | None = Field(
         None,
         description=(
-            "검색용으로 결합된 텍스트(name_ko | standard_trade_name | "
-            "nature_integrated_name | name_en | hs_content). 빈 슬롯은 ' |  | ' 형태."
+            "검색용으로 결합된 텍스트(name_ko | name_en | detail_ko | detail_en | "
+            "standard_trade_name | nature_integrated_name | hs_content). "
+            "괄호는 공백 치환됨. 빈 슬롯은 ' | | ' 형태."
         ),
-        examples=["농가 사육용 |  | (말) | For farm breeding | "],
+        examples=["농가 사육용 | For farm breeding | 살아 있는 말ㆍ당나귀ㆍ노새ㆍ버새 > 번식용 > 농가 사육용 | Live horses > ... | | 말 | "],
     )
     score: float = Field(
         ...,
@@ -188,8 +190,10 @@ def search(
         description="반환할 후보 개수. 운영 권장 5~10.",
     ),
 ) -> list[HskHit]:
-    qvec = _embed_or_503(q)
-    hits = _search_or_503(q, qvec, limit)
+    # 색인 텍스트와 동일 규칙으로 질의 정규화 — 괄호/단위문자 비대칭 제거
+    q_norm = normalize_query(q) or q
+    qvec = _embed_or_503(q_norm)
+    hits = _search_or_503(q_norm, qvec, limit)
     return [_to_hit(h) for h in hits]
 
 
@@ -232,8 +236,9 @@ def agent(
     ),
 ) -> HskAnswer:
     s = get_rag_settings()
-    qvec = _embed_or_503(q)
-    hits = _search_or_503(q, qvec, k)
+    q_norm = normalize_query(q) or q
+    qvec = _embed_or_503(q_norm)
+    hits = _search_or_503(q_norm, qvec, k)
     citations = [_to_hit(h) for h in hits]
 
     if not hits:
