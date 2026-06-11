@@ -103,7 +103,9 @@ _AGENT_SYSTEM_PROMPT = (
     "반드시 후보 리스트에 있는 10자리 HS 부호를 그대로 인용해, "
     "한 줄에 'HS부호 — 품목명' 형식으로 관련도 순으로 나열하세요. "
     "후보에 없는 부호나 품목명을 새로 만들지 마세요(품목명 바꿔쓰기 금지). "
-    "적합한 후보가 없으면 '확실하지 않음'이라고 답하세요. 추측 금지."
+    "관세율·세율 수치는 이 시스템이 제공하지 않습니다 — 질의가 세율이나 수치를 "
+    "묻더라도 거부하지 말고 해당 품목에 적합한 HS 부호 후보를 나열하세요. "
+    "질의 품목에 적합한 후보가 없으면 '확실하지 않음'이라고 답하세요. 추측 금지."
 )
 
 
@@ -217,9 +219,10 @@ def search(
         description="true 면 현재 유효한(valid_to >= 오늘) 코드만 검색.",
     ),
 ) -> list[HskHit]:
-    # 문장형이면 품목만 추출(실패 시 원 질의) → 정규화 + 동의어 확장
+    # 문장형이면 품목만 추출(실패 시 원 질의) → 정규화 + 동의어 확장.
+    # 동의어 매칭은 추출 전 원문에서도 검사 — 추출이 통칭을 잘라도 확장 발동.
     q_search = extract_goods(q) or q
-    q_norm = expand_query(q_search) or q_search
+    q_norm = expand_query(q_search, match_text=q) or q_search
     qvec = _embed_or_503(q_norm)
     hits = _search_or_503(q_norm, qvec, limit, hs_prefix=hs_prefix, active_only=active_only)
     log_search(q, q_norm, hits)
@@ -275,7 +278,7 @@ def agent(
 ) -> HskAnswer:
     s = get_rag_settings()
     q_search = extract_goods(q) or q
-    q_norm = expand_query(q_search) or q_search
+    q_norm = expand_query(q_search, match_text=q) or q_search
     qvec = _embed_or_503(q_norm)
     hits = _search_or_503(q_norm, qvec, k, hs_prefix=hs_prefix, active_only=active_only)
     log_search(q, q_norm, hits)

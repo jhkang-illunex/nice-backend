@@ -78,12 +78,19 @@ def get_synonyms() -> dict[str, str]:
     return _cache
 
 
-def expand_query(query: str) -> str:
-    """정규화된 질의에 매칭되는 통칭의 색인 용어를 덧붙여 반환."""
+def expand_query(query: str, *, match_text: str | None = None) -> str:
+    """정규화된 질의에 매칭되는 통칭의 색인 용어를 덧붙여 반환.
+
+    ``match_text`` 가 주어지면 동의어 *매칭 검사*는 그 텍스트에서도 수행한다
+    (확장 용어가 덧붙는 대상은 여전히 ``query``). LLM 품목 추출이 통칭의
+    일부를 잘라내도('기초화장품 스킨 로션'→'스킨 로션') 추출 전 원문에 있던
+    통칭('화장품')의 확장이 발동하도록 하기 위함.
+    """
     q_norm = normalize_query(query)
+    scan = q_norm if match_text is None else q_norm + " " + normalize_query(match_text)
     additions: list[str] = []
     for alias, official in get_synonyms().items():
-        if alias in q_norm and official not in q_norm:
+        if alias in scan and official not in q_norm:
             additions.append(official)
     if not additions:
         return q_norm

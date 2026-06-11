@@ -66,3 +66,21 @@ def test_filter_dedupes_and_caps_at_three():
 def test_filter_drops_short_or_empty():
     q = normalize_query("말 수입 관세")
     assert filter_items(["말", ""], q) == []
+
+
+# ─── expand_query match_text — 추출이 통칭을 잘라도 확장 발동 ────────────────
+
+
+def test_expand_query_match_text_recovers_trimmed_alias():
+    from nice_rag.search.synonyms import expand_query
+
+    # 추출 결과('스킨 로션')에는 '화장품'이 없지만 원문에는 있음
+    out = expand_query("스킨 로션", match_text="기초화장품 스킨 로션 관세율이 얼마인가요")
+    assert out.startswith("스킨 로션")
+    assert "기초화장용" in out
+
+
+def test_expand_query_without_match_text_no_expansion():
+    from nice_rag.search.synonyms import expand_query
+
+    assert expand_query("스킨 로션") == "스킨 로션"
