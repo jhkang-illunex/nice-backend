@@ -3,7 +3,13 @@
 시그널
   vec : pgvector  (embedding <=> qvec)   ── 의미 매칭 (search_text 임베딩)
   trg : pg_trgm   (name_ko <-> q)        ── 품목명 n-gram 부분일치 (오타/짧은 한글)
-  ts  : tsvector  (ts_rank with plainto) ── 토큰 매칭 (가중: A=품목명 B=계층 C=분류 D=조항)
+  ts  : tsvector  (ts_rank, OR-tsquery)  ── 토큰 매칭 (가중: A=품목명 B=계층 C=분류 D=조항)
+
+ts 가 AND(plainto)가 아닌 OR 결합인 이유: 자연어/동의어 확장 질의는 색인에
+없는 토큰('순수', 'BEV', 조사 잔여 등)을 흔히 포함한다. AND 는 토큰 하나만
+없어도 ts 시그널 전체가 죽고, 동의어 확장이 토큰을 덧붙일수록 오히려 악화
+된다 (실측: 'BEV' 질의에서 정답 8703.80 이 ts 0건 → 22위). OR 는 맞춘
+토큰 수·가중치만큼 ts_rank 가 오르므로 부분 일치 질의에 강건하다.
 
 trg 를 search_text 가 아닌 name_ko 에 거는 이유: trigram 전체 문자열 유사도는
 자카드 기반이라 긴 문서일수록 희석된다 — detail chain 이 포함된 search_text
@@ -54,15 +60,21 @@ WITH
     ORDER BY name_ko <-> :qtext
     LIMIT :pool
   ),
+  q AS (
+    -- plainto 의 AND(&) 를 OR(|) 로 변환. 빈 질의는 NULL tsquery → ts 0건
+    SELECT to_tsquery('simple',
+             NULLIF(replace(plainto_tsquery('simple', :qtext)::text, ' & ', ' | '), '')
+           ) AS tsq
+  ),
   ts AS (
     SELECT hs_code,
-           ROW_NUMBER() OVER (ORDER BY ts_rank(search_tsv, plainto_tsquery('simple', :qtext)) DESC) AS rk
-    FROM rag.hsk
-    WHERE search_tsv @@ plainto_tsquery('simple', :qtext)
+           ROW_NUMBER() OVER (ORDER BY ts_rank(search_tsv, q.tsq) DESC) AS rk
+    FROM rag.hsk, q
+    WHERE search_tsv @@ q.tsq
       AND (:active_only = false OR valid_to >= CURRENT_DATE)
       AND (:hs_prefix_like = '' OR hs_code LIKE :hs_prefix_like)
     -- ORDER BY 없는 LIMIT 은 임의 행을 잘라 ts_rank 상위 후보가 풀에서 탈락할 수 있음
-    ORDER BY ts_rank(search_tsv, plainto_tsquery('simple', :qtext)) DESC
+    ORDER BY ts_rank(search_tsv, q.tsq) DESC
     LIMIT :pool
   ),
   ids AS (
