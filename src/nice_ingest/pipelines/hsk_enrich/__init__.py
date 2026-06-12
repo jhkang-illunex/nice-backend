@@ -11,7 +11,7 @@ from nice_ingest.registry import Pipeline, register
 register(
     Pipeline(
         name="hsk_enrich",
-        description="s_ra417 계층 chain → hsk.detail_ko/en + search_text(7-슬롯) + search_tsv 재생성",
+        description="s_ra417 계층 chain + hs_heading 공식 명칭 → hsk.detail/heading + search_text(8-슬롯) + search_tsv 재생성",
         add_args=add_args,
         run=run,
     )

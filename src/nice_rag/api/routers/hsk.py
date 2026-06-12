@@ -52,7 +52,7 @@ class HskHit(BaseModel):
         None,
         description=(
             "검색용으로 결합된 텍스트(name_ko | name_en | detail_ko | detail_en | "
-            "standard_trade_name | nature_integrated_name | hs_content). "
+            "heading_ko | standard_trade_name | nature_integrated_name | hs_content). "
             "괄호는 공백 치환됨. 빈 슬롯은 ' | | ' 형태."
         ),
         examples=["농가 사육용 | For farm breeding | 살아 있는 말ㆍ당나귀ㆍ노새ㆍ버새 > 번식용 > 농가 사육용 | Live horses > ... | | 말 | "],

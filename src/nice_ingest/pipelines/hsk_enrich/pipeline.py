@@ -3,11 +3,15 @@
 흐름 (단일 트랜잭션)
   1. detail_ko/detail_en: ``public.origin_kis_ra__s_ra417`` 의 부모 chain 을
      ' > ' 로 결합 (류 2 → 호 4 → 소호 6 → 세번 8 → 품목 10).
+  1b. heading_ko: ``rag.hs_heading`` (관세청 공식 단위별 품목명, `hs_heading`
+     파이프라인으로 적재)의 4~9단위 명칭 chain. KIS 가 생략한 중간 계층
+     명칭(특히 5단위 — '영구자석', '냉간압연', '듀럼종 밀')을 색인에 복원한다.
+     측정상 KIS 단독 색인은 85.8% 코드에서 공식 명칭 17,578건이 누락됐었다.
   2. search_text (trigram + 임베딩 입력): 본문 슬롯 + 마지막 조항 슬롯 —
-     name_ko | name_en | detail_ko | detail_en | standard_trade_name |
-     nature_integrated_name | hs_content | 한정조항모음
+     name_ko | name_en | detail_ko | detail_en | heading_ko |
+     standard_trade_name | nature_integrated_name | hs_content | 한정조항모음
   3. search_tsv (전문검색): setweight 가중 색인 —
-     A=품목명, B=계층 chain, C=분류명, D=한정/제외 조항.
+     A=품목명, B=계층 chain(KIS+공식), C=분류명, D=한정/제외 조항.
      ts_rank 기본 가중 {A:1.0, B:0.4, C:0.2, D:0.1} 가 자동 적용된다.
 
 텍스트 정규화 규칙
@@ -103,11 +107,16 @@ def _extract_clauses(expr: str) -> str:
     """
 
 
-# 조항 추출 원천: 한글 chain 만 — 품목명 조항은 품목 고유 정보라 A 에 유지
-_CLAUSE_SRC = "COALESCE(h.detail_ko, '')"
+# 조항 추출 원천: 한글 chain 만 — 품목명 조항은 품목 고유 정보라 A 에 유지.
+# 공식 명칭(heading_ko)도 호 단위 한정 조항('원유로 한정한다' 등)을 다수
+# 포함하므로 같은 규칙으로 분리한다 (형제 품목 전체 복제 → D 가중으로 격리).
+_CLAUSE_SRC = "COALESCE(h.detail_ko, '') || ' ' || COALESCE(h.heading_ko, '')"
 
 _NAMES = "COALESCE(h.name_ko, '') || ' ' || COALESCE(h.name_en, '')"
-_DETAILS = "COALESCE(h.detail_ko, '') || ' ' || COALESCE(h.detail_en, '')"
+_DETAILS = (
+    "COALESCE(h.detail_ko, '') || ' ' || COALESCE(h.detail_en, '') || ' ' || "
+    "COALESCE(h.heading_ko, '')"
+)
 _CATEGORIES = (
     "COALESCE(h.standard_trade_name, '') || ' ' || "
     "COALESCE(h.nature_integrated_name, '') || ' ' || COALESCE(h.hs_content, '')"
@@ -151,6 +160,32 @@ STEPS: list[tuple[str, str, str]] = [
         """,
     ),
     (
+        "heading",
+        "heading_ko 빌드 (rag.hs_heading 4~9단위 공식 명칭 chain)",
+        """
+        UPDATE rag.hsk h SET heading_ko = sub.chain
+        FROM (
+            SELECT d.hs_code,
+                   string_agg(d.name_ko, ' > ' ORDER BY d.level) AS chain
+            FROM (
+                -- 인접 단위가 같은 명칭을 반복하는 경우(예: 2709 호=소호) 1회만
+                SELECT DISTINCT ON (h2.hs_code, g.name_ko)
+                       h2.hs_code, g.name_ko, g.level
+                FROM rag.hsk h2
+                JOIN rag.hs_heading g
+                  ON g.hs_prefix IN (
+                       LEFT(h2.hs_code, 4), LEFT(h2.hs_code, 5),
+                       LEFT(h2.hs_code, 6), LEFT(h2.hs_code, 7),
+                       LEFT(h2.hs_code, 8), LEFT(h2.hs_code, 9))
+                WHERE g.name_ko IS NOT NULL
+                ORDER BY h2.hs_code, g.name_ko, g.level
+            ) d
+            GROUP BY d.hs_code
+        ) sub
+        WHERE sub.hs_code = h.hs_code
+        """,
+    ),
+    (
         "text",
         "search_text 재구성 (본문 슬롯 + 끝 조항 슬롯)",
         f"""
@@ -160,6 +195,7 @@ STEPS: list[tuple[str, str, str]] = [
                 COALESCE(h.name_en, '') || ' | ' ||
                 {_strip_clauses("COALESCE(h.detail_ko, '')")} || ' | ' ||
                 COALESCE(h.detail_en, '') || ' | ' ||
+                {_strip_clauses("COALESCE(h.heading_ko, '')")} || ' | ' ||
                 COALESCE(h.standard_trade_name, '') || ' | ' ||
                 COALESCE(h.nature_integrated_name, '') || ' | ' ||
                 COALESCE(h.hs_content, '') || ' | ' ||
