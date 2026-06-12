@@ -143,6 +143,11 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-nice}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nice}
       POSTGRES_DB: ${POSTGRES_DB:-nice_innovation}
+      # /api/shock/extract_first_target 의 LLM 호출용 (OpenAI-호환).
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://llm:11434/v1}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b-instruct}
+      LLM_API_KEY: ${LLM_API_KEY:-noop}
+      LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-60}
     ports:
       - "${GRAPH_API_PORT:-18001}:8000"
     restart: unless-stopped

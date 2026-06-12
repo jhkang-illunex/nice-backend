@@ -14,7 +14,7 @@ from fastapi import APIRouter, FastAPI
 from sqlalchemy import text
 
 from nice_graph import __version__
-from nice_graph.api.routers import network
+from nice_graph.api.routers import network, shock
 from nice_poc.db import get_pg_engine
 
 _DESCRIPTION = """
@@ -25,6 +25,9 @@ _DESCRIPTION = """
 * **/api/network/path** — 두 노드 간 최단 경로 (가중 Dijkstra)
 * **/api/network/components** — 연결 컴포넌트 통계
 * **/api/network/neighbors/{bizno}** — N-depth BFS 이웃
+* **/api/shock/fetch_subgraph** — HS → 시드 → N차 확장 그래프 조회
+* **/api/shock/propagate** — [MOCK] 쇼크 전파 (다음 세션 구현)
+* **/api/shock/extract_first_target** — LLM 분류 → 1차 충격 대상 선정
 
 운영 PG (`172.30.1.101`) 의 31 운영 테이블은 무수정 (read-only SELECT 만).
 """
@@ -62,7 +65,9 @@ app = FastAPI(
     openapi_tags=[
         {"name": "health", "description": "라이브니스 + PG 도달성."},
         {"name": "network", "description": "node/edge → networkx 분석 (데모)."},
+        {"name": "shock", "description": "HS → 시드 → 확장 + 쇼크 전파 + 1차 대상 선정."},
     ],
 )
 app.include_router(_health)
 app.include_router(network.router)
+app.include_router(shock.router)
