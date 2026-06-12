@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# RAG 품질 리포트 (생성 산출물 — repo 에 커밋하지 않음)
+docs/RAG_*.pdf
