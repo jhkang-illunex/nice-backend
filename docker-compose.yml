@@ -104,6 +104,8 @@ services:
       RAG_EXTRACT_TIMEOUT_S: ${RAG_EXTRACT_TIMEOUT_S:-15}
       # /agent CRAG 1회 보정 (unrelated 즉시 거부 / ambiguous 재검색·병합)
       RAG_CRAG: ${RAG_CRAG:-true}
+      # /search CRAG — 저신뢰(top1<임계)일 때만 평가, unrelated 는 빈 리스트
+      RAG_CRAG_SEARCH: ${RAG_CRAG_SEARCH:-true}
       EMBED_BASE_URL: ${EMBED_BASE_URL:-http://embed:8080/v1}
       EMBED_MODEL: ${EMBED_MODEL:-BAAI/bge-m3}
       EMBED_API_KEY: ${EMBED_API_KEY:-noop}

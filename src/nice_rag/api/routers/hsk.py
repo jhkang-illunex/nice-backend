@@ -144,6 +144,35 @@ def _embed_or_503(q: str) -> list[float]:
         ) from exc
 
 
+def _crag_correct(
+    q: str,
+    hits: list[HybridHit],
+    k: int,
+    *,
+    hs_prefix: str | None,
+    active_only: bool,
+) -> tuple[str, str, list[HybridHit]]:
+    """CRAG 평가 + ambiguous 시 1회 보정 재검색·병합.
+
+    Returns (verdict, keywords, hits). 평가기 실패는 evaluate() 가 'fit' 으로
+    폴백하므로 호출측 동작은 기존과 동일 — 켜서 나빠질 수 없다.
+    """
+    verdict, keywords = evaluate(q, hits)
+    if verdict == VERDICT_AMBIGUOUS:
+        kw_norm = expand_query(keywords) or keywords
+        try:
+            hits2 = _search_or_503(
+                kw_norm, _embed_or_503(kw_norm), k,
+                hs_prefix=hs_prefix, active_only=active_only,
+            )
+        except HTTPException:
+            hits2 = []  # 보정 실패 — 원 후보로 진행
+        if hits2:
+            log_search(q, f"[crag] {kw_norm}", hits2)
+            hits = merge_hits(hits, hits2, k)
+    return verdict, keywords, hits
+
+
 def _search_or_503(
     query: str,
     qvec: list[float],
@@ -193,7 +222,9 @@ _SEARCH_RESPONSES = {
     description=(
         "한국어 또는 영문 키워드를 받아 임베딩 + trigram + tsvector "
         "3 시그널의 Reciprocal Rank Fusion 으로 결합 검색. "
-        "정확 매칭 시 score ≈ 0.0492 (이론적 최대)."
+        "정확 매칭 시 score ≈ 0.0492 (이론적 최대). "
+        "top1 이 저신뢰(< 0.033)면 CRAG 평가기가 1회 보정 — 품목 조회와 "
+        "무관한 질의로 판정되면 빈 리스트(추천 불가)를 반환."
     ),
     responses=_SEARCH_RESPONSES,
 )
@@ -224,11 +255,21 @@ def search(
 ) -> list[HskHit]:
     # 문장형이면 품목만 추출(실패 시 원 질의) → 정규화 + 동의어 확장.
     # 동의어 매칭은 추출 전 원문에서도 검사 — 추출이 통칭을 잘라도 확장 발동.
+    s = get_rag_settings()
     q_search = extract_goods(q) or q
     q_norm = expand_query(q_search, match_text=q) or q_search
     qvec = _embed_or_503(q_norm)
     hits = _search_or_503(q_norm, qvec, limit, hs_prefix=hs_prefix, active_only=active_only)
     log_search(q, q_norm, hits)
+
+    # CRAG (조건부): 저신뢰(top1 < 임계)일 때만 평가기 발동 — 자신 있는 검색은
+    # 레이턴시 그대로, 의심 구간만 LLM 비용. unrelated 는 빈 리스트(추천 불가).
+    if s.crag_search_enabled and hits and hits[0].score < s.lowconf_threshold:
+        verdict, _, hits = _crag_correct(
+            q, hits, limit, hs_prefix=hs_prefix, active_only=active_only
+        )
+        if verdict == VERDICT_UNRELATED:
+            return []
     return [_to_hit(h) for h in hits]
 
 
@@ -297,25 +338,17 @@ def agent(
     # 평가기 실패 시 'fit' 폴백이라 켜서 나빠질 수 없음. crag.py 참조.
     crag_note = ""
     if s.crag_enabled:
-        verdict, keywords = evaluate(q, hits)
+        verdict, keywords, corrected = _crag_correct(
+            q, hits, k, hs_prefix=hs_prefix, active_only=active_only
+        )
         if verdict == VERDICT_UNRELATED:
             return HskAnswer(answer="확실하지 않음 (품목 조회와 무관)", citations=citations)
-        if verdict == VERDICT_AMBIGUOUS:
-            kw_norm = expand_query(keywords) or keywords
-            try:
-                hits2 = _search_or_503(
-                    kw_norm, _embed_or_503(kw_norm), k,
-                    hs_prefix=hs_prefix, active_only=active_only,
-                )
-            except HTTPException:
-                hits2 = []  # 보정 실패 — 원 후보로 진행
-            if hits2:
-                log_search(q, f"[crag] {kw_norm}", hits2)
-                hits = merge_hits(hits, hits2, k)
-                citations = [_to_hit(h) for h in hits]
-                # 답변 LLM 이 보정 사실을 모르면 "질의 품목이 후보에 없다"고
-                # 정직 거부한다 (예: 'WTI' vs 후보 '역청유') — 해석을 명시.
-                crag_note = f"\n(질의의 품목은 '{keywords}' 로 해석되어 후보가 보정되었습니다)"
+        if corrected is not hits:
+            hits = corrected
+            citations = [_to_hit(h) for h in hits]
+            # 답변 LLM 이 보정 사실을 모르면 "질의 품목이 후보에 없다"고
+            # 정직 거부한다 (예: 'WTI' vs 후보 '역청유') — 해석을 명시.
+            crag_note = f"\n(질의의 품목은 '{keywords}' 로 해석되어 후보가 보정되었습니다)"
 
     user_msg = f"질의: {q}{crag_note}\n\n후보:\n{_format_context(hits)}"
     try:
