@@ -61,6 +61,11 @@ class RagSettings(BaseSettings):
     # CPU 추론(dev)은 prompt eval 만 수~수십 초 — 환경별로 조정.
     query_extract_timeout_s: float = Field(default=15.0, alias="RAG_EXTRACT_TIMEOUT_S")
 
+    # ── CRAG (/agent 검색 결과 1회 평가·보정) ───────────────────────────────
+    # fit=그대로 / ambiguous=대체 키워드 재검색·병합 / unrelated=즉시 거부.
+    # 평가기 실패 시 fit 폴백 — 켜서 나빠질 수 없는 구조 (crag.py 참조).
+    crag_enabled: bool = Field(default=True, alias="RAG_CRAG")
+
 
 @lru_cache
 def get_rag_settings() -> RagSettings:

@@ -84,3 +84,19 @@ def test_expand_query_without_match_text_no_expansion():
     from nice_rag.search.synonyms import expand_query
 
     assert expand_query("스킨 로션") == "스킨 로션"
+
+
+# ─── CRAG merge — 중복은 고점 유지, 점수순 상위 k ────────────────────────────
+
+
+def test_crag_merge_hits_dedupes_and_ranks():
+    from nice_rag.search.crag import merge_hits
+    from nice_rag.search.hsk_index import HybridHit
+
+    def hit(code, score):
+        return HybridHit(hs_code=code, name_ko=None, name_en=None, description=None, score=score)
+
+    original = [hit("A", 0.030), hit("B", 0.020)]
+    corrected = [hit("B", 0.045), hit("C", 0.025)]
+    merged = merge_hits(original, corrected, k=2)
+    assert [(h.hs_code, h.score) for h in merged] == [("B", 0.045), ("A", 0.030)]

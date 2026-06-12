@@ -17,6 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from nice_rag.clients import get_llm_client
 from nice_rag.config import get_rag_settings
+from nice_rag.search.crag import VERDICT_AMBIGUOUS, VERDICT_UNRELATED, evaluate, merge_hits
 from nice_rag.search.extract import extract_goods
 from nice_rag.search.hsk_embed import embed_query
 from nice_rag.search.hsk_index import HybridHit, search_hybrid
@@ -103,8 +104,10 @@ _AGENT_SYSTEM_PROMPT = (
     "반드시 후보 리스트에 있는 10자리 HS 부호를 그대로 인용해, "
     "한 줄에 'HS부호 — 품목명' 형식으로 관련도 순으로 나열하세요. "
     "후보에 없는 부호나 품목명을 새로 만들지 마세요(품목명 바꿔쓰기 금지). "
+    "용어: '세번'과 '부호'는 HS 부호(코드)를 뜻합니다. "
     "관세율·세율 수치는 이 시스템이 제공하지 않습니다 — 질의가 세율이나 수치를 "
     "묻더라도 거부하지 말고 해당 품목에 적합한 HS 부호 후보를 나열하세요. "
+    "공급망·산업 영향 질문도 품목이 등장하면 그 품목의 후보를 나열하세요. "
     "질의 품목에 적합한 후보가 없으면 '확실하지 않음'이라고 답하세요. 추측 금지."
 )
 
@@ -290,7 +293,31 @@ def agent(
             citations=citations,
         )
 
-    user_msg = f"질의: {q}\n\n후보:\n{_format_context(hits)}"
+    # CRAG 1회 보정 — unrelated 즉시 거부(답변 LLM 생략), ambiguous 재검색·병합.
+    # 평가기 실패 시 'fit' 폴백이라 켜서 나빠질 수 없음. crag.py 참조.
+    crag_note = ""
+    if s.crag_enabled:
+        verdict, keywords = evaluate(q, hits)
+        if verdict == VERDICT_UNRELATED:
+            return HskAnswer(answer="확실하지 않음 (품목 조회와 무관)", citations=citations)
+        if verdict == VERDICT_AMBIGUOUS:
+            kw_norm = expand_query(keywords) or keywords
+            try:
+                hits2 = _search_or_503(
+                    kw_norm, _embed_or_503(kw_norm), k,
+                    hs_prefix=hs_prefix, active_only=active_only,
+                )
+            except HTTPException:
+                hits2 = []  # 보정 실패 — 원 후보로 진행
+            if hits2:
+                log_search(q, f"[crag] {kw_norm}", hits2)
+                hits = merge_hits(hits, hits2, k)
+                citations = [_to_hit(h) for h in hits]
+                # 답변 LLM 이 보정 사실을 모르면 "질의 품목이 후보에 없다"고
+                # 정직 거부한다 (예: 'WTI' vs 후보 '역청유') — 해석을 명시.
+                crag_note = f"\n(질의의 품목은 '{keywords}' 로 해석되어 후보가 보정되었습니다)"
+
+    user_msg = f"질의: {q}{crag_note}\n\n후보:\n{_format_context(hits)}"
     try:
         answer = get_llm_client().chat(
             messages=[
