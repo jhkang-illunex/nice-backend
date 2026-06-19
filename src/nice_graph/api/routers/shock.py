@@ -277,10 +277,10 @@ class ScenarioRequest(BaseModel):
     directions: list[Literal["upstream", "downstream"]] = Field(
         default=["upstream", "downstream"],
         min_length=1,
-        description="upstream=상류/매출(가중치 A), downstream=하류/매입(가중치 B). 기본 둘 다. 빈 배열 금지.",
+        description="downstream=하류/매출(매출처, 가중치 A), upstream=상류/매입(매입처, 가중치 B). 기본 둘 다. 빈 배열 금지.",
     )
-    weight_a: float = Field(1.0, gt=0.0, description="상류(매출) 비중 가중치 A.")
-    weight_b: float = Field(1.0, gt=0.0, description="하류(매입) 비중 가중치 B.")
+    weight_a: float = Field(1.0, gt=0.0, description="매출(하류·매출처) 비중 가중치 A.")
+    weight_b: float = Field(1.0, gt=0.0, description="매입(상류·매입처) 비중 가중치 B.")
     depth: int = Field(3, ge=1, le=6, description="확장 깊이.")
     trade_year: str | None = Field(None, description="거래연도 필터. None=전 연도.")
     within_subgraph: bool = Field(True, description="rate 분모: 서브그래프 내 / 전체 outgoing.")

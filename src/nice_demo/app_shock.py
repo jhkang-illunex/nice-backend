@@ -23,6 +23,7 @@ import logging
 
 import pandas as pd
 import streamlit as st
+from sqlalchemy import text
 from streamlit_agraph import Config, Edge, Node, agraph
 
 from nice_demo.clients import get_rag_client
@@ -34,9 +35,14 @@ from nice_graph.shock import (
     run_scenario,
     select_primary_firms,
 )
+from nice_poc.db import get_pg_engine
 
-# 방향 라벨(데모) ↔ assemble/scenario 의 Direction.
-_DIR_MAP = {"매출 파급(상류)": "upstream", "매입 파급(하류)": "downstream"}
+# 기업규모 코드(scaledivcd) → 라벨 (대략). 미상은 코드 그대로.
+_SCALE_LABEL = {"1": "대기업", "2": "중견기업", "3": "중소기업"}
+
+# 방향 라벨(데모) ↔ assemble/scenario 의 Direction (★ 문서 기준).
+#   매출 파급 = 매출처(고객)/하류 = downstream, 매입 파급 = 매입처(공급사)/상류 = upstream.
+_DIR_MAP = {"매출 파급(하류)": "downstream", "매입 파급(상류)": "upstream"}
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -90,8 +96,8 @@ def sidebar() -> dict:
         help="upstream=상류/매출(가중치 A), downstream=하류/매입(가중치 B)",
     )
     directions = [_DIR_MAP[d] for d in dir_labels] or ["upstream", "downstream"]
-    weight_a = st.sidebar.slider("가중치 A — 매출/상류", 0.05, 1.0, value=1.0, step=0.05)
-    weight_b = st.sidebar.slider("가중치 B — 매입/하류", 0.05, 1.0, value=1.0, step=0.05)
+    weight_a = st.sidebar.slider("가중치 A — 매출/하류(매출처)", 0.05, 1.0, value=1.0, step=0.05)
+    weight_b = st.sidebar.slider("가중치 B — 매입/상류(매입처)", 0.05, 1.0, value=1.0, step=0.05)
     norm_label = st.sidebar.radio(
         "정규화 기준",
         ["전파소스 (수렴보장)", "거래상대 (매출·매입 비중)"],
@@ -503,8 +509,8 @@ def _render_direction(dr, scenario: str, cfg: dict) -> None:
     for w in asm.warnings:
         st.warning(w)
 
-    tab_g, tab_n, tab_e, tab_r = st.tabs(
-        ["네트워크 그래프", "노드 그리드", "엣지 그리드 (rate)", f"{val_label} 결과"]
+    tab_g, tab_n, tab_e, tab_r, tab_amt = st.tabs(
+        ["네트워크 그래프", "노드 그리드", "엣지 그리드 (rate)", f"{val_label} 결과", "금액 결과표(STEP6)"]
     )
     with tab_g:
         _render_graph(asm, shock_by_node, top_n=cfg["viz_top"])
@@ -514,6 +520,8 @@ def _render_direction(dr, scenario: str, cfg: dict) -> None:
         _render_edges_grid(asm)
     with tab_r:
         _render_result_grid(asm, shock_by_node, val_label, dr)
+    with tab_amt:
+        _render_amount_grid(asm, shock_by_node, val_label, cfg)
 
 
 def _dl(df: pd.DataFrame, label: str, fname: str, key: str) -> None:
@@ -521,6 +529,95 @@ def _dl(df: pd.DataFrame, label: str, fname: str, key: str) -> None:
         label, df.to_csv(index=False).encode("utf-8-sig"),
         file_name=fname, mime="text/csv", key=key,
     )
+
+
+@st.cache_data(show_spinner=False)
+def _fetch_firm_amounts(biznos: tuple, trade_year: str | None) -> dict:
+    """기업별 기준 매출액(Σ_out sly_amt)·매입액(Σ_in)·기업규모·공공유형 (문서 STEP6 금액표용).
+
+    company_edge 에서 방향별 거래액 합, em001 에서 scaledivcd(규모)·eprmdydivcd(='2'→공공).
+    """
+    bl = list(biznos)
+    if not bl:
+        return {}
+    yr = "AND CAST(trade_year AS text) = :yr" if trade_year else ""
+    params: dict = {"b": bl}
+    if trade_year:
+        params["yr"] = str(trade_year)
+    sales_sql = text(
+        f"SELECT from_bizno b, COALESCE(SUM(sly_amt),0)::float v FROM public.company_edge "
+        f"WHERE from_bizno = ANY(:b) {yr} GROUP BY from_bizno"
+    )
+    buy_sql = text(
+        f"SELECT to_bizno b, COALESCE(SUM(sly_amt),0)::float v FROM public.company_edge "
+        f"WHERE to_bizno = ANY(:b) {yr} GROUP BY to_bizno"
+    )
+    attr_sql = text(
+        "SELECT bizno, scaledivcd, eprmdydivcd FROM public.origin_kis_em__s_em001 "
+        "WHERE bizno = ANY(:b)"
+    )
+    out = {b: {"sales": 0.0, "buy": 0.0, "scale": None, "public": False} for b in bl}
+    with get_pg_engine().connect() as c:
+        for r in c.execute(sales_sql, params).mappings():
+            out[r["b"]]["sales"] = r["v"]
+        for r in c.execute(buy_sql, params).mappings():
+            out[r["b"]]["buy"] = r["v"]
+        for r in c.execute(attr_sql, {"b": bl}).mappings():
+            o = out.get(r["bizno"])
+            if o:
+                o["scale"] = r["scaledivcd"]
+                o["public"] = str(r["eprmdydivcd"]).strip() == "2"
+    return out
+
+
+def _render_amount_grid(asm, shock_by_node: dict[str, float], val_label: str, cfg: dict) -> None:
+    """문서 STEP6 금액 결과표 — 기준 거래액 × 변화율(shock/Δ) → 변화액(원) + 기업속성.
+
+    ※ 기능 실증용: shock/Δ 를 변화율(분수)로 해석. 실 충격강도(%) 입력은 본 프론트(Spring)에서.
+    """
+    biznos = tuple(sorted({n.bizno for n in asm.nodes}))
+    try:
+        amt = _fetch_firm_amounts(biznos, cfg.get("year"))
+    except Exception as exc:  # noqa: BLE001
+        st.error(f"기준 거래액 조회 실패: {exc.__class__.__name__} — {exc}")
+        return
+    rows = []
+    for n in asm.nodes:
+        rate = shock_by_node.get(n.node_id, 0.0)  # 변화율(분수)로 해석
+        a = amt.get(n.bizno, {})
+        bs, bb = a.get("sales", 0.0), a.get("buy", 0.0)
+        rows.append(
+            {
+                "구분": "1차" if n.is_seed else "2차",
+                "기업명": n.korentrnm or n.bizno,
+                "사업자번호": n.bizno,
+                "기업규모": _SCALE_LABEL.get(str(a.get("scale")), a.get("scale") or "-"),
+                "기업유형": "공공" if a.get("public") else "일반",
+                "매출액(기준)": round(bs),
+                "매출변화": round(bs * rate),
+                "매출액(결과)": round(bs * (1 + rate)),
+                "매출변화율": f"{rate * 100:.1f}%",
+                "매입액(기준)": round(bb),
+                "매입변화": round(bb * rate),
+                "매입액(결과)": round(bb * (1 + rate)),
+            }
+        )
+    df = pd.DataFrame(rows)
+    if df.empty:
+        st.info("표시할 기업이 없습니다.")
+        return
+    df = df.sort_values("매출변화", key=lambda s: s.abs(), ascending=False).reset_index(drop=True)
+    tot = int(df["매출변화"].sum() + df["매입변화"].sum())
+    n_aff = int(((df["매출변화"].abs() + df["매입변화"].abs()) > 0).sum())
+    c1, c2 = st.columns(2)
+    c1.metric("총 파급효과(원)", f"{tot:,}")
+    c2.metric("영향 기업 수", f"{n_aff}")
+    st.caption(
+        f"기준 매출액=Σ_out(sly_amt)·매입액=Σ_in · 변화액=기준×{val_label}(변화율 해석) · "
+        "기업규모/유형=em001. ※ 기능 실증용(실 충격강도 입력은 Spring 프론트)."
+    )
+    st.dataframe(df, height=420, use_container_width=True)
+    _dl(df, "금액 결과표 CSV", f"amount_{asm.direction}.csv", f"dl_amt_{asm.direction}")
 
 
 def _render_nodes_grid(asm, shock_by_node: dict[str, float], val_label: str) -> None:
