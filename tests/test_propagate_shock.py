@@ -15,7 +15,6 @@ import pytest
 
 from nice_graph.shock.propagate import ShockResult, propagate_shock
 
-
 # ── 헬퍼 ──────────────────────────────────────────────────────────────────
 
 

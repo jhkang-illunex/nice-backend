@@ -73,7 +73,7 @@ def _top1_score(query_text: str) -> float:
 
 def _cosine(a: list[float], b: list[float]) -> float:
     # embed_query 는 L2 정규화 벡터를 반환하므로 내적 = 코사인
-    return sum(x * y for x, y in zip(a, b))
+    return sum(x * y for x, y in zip(a, b, strict=True))
 
 
 # 의미 가드: 후보가 원질의와 의미적으로 무관(LLM 환각)하면 탈락
