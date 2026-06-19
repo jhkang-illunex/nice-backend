@@ -13,6 +13,16 @@
       LLM (nice_llm.LlmJsonClient.classify_choice) 으로 HIGH+MEDIUM 분류.
 """
 
+from nice_graph.shock.assemble import (
+    AssembledNode,
+    Direction,
+    Normalize,
+    PropagationInput,
+    assemble_propagation_input,
+    make_node_id,
+    parse_node_id,
+    run_propagation,
+)
 from nice_graph.shock.fetch import (
     EdgeRow,
     NodeRow,
@@ -20,14 +30,44 @@ from nice_graph.shock.fetch import (
     fetch_subgraph,
 )
 from nice_graph.shock.propagate import ShockResult, propagate_shock
+from nice_graph.shock.scenario import (
+    DirectionResult,
+    RandomOverrideSpec,
+    ScenarioResult,
+    build_primary_secondary_random_overrides,
+    run_tariff_shock,
+    run_transaction_change,
+)
+from nice_graph.shock.screen import (
+    ExposedFirm,
+    PrimarySelectionResult,
+    select_primary_firms,
+)
 from nice_graph.shock.target import extract_first_target
 
 __all__ = [
+    "AssembledNode",
+    "Direction",
+    "DirectionResult",
     "EdgeRow",
+    "ExposedFirm",
     "NodeRow",
+    "Normalize",
+    "PrimarySelectionResult",
+    "PropagationInput",
+    "RandomOverrideSpec",
+    "ScenarioResult",
     "ShockResult",
     "SubgraphResult",
+    "assemble_propagation_input",
+    "build_primary_secondary_random_overrides",
     "extract_first_target",
     "fetch_subgraph",
+    "make_node_id",
+    "parse_node_id",
     "propagate_shock",
+    "run_propagation",
+    "run_tariff_shock",
+    "run_transaction_change",
+    "select_primary_firms",
 ]

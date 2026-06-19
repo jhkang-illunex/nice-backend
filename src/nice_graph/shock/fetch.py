@@ -3,19 +3,22 @@
 스키마 의존
   public.origin_kis_em__s_em001 — 시드 추출용 (bizno + upchecd)
   public.origin_kis_ra__s_ra603 — HS×MTI 산업분류 비중 메타 (시드 join)
-  public.edge                   — 거래관계 (from_bizno, to_bizno, sly_amt, trade_year)
+  public.company_edge           — 거래관계 (from_bizno, to_bizno, sly_amt, trade_year)
 
-mode 인자
-  ``BFS`` / ``DFS`` 둘 다 *깊이 N 까지 도달 가능한 동일한 노드/엣지 셋* 을
-  반환 (응답에 visit-order 가 없으므로 결과 set 은 알고리즘 무관).
-  BFS = hop-by-hop SQL (frontier expansion). DFS = 같은 결과를 *iterative
-  stack* 로 traversal — PoC 단계에서는 결과 set 만 일치하면 충분.
+확장 방식
+  재귀 CTE 로 seeds 에서 깊이 N 까지 도달한 노드의 *유도 부분그래프* (도달 노드
+  사이의 모든 엣지) 를 한 쿼리에 조회. 같은 레벨 노드끼리의 수평 엣지까지
+  포함되고, GROUP BY 로 중복행이 합산된다.
+  ``mode`` 인자는 하위호환용 — 결과가 traversal 무관이라 값은 무시된다.
 
-비율 정의
-  ``all_rate``     = source 의 outgoing 행 정규화 (Σ_out = 1)
+비율 정의 (서브그래프 내 정규화)
+  ``all_rate``     = source 의 outgoing 행 정규화 (서브그래프 내 Σ_out = 1)
                     = sly_amt(from→to, 전 연도 합) / SUM(sly_amt(from→*, 전 연도 합))
   ``years_rate[yr]`` = source 의 연도별 outgoing 중 비중
                     = sly_amt(from→to, yr) / SUM(sly_amt(from→*, yr))
+  주의 — Σ_out = 1 (ρ=1) 이라 그래프에 사이클이 있으면 propagate_shock 의
+  거듭제곱급수가 발산한다. 전파에 쓸 땐 assemble.assemble_propagation_input
+  의 damping(α<1) 을 거쳐 ρ ≤ α < 1 로 만들 것.
 """
 
 from __future__ import annotations
@@ -76,14 +79,33 @@ _SEED_SQL = text(
 )
 
 
-_EDGES_OF_FRONTIER_SQL = text(
+# 순회(depth 확장) + 유도 부분그래프 + 연도별 합산을 **재귀 CTE 한 쿼리**로.
+#   reach   : seeds 에서 무방향(from/to 양쪽) 으로 depth 까지 도달한 노드.
+#   결과     : 도달 노드 *사이의 모든* 엣지를 (from,to,trade_year) 별 sly_amt 합으로.
+# 홉-바이-홉 BFS 가 놓치던 '같은 레벨 노드끼리의 수평 엣지' 까지 정확히 포함되고,
+# GROUP BY 로 중복행이 자동 합산된다 (기존 Python BFS 의 누락·중복 버그 동시 해소).
+_INDUCED_SUBGRAPH_SQL = text(
     """
-    SELECT from_bizno,
-           to_bizno,
-           trade_year,
-           COALESCE(sly_amt, 0)::float AS sly_amt
-    FROM public.edge
-    WHERE from_bizno = ANY(:frontier) OR to_bizno = ANY(:frontier)
+    WITH RECURSIVE reach(bizno, depth) AS (
+            SELECT x, 0 FROM unnest(CAST(:seeds AS text[])) AS x
+        UNION
+            SELECT CASE WHEN e.from_bizno = r.bizno THEN e.to_bizno ELSE e.from_bizno END,
+                   r.depth + 1
+            FROM reach r
+            JOIN public.company_edge e
+              ON (e.from_bizno = r.bizno OR e.to_bizno = r.bizno)
+            WHERE r.depth < :depth
+              AND e.from_bizno IS NOT NULL AND e.to_bizno IS NOT NULL
+    ),
+    nodes AS (SELECT DISTINCT bizno FROM reach)
+    SELECT e.from_bizno,
+           e.to_bizno,
+           e.trade_year,
+           COALESCE(SUM(e.sly_amt), 0)::float AS sly_amt
+    FROM public.company_edge e
+    WHERE e.from_bizno IN (SELECT bizno FROM nodes)
+      AND e.to_bizno   IN (SELECT bizno FROM nodes)
+    GROUP BY e.from_bizno, e.to_bizno, e.trade_year
     """
 )
 
@@ -106,13 +128,28 @@ def _fetch_seeds(hs6: str) -> list[str]:
     return [r[0] for r in rows]
 
 
-def _fetch_edges_for_frontier(frontier: list[str]) -> list[tuple]:
-    if not frontier:
-        return []
+def _fetch_induced_subgraph(
+    seeds: list[str], n_of_child: int
+) -> tuple[set[str], list[tuple]]:
+    """seeds → depth N 도달 노드의 유도 부분그래프.
+
+    Returns:
+      (visited, edge_rows) — edge_rows 는 (from_bizno, to_bizno, trade_year, sly_amt)
+      로 (from,to,year) 별 합산됨. visited = seeds ∪ 모든 엣지 양끝.
+    """
+    if not seeds:
+        return set(), []
     with get_pg_engine().connect() as c:
-        return c.execute(
-            _EDGES_OF_FRONTIER_SQL, {"frontier": list(frontier)}
+        rows = c.execute(
+            _INDUCED_SUBGRAPH_SQL, {"seeds": list(seeds), "depth": int(n_of_child)}
         ).fetchall()
+    visited: set[str] = set(seeds)
+    edge_rows: list[tuple] = []
+    for from_b, to_b, year, amt in rows:
+        visited.add(from_b)
+        visited.add(to_b)
+        edge_rows.append((from_b, to_b, year, amt))
+    return visited, edge_rows
 
 
 def _fetch_upchecd_map(biznos: list[str]) -> dict[str, str | None]:
@@ -121,48 +158,6 @@ def _fetch_upchecd_map(biznos: list[str]) -> dict[str, str | None]:
     with get_pg_engine().connect() as c:
         rows = c.execute(_NODE_UPCHECD_SQL, {"biznos": list(biznos)}).fetchall()
     return {r[0]: r[1] for r in rows}
-
-
-# ─── 확장 (BFS / DFS) ─────────────────────────────────────────────────────
-
-
-def _expand_bfs(
-    seeds: list[str], n_of_child: int
-) -> tuple[set[str], list[tuple]]:
-    """hop-by-hop SQL — frontier 의 in/out edge 를 깊이 N 까지 모음."""
-    visited: set[str] = set(seeds)
-    edge_rows: list[tuple] = []
-    frontier: list[str] = list(seeds)
-    for _ in range(n_of_child):
-        if not frontier:
-            break
-        rows = _fetch_edges_for_frontier(frontier)
-        edge_rows.extend(rows)
-        # 다음 frontier = 이번 hop 에서 새로 발견된 노드
-        new_nodes = {b for r in rows for b in (r[0], r[1])} - visited
-        visited |= new_nodes
-        frontier = list(new_nodes)
-    return visited, edge_rows
-
-
-def _expand_dfs(
-    seeds: list[str], n_of_child: int
-) -> tuple[set[str], list[tuple]]:
-    """iterative stack DFS — 같은 depth 한도, 결과 set 은 BFS 와 동일."""
-    visited: set[str] = set(seeds)
-    edge_rows: list[tuple] = []
-    stack: list[tuple[str, int]] = [(s, 0) for s in seeds]
-    while stack:
-        node, depth = stack.pop()
-        if depth >= n_of_child:
-            continue
-        rows = _fetch_edges_for_frontier([node])
-        edge_rows.extend(rows)
-        new_nodes = {b for r in rows for b in (r[0], r[1])} - visited
-        visited |= new_nodes
-        for nn in new_nodes:
-            stack.append((nn, depth + 1))
-    return visited, edge_rows
 
 
 # ─── 비율 집계 (all_rate / years_rate) ─────────────────────────────────────
@@ -226,22 +221,20 @@ def fetch_subgraph(
     Args:
       hscode: HS 6자리 또는 10자리 digit string. 10자리면 앞 6자리 사용.
       n_of_child: N 차 확장 깊이.
-      mode: 'BFS' 또는 'DFS'. 결과 set 동일, 알고리즘만 다름.
+      mode: 하위호환용 인자 — 순회를 재귀 CTE 의 유도 부분그래프로 처리하므로
+            BFS/DFS 무관하게 동일 결과. (값은 무시됨.)
 
     Returns:
       SubgraphResult(nodes=[{'bizno','upchecd'}, ...],
                      edges=[{'from_bizno','to_bizno','years_rate','all_rate'}, ...])
     """
+    del mode  # 재귀 CTE 는 traversal 무관 — 인자만 보존
     hs6 = _hs6(hscode)
     seeds = _fetch_seeds(hs6)
     if not seeds:
         return SubgraphResult()
 
-    if mode == "DFS":
-        visited, edge_rows = _expand_dfs(seeds, n_of_child)
-    else:
-        visited, edge_rows = _expand_bfs(seeds, n_of_child)
-
+    visited, edge_rows = _fetch_induced_subgraph(seeds, n_of_child)
     edges = _aggregate_edges(edge_rows, visited)
 
     upchecd_map = _fetch_upchecd_map(list(visited))

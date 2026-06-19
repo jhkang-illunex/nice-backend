@@ -167,6 +167,15 @@ services:
       dockerfile: deploy/demo/Dockerfile
     image: nice/demo:${APP_TAG:-dev}
     container_name: nice-demo
+    # 신규 파이프라인 앱(app_shock.py)으로 entrypoint override — Dockerfile CMD(레거시 app.py)는 보존.
+    command:
+      - streamlit
+      - run
+      - src/nice_demo/app_shock.py
+      - --server.port=8000
+      - --server.address=0.0.0.0
+      - --server.headless=true
+      - --browser.gatherUsageStats=false
     environment:
       APP_ENV: ${APP_ENV:-local}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
