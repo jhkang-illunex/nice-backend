@@ -148,14 +148,15 @@ def test_tariff_runs_both_directions(monkeypatch) -> None:
 
 
 def test_transaction_change_returns_delta(monkeypatch) -> None:
-    """baseline(원W) 대비 changed(수정W)의 노드별 Δ 를 반환."""
+    """baseline(원W) 대비 changed(수정W=in-memory g)의 노드별 Δ + assemble 1회/방향(E1)."""
+    calls = {"n": 0}
 
     def fake_assemble(seeds, *, edge_overrides=None, **kw):
-        if edge_overrides:  # changed — B 로 0.5 전파되는 엣지 추가
-            return _fake_assembled(
-                [{"from_bizno": "A|1", "to_bizno": "B|2", "rate": 0.5}], {"A|1": 1.0}
-            )
-        return _fake_assembled([], {"A|1": 1.0})  # baseline — 전파 없음
+        calls["n"] += 1
+        # baseline 은 항상 셀러A→바이어B(rate 0.5)를 포함. E1 은 g 를 in-memory 로 적용.
+        return _fake_assembled(
+            [{"from_bizno": "A|1", "to_bizno": "B|2", "rate": 0.5}], {"A|1": 1.0}
+        )
 
     monkeypatch.setattr(scen_mod, "assemble_propagation_input", fake_assemble)
     res = run_transaction_change(
@@ -163,9 +164,26 @@ def test_transaction_change_returns_delta(monkeypatch) -> None:
     )
 
     delta = {r["bizno"]: r["shock"] for r in res.directions[0].result.shock_list}
-    assert delta["A|1"] == pytest.approx(0.0)  # 시드 자기 충격은 동일 → Δ=0
-    assert delta["B|2"] == pytest.approx(0.5)  # 거래 추가분만 변화
+    assert delta["A|1"] == pytest.approx(0.0)  # 시드 자기 충격 동일 → Δ=0
+    assert delta["B|2"] == pytest.approx(-0.25)  # 거래 0.5배 → 하류 전파 0.5→0.25 감소
     assert any("difference-of-runs" in w for w in res.warnings)
+    assert calls["n"] == 1  # E1: 방향당 baseline 1회만 (수정 W 는 in-memory)
+
+
+def test_transaction_change_all_g_one_warns(monkeypatch) -> None:
+    monkeypatch.setattr(
+        scen_mod,
+        "assemble_propagation_input",
+        lambda seeds, **kw: _fake_assembled(
+            [{"from_bizno": "A|1", "to_bizno": "B|2", "rate": 0.5}], {"A|1": 1.0}
+        ),
+    )
+    res = run_transaction_change(
+        [("A", "1")], edge_overrides={("A", "B"): 1.0}, directions=["downstream"]
+    )
+    assert any("변화 없음" in w for w in res.warnings)
+    # g=1.0 → Δ 전부 0
+    assert all(abs(r["shock"]) < 1e-12 for r in res.directions[0].result.shock_list)
 
 
 def test_transaction_change_empty_overrides_raises() -> None:
@@ -414,3 +432,35 @@ def test_scenario_endpoint_passes_normalize(monkeypatch) -> None:
     )
     assert r.status_code == 200, r.text
     assert captured["kwargs"]["normalize"] == "counterparty"
+
+
+# ── 8. 코드리뷰 회귀 (C1·C2·C3) ──────────────────────────────────────────────
+
+
+def test_seed_duplicate_bizno_not_double_counted(monkeypatch) -> None:
+    # C1: 동일 bizno 가 복수 upchecd pair → init 한 번만 (이중계상 방지)
+    _patch_assemble_db(monkeypatch, [], {"B1": ("U1", "회사B1")})
+    out = assemble_propagation_input([("B1", "U1"), ("B1", "U2")], seed_shock=1.0)
+    assert out.init_sub_graph == {"B1|U1": 1.0}  # 2.0 이면 이중계상 버그
+
+
+def test_scenario_rejects_empty_directions() -> None:
+    # C2: directions=[] → 422 (min_length=1)
+    r = client.post(
+        "/api/shock/scenario",
+        json={
+            "scenario": "tariff",
+            "seeds": [{"bizno": "A", "upchecd": "1"}],
+            "directions": [],
+        },
+    )
+    assert r.status_code == 422, r.text
+
+
+def test_random_only_firms_no_intersection_raises(monkeypatch) -> None:
+    # C3: only_firms 가 시드와 교집합 없으면 명확한 ValueError
+    _patch_gen(monkeypatch)
+    with pytest.raises(ValueError, match="교집합"):
+        build_primary_secondary_random_overrides(
+            _GEN_SEEDS, spec=RandomOverrideSpec(only_firms=("ZZZ",), seed=1)
+        )

@@ -31,7 +31,7 @@ from __future__ import annotations
 import logging
 import random
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from nice_graph.shock.assemble import (
     Direction,
@@ -130,6 +130,32 @@ def _weight_for(direction: str, weight_a: float, weight_b: float) -> float:
     return weight_a if direction == "upstream" else weight_b
 
 
+def _apply_overrides(
+    asm: PropagationInput, overrides: Mapping[tuple[str, str], float]
+) -> list[dict]:
+    """조립된 baseline 엣지에 g 를 in-memory 로 적용 — assemble 의 edge_overrides 와 동치.
+
+    assemble 은 rate = W·α·(amt/denom)·g 로 빌드하므로 baseline(g=1) 대비 수정 rate = rate·g.
+    이를 활용해 **수정 W 를 위한 2차 DB 조립을 생략**한다(같은 서브그래프 재조회 제거).
+
+    override 키 = 저장방향 (셀러, 바이어). 조립 엣지는 방향에 따라 oriented nid 라
+    asm.direction 으로 (셀러,바이어) 를 복원해 매칭. rate≤0 은 assemble 과 동일하게 제외.
+    """
+    if not overrides:
+        return list(asm.edges)
+    out: list[dict] = []
+    for e in asm.edges:
+        fb, _ = parse_node_id(e["from_bizno"])
+        tb, _ = parse_node_id(e["to_bizno"])
+        seller, buyer = (fb, tb) if asm.direction == "downstream" else (tb, fb)
+        g = float(overrides.get((seller, buyer), 1.0))
+        new_rate = float(e["rate"]) * g
+        if new_rate <= 0:
+            continue
+        out.append(e if g == 1.0 else {**e, "rate": new_rate})
+    return out
+
+
 def _coerce_overrides(
     edge_overrides: Mapping[tuple[str, str], float] | None,
 ) -> dict[tuple[str, str], float]:
@@ -217,9 +243,14 @@ def run_transaction_change(
 
     out: list[DirectionResult] = []
     warnings: list[str] = ["변화분 = 수정W − 원W (difference-of-runs)"]
+    if all(abs(g - 1.0) < 1e-12 for g in ov.values()):
+        warnings.append("모든 override g=1.0 — 변화 없음(Δ=0). factor<1.0 로 변경 대상을 지정하세요.")
     for d in directions:
         w = _weight_for(d, weight_a, weight_b)
-        common = dict(
+        # 방향별 baseline 만 DB 조립(1회). 수정 W 는 in-memory g 적용(2차 조립 생략).
+        base_asm = _assemble_one(
+            seeds,
+            edge_overrides=None,
             direction=d,
             weight=w,
             depth=depth,
@@ -229,13 +260,15 @@ def run_transaction_change(
             seed_shock=seed_shock,
             normalize=normalize,
         )
-        base_asm = _assemble_one(seeds, edge_overrides=None, **common)
-        chg_asm = _assemble_one(seeds, edge_overrides=ov, **common)
-        warnings.extend(f"[{d}] {m}" for m in chg_asm.warnings)
+        warnings.extend(f"[{d}] {m}" for m in base_asm.warnings)
+        chg_asm = replace(base_asm, edges=_apply_overrides(base_asm, ov))
         base_res = _propagate(base_asm, **propagate_kwargs)
         chg_res = _propagate(chg_asm, **propagate_kwargs)
         out.append(DirectionResult(d, EFFECT_LABEL[d], w, chg_asm, _delta(base_res, chg_res)))
-    log.info("transaction_change: directions=%s overrides=%d", list(directions), len(ov))
+    log.info(
+        "transaction_change: directions=%s overrides=%d (baseline 1회/방향)",
+        list(directions), len(ov),
+    )
     return ScenarioResult("transaction_change", out, warnings)
 
 
@@ -292,6 +325,11 @@ def build_primary_secondary_random_overrides(
 
     seed_biznos = _seed_biznos(seeds)
     target = seed_biznos & set(spec.only_firms) if spec.only_firms else seed_biznos
+    if spec.only_firms and not target:
+        raise ValueError(
+            f"only_firms 가 시드 기업과 교집합 없음 — only_firms={list(spec.only_firms)[:5]} "
+            f"vs seeds={sorted(seed_biznos)[:5]}"
+        )
 
     # 1차↔2차 거래쌍 열거 — downstream 조립으로 저장방향 (셀러,바이어) 확보.
     dn = assemble_propagation_input(

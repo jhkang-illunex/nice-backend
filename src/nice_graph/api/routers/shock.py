@@ -282,7 +282,8 @@ class ScenarioRequest(BaseModel):
     seeds: list[SeedIn] = Field(..., description="1차 기업 (bizno,upchecd,shock).")
     directions: list[Literal["upstream", "downstream"]] = Field(
         default=["upstream", "downstream"],
-        description="upstream=상류/매출(가중치 A), downstream=하류/매입(가중치 B). 기본 둘 다.",
+        min_length=1,
+        description="upstream=상류/매출(가중치 A), downstream=하류/매입(가중치 B). 기본 둘 다. 빈 배열 금지.",
     )
     weight_a: float = Field(1.0, gt=0.0, description="상류(매출) 비중 가중치 A.")
     weight_b: float = Field(1.0, gt=0.0, description="하류(매입) 비중 가중치 B.")

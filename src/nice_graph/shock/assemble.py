@@ -386,10 +386,11 @@ def assemble_propagation_input(
             src_id, dst_id = nid(to_b), nid(from_b)
         edges.append({"from_bizno": src_id, "to_bizno": dst_id, "rate": rate})
 
-    # init — 시드만 (복합키)
+    # init — 시드만 (복합키). bizno 단위로 한 번씩 (동일 bizno 가 복수 upchecd pair 로
+    # 들어와도 nid 가 같아 이중합산되지 않도록 shock_by_bizno 키를 순회한다).
     init: dict[str, float] = {}
-    for bizno, _up in pairs:
-        init[nid(bizno)] = init.get(nid(bizno), 0.0) + shock_by_bizno.get(bizno, 0.0)
+    for bizno, shock in shock_by_bizno.items():
+        init[nid(bizno)] = init.get(nid(bizno), 0.0) + shock
 
     seed_id_set = set(init.keys())
     nodes: list[AssembledNode] = []
