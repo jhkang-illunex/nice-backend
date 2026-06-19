@@ -215,7 +215,7 @@ def run_tariff_shock(
 
     Args:
       seeds: 1차 기업 (PrimarySelectionResult 또는 (bizno,upchecd) 쌍).
-      weight_a/weight_b: 상류(매출)/하류(매입) 비중 가중치.
+      weight_a/weight_b: 하류(매출 파급, downstream)/상류(매입 파급, upstream) 비중 가중치.
       directions: 계산할 방향 (기본 둘 다 → 매출·매입 파급 동시 반환).
       normalize: rate 분모 기준 source(수렴보장) | counterparty(매출/매입 비중 라벨).
       그 외: assemble_propagation_input 로 그대로 전달.
