@@ -41,6 +41,7 @@ NICE Open Innovation PoC — 공급망/수요망 충격 시뮬레이션 백엔�
 - [`POST_INTAKE_TASKS.md`](docs/POST_INTAKE_TASKS.md) — 데이터 도착 후 작업 큐 (P0~P7)
 - [`RAG_API.md`](docs/RAG_API.md) — rag-server REST API 입출력 명세 (`/api/hsk/{search,agent}` 등)
 - [`NETWORK_API.md`](docs/NETWORK_API.md) — graph-analysis REST API 입출력 명세 (`/api/network/{summary,centrality/*,path,components,neighbors}` 등)
+- [`SHOCK_API.md`](docs/SHOCK_API.md) — graph-analysis 외생 충격 시나리오 API 입출력 명세 (`/api/shock/{fetch_subgraph,extract_first_target,propagate}` + Plan B 프로필 컬럼/KIS 코드 매핑/다운그레이드 가이드)
 - [`CONTAINERS.md`](docs/CONTAINERS.md) — 두 컨테이너 운영/배포 통합 명세 (env/빌드/운영 명령/트러블슈팅/정책)
 
 ## 서버 토폴로지 (RAG + Network)

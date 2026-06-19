@@ -5,7 +5,6 @@ import pytest
 from nice_rag.search.extract import filter_items, looks_like_sentence
 from nice_rag.search.normalize import normalize_query
 
-
 # ─── looks_like_sentence — 키워드형은 LLM 미호출이 보장돼야 함 ───────────────
 
 

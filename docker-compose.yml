@@ -143,8 +143,55 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-nice}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nice}
       POSTGRES_DB: ${POSTGRES_DB:-nice_innovation}
+      # /api/shock/extract_first_target 의 LLM 호출용 (OpenAI-호환).
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://llm:11434/v1}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b-instruct}
+      LLM_API_KEY: ${LLM_API_KEY:-noop}
+      LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-60}
     ports:
       - "${GRAPH_API_PORT:-18001}:8000"
+    restart: unless-stopped
+    networks: [nice-net]
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Demo layer (Streamlit) — HS → s_ra604 시드 → edge 3차 확장 → LLM → 쇼크 산출
+  #
+  # rag-server / graph-analysis 를 HTTP 로 호출하고 (compose network DNS),
+  # kis_ra.s_ra604 + public.node/edge 는 운영 PG 에 read-only SELECT 로 직접 접근.
+  # profile demo 로 토글.
+  # ─────────────────────────────────────────────────────────────────────────────
+  demo:
+    profiles: ["demo"]
+    build:
+      context: .
+      dockerfile: deploy/demo/Dockerfile
+    image: nice/demo:${APP_TAG:-dev}
+    container_name: nice-demo
+    # 신규 파이프라인 앱(app_shock.py)으로 entrypoint override — Dockerfile CMD(레거시 app.py)는 보존.
+    command:
+      - streamlit
+      - run
+      - src/nice_demo/app_shock.py
+      - --server.port=8000
+      - --server.address=0.0.0.0
+      - --server.headless=true
+      - --browser.gatherUsageStats=false
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      POSTGRES_HOST: ${POSTGRES_HOST:-172.30.1.101}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-nice}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nice}
+      POSTGRES_DB: ${POSTGRES_DB:-nice_innovation}
+      RAG_API_URL: ${RAG_API_URL_INTERNAL:-http://rag-server:8000}
+      GRAPH_API_URL: ${GRAPH_API_URL_INTERNAL:-http://graph-analysis:8000}
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://llm:11434/v1}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b-instruct}
+      LLM_API_KEY: ${LLM_API_KEY:-noop}
+      LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-60}
+    ports:
+      - "${DEMO_API_PORT:-18003}:8000"
     restart: unless-stopped
     networks: [nice-net]
 
