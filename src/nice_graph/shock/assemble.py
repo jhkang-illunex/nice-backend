@@ -53,9 +53,10 @@ log = logging.getLogger(__name__)
 NODE_SEP = "|"
 
 # 전파 방향 — 셀러(from)→바이어(to) 가 company_edge 의 저장 방향.
-#   downstream : 셀러→바이어 (저장 방향 그대로). 하류/매입 파급. 가중치 B.
+# (라벨/가중치는 문서 기준: 매출 파급=매출처(고객) 방향, 매입 파급=매입처(공급사) 방향.)
+#   downstream : 셀러→바이어 (저장 방향 그대로). 하류/매출 파급(매출처). 가중치 A.
 #                rate 정규화 = 셀러(source)의 outgoing(총매출) 대비.
-#   upstream   : 바이어→셀러 (방향 뒤집음). 상류/매출 파급. 가중치 A.
+#   upstream   : 바이어→셀러 (방향 뒤집음). 상류/매입 파급(매입처). 가중치 B.
 #                rate 정규화 = 바이어(source)의 incoming(총매입) 대비.
 # ※ 정규화 분모는 normalize 옵션으로 방향과 분리해 고른다 (아래 Normalize 참고).
 Direction = Literal["downstream", "upstream"]
@@ -290,10 +291,10 @@ def assemble_propagation_input(
                Σ_out=1 (ρ=1) 이라 사이클에서 발산하므로 damping 으로 감쇠 필수.
                경제적 의미 = 각 거래단계에서 충격의 (1-α) 는 흡수, α 만 다음 단계로 전달.
       seed_shock: 초기 충격. float(균등) 또는 'score'(screen 점수 비례).
-      direction: 전파 방향. ``downstream``(셀러→바이어, 하류/매입 파급, 가중치 B,
-                 정규화=셀러 총매출) | ``upstream``(바이어→셀러, 상류/매출 파급,
-                 가중치 A, 정규화=바이어 총매입). 방향에 따라 엣지 방향과 정규화
-                 분모를 함께 뒤집어 Σ_out≤1(수렴) 을 유지한다.
+      direction: 전파 방향. ``downstream``(셀러→바이어, 하류/매출 파급=매출처, 가중치 A,
+                 정규화=셀러 총매출) | ``upstream``(바이어→셀러, 상류/매입 파급=매입처,
+                 가중치 B, 정규화=바이어 총매입). 방향에 따라 엣지 방향과 정규화
+                 분모를 함께 뒤집어 Σ_out≤1(수렴) 을 유지한다. (라벨/가중치는 문서 기준)
       direction_weight: 방향 비중 가중치 A(상류)/B(하류). rate 에 곱하는 스칼라.
                         effective Σ_out ≤ direction_weight·damping → 이 곱이 ≤1 이어야
                         수렴 보장. >1 이면 warnings 로 표면화(발산 위험).

@@ -4,21 +4,24 @@
 "어떤 방향(상류/하류)으로, 어떤 비중 가중치(A/B)로, W 를 수정하느냐(g)" 의 **조합만**
 묶는다. 신규 계산 엔진은 없음 — 전부 기존 모듈 재사용 (래퍼 한 겹).
 
-방향 ↔ 라벨 ↔ 정규화  (★ 도메인 검증 지점)
-  downstream : 셀러→바이어. 하류/**매입 파급**. 가중치 B.
+방향 ↔ 라벨 ↔ 정규화  (★ 문서 기획안 기준, 2026-06-19 확정)
+  downstream : 셀러→바이어. 하류/**매출 파급**(1차 기업의 매출처=고객 방향). 가중치 A.
                rate 정규화 = 셀러(source)의 총매출(outgoing) 대비.
-  upstream   : 바이어→셀러. 상류/**매출 파급**. 가중치 A.
+  upstream   : 바이어→셀러. 상류/**매입 파급**(1차 기업의 매입처=공급사 방향). 가중치 B.
                rate 정규화 = 바이어(source)의 총매입(incoming) 대비.
-  ※ 전파가 절대 수렴(Σ_out≤1)하려면 항상 "전파 source 의 outgoing 합" 으로 정규화해야
-    한다. 그래서 상류(매출 파급)의 수학적 분모가 '바이어 총매입' 이 되는데, 이 명칭이
-    경제적 의미와 어긋난다면 assemble 의 src_col 만 바꾸면 됨 (propagate 무변경).
+  ※ 전파가 절대 수렴(Σ_out≤1)하려면 항상 "전파 source 의 outgoing 합" 으로 정규화한다.
+    direction(orientation)·normalize 는 엔진 그대로이고, 라벨(매출/매입)과 가중치 A/B 의
+    바인딩만 문서에 맞췄다(매출 파급=downstream/A, 매입 파급=upstream/B).
 
 시나리오
   tariff             : 그래프 W 불변. 시드(1차 기업)에 외생 충격만 주입.
                        요청 방향마다 assemble(direction, weight) + propagate 1회.
-  transaction_change : 특정 1차→2차 엣지 비중에 g(0~1) 반영한 **수정 W**.
-                       "변화분" = (수정 W 결과) − (원 W 결과) 의 노드별 Δ.
-                       (difference-of-runs — baseline 1회 + changed 1회.)
+  transaction_change : 특정 1차→2차 거래의 **매입/매출 비중**(엣지 rate)에 g(0~1) 가중치를
+                       곱해 거래 내역을 바꾼 **수정 W**(=W′). 즉 "거래 내역 변화".
+                       "변화분"(명세) = 거래 내역이 바뀐 순효과 = (수정 W′ 전파) − (원 W 전파)
+                       의 노드별 Δ → difference-of-runs(baseline 1회 + changed 1회)로 산출.
+                       (확정: 명세 "변화분을 seed로" = 별도 델타주입이 아니라 '결과로 나오는
+                        값이 곧 변화분(Δ)' 의 의미. 2026-06-19 사용자 확정.)
 
 호출 (모듈 3→2 권장 패턴과 동일하게 시드를 한 번에 묶어 단일 전파)
   >>> res = run_tariff_shock(primary_pairs, weight_a=0.8, weight_b=0.6)
@@ -67,10 +70,13 @@ from nice_graph.shock.propagate import ShockResult, ShockRow
 
 log = logging.getLogger(__name__)
 
-# 방향 → 사람이 읽는 파급 효과 라벨.
+# 방향 → 사람이 읽는 파급 효과 라벨 (★ 문서 기획안 기준, 2026-06-19 확정).
+#   매출 파급 = 1차 기업의 '매출처(고객)' 방향 = 셀러→바이어 전파 = downstream, 가중치 A.
+#   매입 파급 = 1차 기업의 '매입처(공급사)' 방향 = 바이어→셀러 전파 = upstream,  가중치 B.
+# (엔진의 direction(orientation) 은 그대로 — 라벨·가중치 바인딩만 문서에 맞춤.)
 EFFECT_LABEL: dict[str, str] = {
-    "upstream": "매출 파급",  # 상류, 가중치 A
-    "downstream": "매입 파급",  # 하류, 가중치 B
+    "downstream": "매출 파급",  # 매출처(고객)/하류, 가중치 A
+    "upstream": "매입 파급",  # 매입처(공급사)/상류, 가중치 B
 }
 
 DEFAULT_DIRECTIONS: tuple[Direction, ...] = ("upstream", "downstream")
@@ -146,7 +152,8 @@ def _delta(base: ShockResult, changed: ShockResult) -> ShockResult:
 
 
 def _weight_for(direction: str, weight_a: float, weight_b: float) -> float:
-    return weight_a if direction == "upstream" else weight_b
+    # 매출 파급(downstream)=가중치 A, 매입 파급(upstream)=가중치 B (문서 기준).
+    return weight_a if direction == "downstream" else weight_b
 
 
 def _apply_overrides(

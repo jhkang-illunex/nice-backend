@@ -140,10 +140,11 @@ def test_tariff_runs_both_directions(monkeypatch) -> None:
 
     assert res.scenario == "tariff"
     assert [d.direction for d in res.directions] == ["upstream", "downstream"]
-    assert [d.effect_label for d in res.directions] == ["매출 파급", "매입 파급"]
-    # 방향별 가중치 A/B 가 assemble 로 정확히 전달됐는지
+    # 문서 기준 라벨: upstream=매입 파급, downstream=매출 파급
+    assert [d.effect_label for d in res.directions] == ["매입 파급", "매출 파급"]
+    # 가중치: 매출(downstream)=A, 매입(upstream)=B
     weights = {kw["direction"]: kw["direction_weight"] for kw in captured}
-    assert weights == {"upstream": 0.8, "downstream": 0.6}
+    assert weights == {"upstream": 0.6, "downstream": 0.8}
     # init 만 있는 그래프 → 각 시드 shock 그대로
     assert res.directions[0].result.shock_list == [{"bizno": "A|1", "shock": 1.0}]
 
@@ -208,7 +209,7 @@ def _canned_scenario() -> ScenarioResult:
     )
     return ScenarioResult(
         "tariff",
-        [DirectionResult("upstream", "매출 파급", 0.8, asm, result)],
+        [DirectionResult("downstream", "매출 파급", 0.8, asm, result)],  # 문서: 매출=downstream
         warnings=["w1"],
     )
 
@@ -228,7 +229,7 @@ def test_scenario_endpoint_serializes(monkeypatch) -> None:
     body = r.json()
     assert body["scenario"] == "tariff"
     d0 = body["directions"][0]
-    assert d0["direction"] == "upstream"
+    assert d0["direction"] == "downstream"
     assert d0["effect_label"] == "매출 파급"
     assert d0["weight"] == 0.8
     assert d0["n_edges"] == 1 and d0["n_nodes"] == 0
