@@ -16,9 +16,12 @@
 시나리오
   tariff             : 그래프 W 불변. 시드(1차 기업)에 외생 충격만 주입.
                        요청 방향마다 assemble(direction, weight) + propagate 1회.
-  transaction_change : 특정 1차→2차 엣지 비중에 g(0~1) 반영한 **수정 W**.
-                       "변화분" = (수정 W 결과) − (원 W 결과) 의 노드별 Δ.
-                       (difference-of-runs — baseline 1회 + changed 1회.)
+  transaction_change : 특정 1차→2차 거래의 **매입/매출 비중**(엣지 rate)에 g(0~1) 가중치를
+                       곱해 거래 내역을 바꾼 **수정 W**(=W′). 즉 "거래 내역 변화".
+                       "변화분"(명세) = 거래 내역이 바뀐 순효과 = (수정 W′ 전파) − (원 W 전파)
+                       의 노드별 Δ → difference-of-runs(baseline 1회 + changed 1회)로 산출.
+                       (확정: 명세 "변화분을 seed로" = 별도 델타주입이 아니라 '결과로 나오는
+                        값이 곧 변화분(Δ)' 의 의미. 2026-06-19 사용자 확정.)
 
 호출 (모듈 3→2 권장 패턴과 동일하게 시드를 한 번에 묶어 단일 전파)
   >>> res = run_tariff_shock(primary_pairs, weight_a=0.8, weight_b=0.6)
