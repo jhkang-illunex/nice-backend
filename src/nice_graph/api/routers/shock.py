@@ -23,9 +23,6 @@ from nice_graph.shock import (
     assemble_propagation_input as _assemble,
 )
 from nice_graph.shock import (
-    build_primary_secondary_random_overrides as _build_random_overrides,
-)
-from nice_graph.shock import (
     extract_first_target as _extract_first_target,
 )
 from nice_graph.shock import (
@@ -35,10 +32,7 @@ from nice_graph.shock import (
     propagate_shock as _propagate_shock,
 )
 from nice_graph.shock import (
-    run_tariff_shock as _run_tariff_shock,
-)
-from nice_graph.shock import (
-    run_transaction_change as _run_transaction_change,
+    run_scenario as _run_scenario,
 )
 from nice_graph.shock import (
     select_primary_firms as _select_primary_firms,
@@ -483,48 +477,35 @@ def extract_first_target(
 def scenario(req: ScenarioRequest) -> ScenarioResponse:
     seeds = [(s.bizno, s.upchecd) for s in req.seeds]
     shock_map = {s.bizno: s.shock for s in req.seeds}
-    common: dict = dict(
-        weight_a=req.weight_a,
-        weight_b=req.weight_b,
-        directions=req.directions,
-        depth=req.depth,
-        trade_year=req.trade_year,
-        within_subgraph=req.within_subgraph,
-        damping=req.damping,
-        normalize=req.normalize,
-        seed_shock=shock_map,
-    )
-    overrides: dict = {}
+    random_spec = None
+    if req.random_override is not None:
+        ro = req.random_override
+        random_spec = _RandomOverrideSpec(
+            side=ro.side,
+            low=ro.low,
+            high=ro.high,
+            seed=ro.seed,
+            only_firms=tuple(ro.only_firms) if ro.only_firms else None,
+        )
+    edge_overrides = {(o.from_bizno, o.to_bizno): o.factor for o in req.edge_overrides} or None
     try:
-        if req.scenario == "tariff":
-            sres = _run_tariff_shock(seeds, **common)
-        else:
-            if req.random_override is not None:
-                # 1차↔2차 매출/매입 랜덤 g 자동 생성 (재현: seed)
-                ro = req.random_override
-                spec = _RandomOverrideSpec(
-                    side=ro.side,
-                    low=ro.low,
-                    high=ro.high,
-                    seed=ro.seed,
-                    only_firms=tuple(ro.only_firms) if ro.only_firms else None,
-                )
-                overrides = _build_random_overrides(
-                    seeds,
-                    spec=spec,
-                    depth=req.depth,
-                    trade_year=req.trade_year,
-                    within_subgraph=req.within_subgraph,
-                    damping=req.damping,
-                    seed_shock=shock_map,
-                )
-            else:
-                overrides = {
-                    (o.from_bizno, o.to_bizno): o.factor for o in req.edge_overrides
-                }
-            sres = _run_transaction_change(seeds, edge_overrides=overrides, **common)
+        sres = _run_scenario(
+            req.scenario,
+            seeds,
+            weight_a=req.weight_a,
+            weight_b=req.weight_b,
+            directions=req.directions,
+            depth=req.depth,
+            trade_year=req.trade_year,
+            within_subgraph=req.within_subgraph,
+            damping=req.damping,
+            normalize=req.normalize,
+            seed_shock=shock_map,
+            edge_overrides=edge_overrides,
+            random_spec=random_spec,
+        )
     except ValueError as exc:
-        # 빈 edge_overrides 등 입력 오류 → 422
+        # 빈 edge_overrides·only_firms 무교집합 등 입력 오류 → 422
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except SQLAlchemyError as exc:
         log.exception("scenario db error")
@@ -534,7 +515,7 @@ def scenario(req: ScenarioRequest) -> ScenarioResponse:
     return ScenarioResponse(
         applied_overrides=[
             EdgeOverrideIn(from_bizno=s, to_bizno=b, factor=g)
-            for (s, b), g in sorted(overrides.items())
+            for (s, b), g in sorted(sres.applied_overrides.items())
         ],
         scenario=sres.scenario,
         directions=[

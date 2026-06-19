@@ -39,8 +39,9 @@ from nice_graph.shock.assemble import (
     PropagationInput,
     assemble_propagation_input,
     parse_node_id,
+    run_propagation,
 )
-from nice_graph.shock.propagate import ShockResult, ShockRow, propagate_shock
+from nice_graph.shock.propagate import ShockResult, ShockRow
 
 log = logging.getLogger(__name__)
 
@@ -72,6 +73,8 @@ class ScenarioResult:
     scenario: str  # "tariff" | "transaction_change"
     directions: list[DirectionResult] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    applied_overrides: dict[tuple[str, str], float] = field(default_factory=dict)
+    # 실제 적용된 거래변화 g (랜덤 생성 포함). tariff 면 빈 dict.
 
 
 # ── 내부 ──────────────────────────────────────────────────────────────────────
@@ -101,12 +104,6 @@ def _assemble_one(
         direction_weight=weight,
         normalize=normalize,
         edge_overrides=edge_overrides,
-    )
-
-
-def _propagate(asm: PropagationInput, **propagate_kwargs) -> ShockResult:
-    return propagate_shock(
-        edges=asm.edges, init_sub_graph=asm.init_sub_graph, **propagate_kwargs
     )
 
 
@@ -208,7 +205,7 @@ def run_tariff_shock(
             normalize=normalize,
         )
         warnings.extend(f"[{d}] {m}" for m in asm.warnings)
-        res = _propagate(asm, **propagate_kwargs)
+        res = run_propagation(asm, **propagate_kwargs)
         out.append(DirectionResult(d, EFFECT_LABEL[d], w, asm, res))
     log.info("tariff: directions=%s seeds_done", list(directions))
     return ScenarioResult("tariff", out, warnings)
@@ -262,14 +259,14 @@ def run_transaction_change(
         )
         warnings.extend(f"[{d}] {m}" for m in base_asm.warnings)
         chg_asm = replace(base_asm, edges=_apply_overrides(base_asm, ov))
-        base_res = _propagate(base_asm, **propagate_kwargs)
-        chg_res = _propagate(chg_asm, **propagate_kwargs)
+        base_res = run_propagation(base_asm, **propagate_kwargs)
+        chg_res = run_propagation(chg_asm, **propagate_kwargs)
         out.append(DirectionResult(d, EFFECT_LABEL[d], w, chg_asm, _delta(base_res, chg_res)))
     log.info(
         "transaction_change: directions=%s overrides=%d (baseline 1회/방향)",
         list(directions), len(ov),
     )
-    return ScenarioResult("transaction_change", out, warnings)
+    return ScenarioResult("transaction_change", out, warnings, applied_overrides=dict(ov))
 
 
 # ── 1차↔2차 매출/매입 랜덤 가중치 생성 ─────────────────────────────────────────
@@ -299,6 +296,81 @@ def _seed_biznos(seeds) -> set[str]:
     return {b for b, _ in seeds if b}
 
 
+@dataclass
+class PrimarySecondaryEdge:
+    """1차↔2차 거래 엣지(저장방향 셀러→바이어) + 매출/매입 분류·표시 정보."""
+
+    from_bizno: str  # 셀러
+    to_bizno: str  # 바이어
+    side: str  # "sales"(1차→2차) | "purchase"(2차→1차)
+    rate: float  # downstream baseline rate (표시·참고용)
+    from_name: str | None
+    to_name: str | None
+
+
+def enumerate_primary_secondary(
+    seeds,
+    *,
+    side: str = "both",
+    only_firms: tuple[str, ...] | None = None,
+    depth: int = 3,
+    trade_year: str | None = None,
+    within_subgraph: bool = True,
+    damping: float = 0.85,
+    seed_shock=1.0,
+) -> list[PrimarySecondaryEdge]:
+    """1차(시드)↔2차(직접 거래상대) 엣지를 매출/매입으로 분류해 열거 (단일 공유 경로).
+
+    분류 (company_edge 저장방향 = 셀러→바이어):
+      매출(sales)    = 1차(셀러) → 2차(바이어)  : sb∈1차, bb∉1차
+      매입(purchase) = 2차(셀러) → 1차(바이어)  : bb∈1차, sb∉1차
+    1차↔1차 / 2차↔3차 (양끝 동시 1차이거나 1차 미포함) 제외 — 정확히 한쪽 끝만 1차.
+    downstream 조립으로 저장방향·baseline rate·기업명 확보. 랜덤 생성기와 데모 수동
+    편집기가 이 한 경로를 공유한다.
+    """
+    if side not in ("both", "sales", "purchase"):
+        raise ValueError(f"side 는 both|sales|purchase: {side!r}")
+    seed_biznos = _seed_biznos(seeds)
+    target = seed_biznos & set(only_firms) if only_firms else seed_biznos
+    if only_firms and not target:
+        raise ValueError(
+            f"only_firms 가 시드 기업과 교집합 없음 — only_firms={list(only_firms)[:5]} "
+            f"vs seeds={sorted(seed_biznos)[:5]}"
+        )
+    dn = assemble_propagation_input(
+        seeds,
+        depth=depth,
+        trade_year=trade_year,
+        within_subgraph=within_subgraph,
+        damping=damping,
+        seed_shock=seed_shock,
+        direction="downstream",
+    )
+    idx = dn.node_index()
+    want_sales = side in ("both", "sales")
+    want_purchase = side in ("both", "purchase")
+    out: list[PrimarySecondaryEdge] = []
+    for e in dn.edges:
+        sb, _ = parse_node_id(e["from_bizno"])
+        bb, _ = parse_node_id(e["to_bizno"])
+        is_sales = sb in target and bb not in seed_biznos
+        is_purchase = bb in target and sb not in seed_biznos
+        if want_sales and is_sales:
+            s = "sales"
+        elif want_purchase and is_purchase:
+            s = "purchase"
+        else:
+            continue
+        fn, tn = idx.get(e["from_bizno"]), idx.get(e["to_bizno"])
+        out.append(
+            PrimarySecondaryEdge(
+                sb, bb, s, float(e["rate"]),
+                fn.korentrnm if fn else None, tn.korentrnm if tn else None,
+            )
+        )
+    return out
+
+
 def build_primary_secondary_random_overrides(
     seeds,
     *,
@@ -309,55 +381,81 @@ def build_primary_secondary_random_overrides(
     damping: float = 0.85,
     seed_shock=1.0,
 ) -> dict[tuple[str, str], float]:
-    """1차(시드)↔2차(직접 거래상대) 엣지의 매출/매입에 랜덤 g 를 부여한 edge_overrides 생성.
+    """1차↔2차 매출/매입 엣지에 랜덤 g 를 부여한 edge_overrides 생성.
 
-    분류 (company_edge 저장방향 = 셀러→바이어):
-      매출   = 1차(셀러) → 2차(바이어)   : sb∈1차, bb∉1차
-      매입   = 2차(셀러) → 1차(바이어)   : bb∈1차, sb∉1차
-    1차↔1차 / 2차↔3차 등 (양끝 동시 1차이거나 1차 미포함) 은 제외 — 정확히 한쪽 끝만 1차.
-
-    재현성: 후보 엣지를 정렬한 뒤 random.Random(spec.seed) 로 g 부여 (DB 행순서 무관).
+    enumerate_primary_secondary 후보를 정렬해 random.Random(spec.seed) 로 g 부여
+    (DB 행순서 무관·재현 보장).
     """
     if not (0.0 <= spec.low <= spec.high <= 1.0):
         raise ValueError(f"랜덤 범위는 0≤low≤high≤1 이어야 함: [{spec.low}, {spec.high}]")
-    if spec.side not in ("both", "sales", "purchase"):
-        raise ValueError(f"side 는 both|sales|purchase: {spec.side!r}")
-
-    seed_biznos = _seed_biznos(seeds)
-    target = seed_biznos & set(spec.only_firms) if spec.only_firms else seed_biznos
-    if spec.only_firms and not target:
-        raise ValueError(
-            f"only_firms 가 시드 기업과 교집합 없음 — only_firms={list(spec.only_firms)[:5]} "
-            f"vs seeds={sorted(seed_biznos)[:5]}"
-        )
-
-    # 1차↔2차 거래쌍 열거 — downstream 조립으로 저장방향 (셀러,바이어) 확보.
-    dn = assemble_propagation_input(
+    edges = enumerate_primary_secondary(
         seeds,
+        side=spec.side,
+        only_firms=spec.only_firms,
         depth=depth,
         trade_year=trade_year,
         within_subgraph=within_subgraph,
         damping=damping,
         seed_shock=seed_shock,
-        direction="downstream",
     )
-    want_sales = spec.side in ("both", "sales")
-    want_purchase = spec.side in ("both", "purchase")
-
-    cands: list[tuple[str, str]] = []
-    for e in dn.edges:
-        sb, _ = parse_node_id(e["from_bizno"])
-        bb, _ = parse_node_id(e["to_bizno"])
-        is_sales = sb in target and bb not in seed_biznos  # 1차 판매 → 2차
-        is_purchase = bb in target and sb not in seed_biznos  # 2차 판매 → 1차(=1차 매입)
-        if (want_sales and is_sales) or (want_purchase and is_purchase):
-            cands.append((sb, bb))
-
-    cands = sorted(set(cands))  # 결정적 순서 (seed 재현성)
+    pairs = sorted({(e.from_bizno, e.to_bizno) for e in edges})
     rng = random.Random(spec.seed)
-    ov = {pair: round(rng.uniform(spec.low, spec.high), 4) for pair in cands}
-    log.info(
-        "random overrides: 1차↔2차 side=%s firms=%d 엣지=%d seed=%s",
-        spec.side, len(target), len(ov), spec.seed,
-    )
+    ov = {pair: round(rng.uniform(spec.low, spec.high), 4) for pair in pairs}
+    log.info("random overrides: 1차↔2차 side=%s 엣지=%d seed=%s", spec.side, len(ov), spec.seed)
     return ov
+
+
+# ── 단일 디스패치 (라우터·데모 공통 진입점) ────────────────────────────────────
+
+
+def run_scenario(
+    scenario: str,
+    seeds,
+    *,
+    weight_a: float = 1.0,
+    weight_b: float = 1.0,
+    directions: Sequence[Direction] = DEFAULT_DIRECTIONS,
+    depth: int = 3,
+    trade_year: str | None = None,
+    within_subgraph: bool = True,
+    damping: float = 0.85,
+    normalize: Normalize = "source",
+    seed_shock=1.0,
+    edge_overrides: Mapping[tuple[str, str], float] | None = None,
+    random_spec: RandomOverrideSpec | None = None,
+    **propagate_kwargs,
+) -> ScenarioResult:
+    """시나리오 단일 디스패치 — 라우터·데모가 공유하는 진입점.
+
+    tariff             : run_tariff_shock.
+    transaction_change : random_spec 있으면 1차↔2차 랜덤 g 생성, 없으면 edge_overrides 사용.
+    결과 ``.applied_overrides`` 로 실제 적용된 g 노출.
+    """
+    common = dict(
+        weight_a=weight_a,
+        weight_b=weight_b,
+        directions=directions,
+        depth=depth,
+        trade_year=trade_year,
+        within_subgraph=within_subgraph,
+        damping=damping,
+        normalize=normalize,
+        seed_shock=seed_shock,
+    )
+    if scenario == "tariff":
+        return run_tariff_shock(seeds, **common, **propagate_kwargs)
+    if scenario != "transaction_change":
+        raise ValueError(f"scenario 는 tariff|transaction_change: {scenario!r}")
+    if random_spec is not None:
+        ov: dict = build_primary_secondary_random_overrides(
+            seeds,
+            spec=random_spec,
+            depth=depth,
+            trade_year=trade_year,
+            within_subgraph=within_subgraph,
+            damping=damping,
+            seed_shock=seed_shock,
+        )
+    else:
+        ov = dict(edge_overrides or {})
+    return run_transaction_change(seeds, edge_overrides=ov, **common, **propagate_kwargs)

@@ -24,6 +24,7 @@ from nice_graph.shock.scenario import (
     RandomOverrideSpec,
     ScenarioResult,
     build_primary_secondary_random_overrides,
+    run_scenario,
     run_tariff_shock,
     run_transaction_change,
 )
@@ -213,7 +214,7 @@ def _canned_scenario() -> ScenarioResult:
 
 
 def test_scenario_endpoint_serializes(monkeypatch) -> None:
-    monkeypatch.setattr(f"{ROUTER}._run_tariff_shock", lambda *a, **k: _canned_scenario())
+    monkeypatch.setattr(f"{ROUTER}._run_scenario", lambda *a, **k: _canned_scenario())
     r = client.post(
         "/api/shock/scenario",
         json={
@@ -250,12 +251,13 @@ def test_scenario_transaction_change_requires_overrides() -> None:
 def test_scenario_passes_directions_and_weights(monkeypatch) -> None:
     captured: dict = {}
 
-    def spy(seeds, **kwargs):
+    def spy(scenario, seeds, **kwargs):
+        captured["scenario"] = scenario
         captured["seeds"] = list(seeds)
         captured["kwargs"] = kwargs
         return _canned_scenario()
 
-    monkeypatch.setattr(f"{ROUTER}._run_tariff_shock", spy)
+    monkeypatch.setattr(f"{ROUTER}._run_scenario", spy)
     r = client.post(
         "/api/shock/scenario",
         json={
@@ -268,6 +270,7 @@ def test_scenario_passes_directions_and_weights(monkeypatch) -> None:
         },
     )
     assert r.status_code == 200, r.text
+    assert captured["scenario"] == "tariff"
     assert captured["seeds"] == [("A", "1")]
     assert captured["kwargs"]["directions"] == ["downstream"]
     assert captured["kwargs"]["weight_a"] == 0.7
@@ -350,16 +353,17 @@ def test_random_bad_range_raises(monkeypatch, lo: float, hi: float) -> None:
 def test_scenario_random_override_endpoint(monkeypatch) -> None:
     captured: dict = {}
 
-    def fake_build(seeds, *, spec, **kw):
-        captured["spec"] = spec
-        return {("S1", "A"): 0.3, ("B", "S1"): 0.7}
+    def spy(scenario, seeds, *, random_spec=None, edge_overrides=None, **kw):
+        captured["scenario"] = scenario
+        captured["random_spec"] = random_spec
+        return ScenarioResult(
+            "transaction_change",
+            _canned_scenario().directions,
+            ["w"],
+            applied_overrides={("S1", "A"): 0.3, ("B", "S1"): 0.7},
+        )
 
-    def fake_txn(seeds, *, edge_overrides, **kw):
-        captured["overrides"] = edge_overrides
-        return ScenarioResult("transaction_change", _canned_scenario().directions, ["w"])
-
-    monkeypatch.setattr(f"{ROUTER}._build_random_overrides", fake_build)
-    monkeypatch.setattr(f"{ROUTER}._run_transaction_change", fake_txn)
+    monkeypatch.setattr(f"{ROUTER}._run_scenario", spy)
 
     r = client.post(
         "/api/shock/scenario",
@@ -370,12 +374,35 @@ def test_scenario_random_override_endpoint(monkeypatch) -> None:
         },
     )
     assert r.status_code == 200, r.text
-    # 생성된 랜덤 override 가 run_transaction_change 로 전달
-    assert captured["overrides"] == {("S1", "A"): 0.3, ("B", "S1"): 0.7}
-    assert captured["spec"].side == "sales" and captured["spec"].seed == 42
-    # applied_overrides 직렬화(정렬)되어 응답에 노출
+    # 라우터가 random_override → RandomOverrideSpec 로 만들어 run_scenario 에 전달
+    assert captured["random_spec"].side == "sales" and captured["random_spec"].seed == 42
+    # 결과의 applied_overrides 가 응답에 직렬화(정렬)되어 노출
     ao = {(o["from_bizno"], o["to_bizno"]): o["factor"] for o in r.json()["applied_overrides"]}
     assert ao == {("S1", "A"): 0.3, ("B", "S1"): 0.7}
+
+
+def test_run_scenario_random_dispatch(monkeypatch) -> None:
+    # run_scenario 가 random_spec → 랜덤 생성 → run_transaction_change 로 디스패치
+    captured: dict = {}
+
+    def fake_build(seeds, *, spec, **kw):
+        captured["spec"] = spec
+        return {("S1", "A"): 0.3}
+
+    def fake_txn(seeds, *, edge_overrides, **kw):
+        captured["ov"] = edge_overrides
+        return ScenarioResult(
+            "transaction_change", [], ["w"], applied_overrides=dict(edge_overrides)
+        )
+
+    monkeypatch.setattr(scen_mod, "build_primary_secondary_random_overrides", fake_build)
+    monkeypatch.setattr(scen_mod, "run_transaction_change", fake_txn)
+    res = run_scenario(
+        "transaction_change", [("S1", "u1")], random_spec=RandomOverrideSpec(side="sales", seed=7)
+    )
+    assert captured["spec"].side == "sales" and captured["spec"].seed == 7
+    assert captured["ov"] == {("S1", "A"): 0.3}
+    assert res.applied_overrides == {("S1", "A"): 0.3}
 
 
 # ── 7. normalize(source/counterparty) 옵션 ───────────────────────────────────
@@ -417,11 +444,11 @@ def test_invalid_normalize_raises(monkeypatch, bad: str) -> None:
 def test_scenario_endpoint_passes_normalize(monkeypatch) -> None:
     captured: dict = {}
 
-    def spy(seeds, **kwargs):
+    def spy(scenario, seeds, **kwargs):
         captured["kwargs"] = kwargs
         return _canned_scenario()
 
-    monkeypatch.setattr(f"{ROUTER}._run_tariff_shock", spy)
+    monkeypatch.setattr(f"{ROUTER}._run_scenario", spy)
     r = client.post(
         "/api/shock/scenario",
         json={

@@ -28,11 +28,10 @@ from streamlit_agraph import Config, Edge, Node, agraph
 from nice_demo.clients import get_rag_client
 from nice_graph.shock import (
     RandomOverrideSpec,
-    assemble_propagation_input,
     build_primary_secondary_random_overrides,
+    enumerate_primary_secondary,
     parse_node_id,
-    run_tariff_shock,
-    run_transaction_change,
+    run_scenario,
     select_primary_firms,
 )
 
@@ -256,17 +255,16 @@ def step_scenario(cfg: dict) -> None:
         overrides = _override_editor(seed_pairs, seed_shock, seed_biznos, cfg)
 
     if st.button("시나리오 전파 실행", type="primary"):
+        if cfg["scenario"] == "transaction_change" and not overrides:
+            st.warning(
+                "거래 변화: 적용할 거래쌍이 없습니다. "
+                "수동이면 factor<1.0 지정, 랜덤이면 ‘랜덤 가중치 생성’을 먼저 실행하세요."
+            )
+            return
         try:
-            if cfg["scenario"] == "tariff":
-                sres = run_tariff_shock(seed_pairs, **common)
-            else:
-                if not overrides:
-                    st.warning(
-                        "거래 변화: 적용할 거래쌍이 없습니다. "
-                        "수동이면 factor<1.0 지정, 랜덤이면 ‘랜덤 가중치 생성’을 먼저 실행하세요."
-                    )
-                    return
-                sres = run_transaction_change(seed_pairs, edge_overrides=overrides, **common)
+            sres = run_scenario(
+                cfg["scenario"], seed_pairs, edge_overrides=overrides or None, **common
+            )
         except Exception as exc:  # noqa: BLE001
             st.error(f"시나리오 전파 실패: {exc.__class__.__name__} — {exc}")
             return
@@ -368,36 +366,29 @@ def _override_manual(
     st.markdown("**거래 변화(수동) — 1차→2차(셀러→바이어) 거래쌍의 비중에 factor(0~1) 적용**")
     if st.button("거래쌍 불러오기 (downstream 기준)"):
         try:
-            base = assemble_propagation_input(
+            # 랜덤 생성기와 동일한 공유 열거 경로(매출=1차→2차)를 재사용.
+            edges = enumerate_primary_secondary(
                 seed_pairs,
+                side="sales",
                 depth=cfg["depth"],
                 within_subgraph=cfg["within"],
                 damping=cfg["damping"],
                 seed_shock=seed_shock,
-                direction="downstream",
             )
         except Exception as exc:  # noqa: BLE001
             st.error(f"거래쌍 조회 실패: {exc.__class__.__name__} — {exc}")
             return {}
-        idx = base.node_index()
-        rows = []
-        for e in base.edges:
-            sb, _ = parse_node_id(e["from_bizno"])
-            bb, _ = parse_node_id(e["to_bizno"])
-            if sb not in seed_biznos:  # 1차(셀러=시드) → 2차 만
-                continue
-            fn, tn = idx.get(e["from_bizno"]), idx.get(e["to_bizno"])
-            rows.append(
-                {
-                    "from_bizno": sb,
-                    "to_bizno": bb,
-                    "셀러": fn.korentrnm if fn else sb,
-                    "바이어": tn.korentrnm if tn else bb,
-                    "기준 rate": round(e["rate"], 4),
-                    "factor": 1.0,
-                }
-            )
-        st.session_state["ovr_candidates"] = rows
+        st.session_state["ovr_candidates"] = [
+            {
+                "from_bizno": e.from_bizno,
+                "to_bizno": e.to_bizno,
+                "셀러": e.from_name or e.from_bizno,
+                "바이어": e.to_name or e.to_bizno,
+                "기준 rate": round(e.rate, 4),
+                "factor": 1.0,
+            }
+            for e in edges
+        ]
 
     cands = st.session_state.get("ovr_candidates")
     if not cands:
