@@ -16,7 +16,8 @@ from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
 DATE = "20260619"
-DOCX_PATH = f"docs/SHOCK_SCENARIO_REPORT_{DATE}.docx"
+REPORT_DIR = "docs/reports/shock"
+DOCX_PATH = f"{REPORT_DIR}/SHOCK_SCENARIO_REPORT_{DATE}.docx"
 IMG = {
     "overview": "/tmp/shock_flow_overview.png",
     "nodes": "/tmp/shock_zoom_nodes.png",
@@ -282,7 +283,7 @@ def build() -> None:
         style="List Bullet",
     )
 
-    Path("docs").mkdir(exist_ok=True)
+    Path(REPORT_DIR).mkdir(parents=True, exist_ok=True)
     doc.save(DOCX_PATH)
     print(f"DOCX 작성: {DOCX_PATH}")
 

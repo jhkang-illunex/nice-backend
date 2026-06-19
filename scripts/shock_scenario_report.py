@@ -15,8 +15,9 @@ import sys
 from pathlib import Path
 
 DATE = "20260619"
-HTML_PATH = f"docs/SHOCK_SCENARIO_REPORT_{DATE}.html"
-PDF_PATH = f"docs/SHOCK_SCENARIO_REPORT_{DATE}.pdf"
+REPORT_DIR = "docs/reports/shock"
+HTML_PATH = f"{REPORT_DIR}/SHOCK_SCENARIO_REPORT_{DATE}.html"
+PDF_PATH = f"{REPORT_DIR}/SHOCK_SCENARIO_REPORT_{DATE}.pdf"
 
 # 데모 화면 캡처 (Streamlit 구동 후 playwright 캡처본).
 IMG = {
@@ -284,7 +285,7 @@ def build_html() -> str:
 
 
 def main() -> int:
-    Path("docs").mkdir(exist_ok=True)
+    Path(REPORT_DIR).mkdir(parents=True, exist_ok=True)
     html_str = build_html()
     Path(HTML_PATH).write_text(html_str, encoding="utf-8")
     print(f"HTML 작성: {HTML_PATH}")
