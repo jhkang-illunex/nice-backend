@@ -330,11 +330,81 @@ curl -X POST http://localhost:18001/api/shock/propagate \
   }'
 ```
 
+## 시나리오 래퍼 — 파급 알고리즘 아규먼트
+
+`src/nice_graph/shock/scenario.py` 의 두 시나리오(`run_tariff_shock` =
+관세 충격, `run_transaction_change` = 거래 변화)가 파급 파이프라인에 투입하는
+아규먼트 전체 목록. 파이프라인 3계층:
+
+```
+시나리오 래퍼 → assemble_propagation_input (R 행렬 + init 벡터 조립)
+            → propagate_shock (거듭제곱급수 합 엔진)
+```
+
+아규먼트의 작용 지점이 갈린다: 대부분은 **조립 단계에서 R 행렬을 빚고**,
+`seed_shock` 은 **init 벡터**, `epsilon`/`max_iter` 만 **순수 엔진 종료조건**.
+
+### 공통 아규먼트 (관세 충격 · 거래 변화 둘 다)
+
+| 아규먼트 | 기본값 | 역할 | 알고리즘 영향 |
+|---|---|---|---|
+| `seeds` | (필수) | 1차 기업 `(bizno, upchecd)` | init 벡터의 비영 위치 |
+| `directions` | `("upstream","downstream")` | 계산 방향 집합 | 방향마다 전파 1세트씩 독립 산출 |
+| `weight_a` | `1.0` | 하류=매출 파급(downstream) 비중 | downstream rate에 곱 → R 감쇠 |
+| `weight_b` | `1.0` | 상류=매입 파급(upstream) 비중 | upstream rate에 곱 → R 감쇠 |
+| `depth` | `3` | 서브그래프 추출 hop | R 행렬 크기(노드 범위) 결정 |
+| `trade_year` | `None`(전체) | `company_edge.trade_year` 연단위 필터 | edge 집합 → R 내용 변경 |
+| `within_subgraph` | `True` | 서브그래프 내부 엣지로 한정 | R 경계(누수 엣지 차단) |
+| `damping` | `0.85` | 감쇠계수 | rate 정규화 분모 스케일 |
+| `seed_shock` | `1.0` | 시드 초기 충격량 | init 벡터 값 |
+| `normalize` | `"source"` | rate 분모 기준: `source`(Σ_out≤1 수렴보장) / `counterparty`(Σ_in 비중) | R 정규화 파티션 |
+
+`weight_a`↔downstream, `weight_b`↔upstream 바인딩은 `_weight_for()` 한 곳에서
+결정: `return weight_a if direction == "downstream" else weight_b`.
+
+### 관세 충격 (`run_tariff_shock`) — 전용
+
+- `edge_overrides` **없음**(`None` 고정) → W 불변, init 벡터만 주입
+- 전파 횟수: 방향당 **1회**
+- 결과: 방향별 절대 shock 벡터
+
+### 거래 변화 (`run_transaction_change`) — 전용
+
+| 아규먼트 | 기본값 | 역할 |
+|---|---|---|
+| `edge_overrides` | **(필수, 비면 ValueError)** | `{(from_bizno, to_bizno): g}` — 저장방향(셀러→바이어) 키, g∈[0,1] |
+
+- 전파 횟수: 방향당 **2회** — baseline(원 W) + changed(수정 W)
+- 변화분: `Δ = changed − baseline` (difference-of-runs)
+- 최적화: changed 는 in-memory `_apply_overrides` 로 g 반영(2차 DB 조립 생략)
+
+### 엔진 레벨 (`propagate_shock`) — `**propagate_kwargs` 로 전달
+
+| 아규먼트 | 기본값 | 역할 |
+|---|---|---|
+| `epsilon` | `1e-8` | round 내 모든 \|propagated\| ≤ epsilon 이면 자연 수렴 종료 |
+| `max_iter` | `500` | 무한루프 방지 상한 (도달 시 `converged=False`) |
+
+### 랜덤 g 생성 (`RandomOverrideSpec`) — 거래 변화의 `edge_overrides` 공급원
+
+| 필드 | 기본값 | 역할 |
+|---|---|---|
+| `side` | `"both"` | `sales`(1차→2차 매출) / `purchase`(2차→1차 매입) / `both` |
+| `low` / `high` | `0.0` / `1.0` | g 난수 범위 (상한 1 → 수렴 보장) |
+| `seed` | `None` | 재현용 난수 시드 |
+| `only_firms` | `None` | 일부 1차 기업 bizno 한정 (None=연계된 전체) |
+
+> 두 시나리오의 본질적 차이는 단 하나: 관세 충격은 **R 고정 + init 주입(1회 전파)**,
+> 거래 변화는 **R 수정 + 차분(2회 전파)**. 나머지 공통 아규먼트는 동일하게 흐른다.
+
+---
+
 ## 구현 파일 위치
 
 | 모듈 | 파일 |
 |---|---|
 | `fetch_subgraph` | `src/nice_graph/shock/fetch.py` |
+| 시나리오 래퍼 | `src/nice_graph/shock/scenario.py` |
 | `propagate_shock` | `src/nice_graph/shock/propagate.py` |
 | `extract_first_target` | `src/nice_graph/shock/target.py` |
 | 라우터 | `src/nice_graph/api/routers/shock.py` |
