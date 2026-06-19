@@ -237,8 +237,9 @@ def build() -> None:
     # 5
     doc.add_heading("5. 기능 검증 결과", level=1)
     doc.add_paragraph(
-        "자동화 테스트 64개 전부 통과(propagate 18 + 라우터 15 + 시나리오 31). "
-        "추가로 실제 PG 기반 수학 불변식·HTTP 응답 교차검증."
+        "자동화 테스트 69개 전부 통과(propagate 18 + 라우터 15 + 시나리오 36). "
+        "추가로 실제 PG 기반 수학 불변식·HTTP 응답 교차검증. "
+        "코드리뷰 반영(시드 이중계상·입력검증·중복 assemble 제거·열거/디스패치 통합) 후 회귀 0."
     )
     doc.add_heading("5.1 수학 불변식 (실 PG · HS 8481 · 노드 321 · 엣지 747)", level=2)
     _table(doc, ["불변식", "결과", "측정"], [
