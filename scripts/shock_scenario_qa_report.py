@@ -23,8 +23,9 @@ OUT_DIR = "docs/reports/shock"
 DOCX_PATH = f"{OUT_DIR}/SHOCK_SCENARIO_QA_{DATE}.docx"
 QA_JSON = "/tmp/scenario_qa.json"
 SHOTS = {
-    "qa_t1": ("관세 충격 · 정규화=source (기본) — 시드 추출→양방향 전파", "/tmp/qa_t1.png"),
+    "qa_t1": ("관세 충격 · 정규화=source — 시드 추출→양방향 전파(매입 파급/매출 파급 탭)", "/tmp/qa_t1.png"),
     "qa_t2": ("관세 충격 · 정규화=counterparty — 수렴 보장 약화 경고 표면화", "/tmp/qa_t2.png"),
+    "amt_grid": ("STEP6 금액 결과표 — 매출액/매입액(원) 기준·변화·변화율 + 기업규모/유형(문서 STEP6)", "/tmp/amt_grid.png"),
     "qa_x1_board": ("거래 변화 · 랜덤(1차↔2차 매출/매입) — 생성된 g 그리드(seed 재현)", "/tmp/qa_x1_board.png"),
     "qa_x1_delta": ("거래 변화 · 변화분 Δ 결과(음수=거래축소로 인한 파급 감소)", "/tmp/qa_x1_delta.png"),
 }
@@ -137,16 +138,21 @@ def build():
     doc.add_heading("4. 종합 판정 및 핵심 관찰", level=1)
     doc.add_paragraph("종합: 8개 시나리오 전부 정상 동작(수렴) — PASS.", style="List Bullet")
     obs = [
+        "방향↔라벨(문서 기준 확정): 매출 파급=매출처(고객)/하류/downstream/A, 매입 파급=매입처"
+        "(공급사)/상류/upstream/B. 엔진 무변경, 라벨·가중치 바인딩만 문서에 맞춤.",
         "정규화 옵션: source 는 항상 수렴(Σ_out≤1). counterparty 는 수렴 보장 약화 경고를 "
-        "표면화하나 본 데이터에선 수렴(iter≈95). 결과값이 source 와 달라 옵션이 실제로 반영됨"
-        "(T1 upstream Σ=32.08 vs T2 Σ=49.22).",
-        "가중치 A/B: weight 하향 시 전파 감쇠가 커져 Σ·iter 감소(T3 A0.8/B0.6 → Σ 17.36/13.79).",
-        "거래 변화 Δ: g<1 거래축소 → 변화분 Δ 음수(파급 감소). 부호·방향이 경제 직관과 일치"
-        "(X1 Σ=−15.9/−19.1).",
+        "표면화하나 본 데이터에선 수렴. 결과값이 source 와 달라 옵션이 실제 반영됨"
+        "(T1 매입(upstream) Σ=32.08 vs T2 Σ=49.22).",
+        "가중치 A/B: weight 하향 시 전파 감쇠 커져 Σ 감소(T3 A0.8/B0.6 → 매출(하류)Σ20.64 / 매입(상류)Σ12.31).",
+        "거래 변화 Δ: g<1 거래축소 → 변화분 Δ 음수(파급 감소). 부호가 경제 직관과 일치"
+        "(X1 매입 Σ=−15.9 / 매출 Σ=−19.1).",
         "랜덤 generator: side·only_firms 가 applied_g 개수에 정확히 반영"
         "(both=40, sales=24, only_firms=4, 수동=1). seed 고정 시 재현.",
-        "단일 디스패치(run_scenario): Streamlit·API·라이브러리가 동일 경로로 동작 — UI 결과와 "
-        "라이브러리 교차검증 수치 일치.",
+        "STEP6 금액 결과표(기능 실증): 기준 매출액(Σ_out)/매입액(Σ_in)·변화·변화율 + 기업규모"
+        "(scaledivcd)/유형(공공 eprmdydivcd)/사업자번호, 총 파급효과(원)·영향기업수 — 문서 STEP6 대로 산출.",
+        "전파 거래연도(기획서 누락 보강): company_edge.trade_year(전체/2024/2026) 선택 시 "
+        "서브그래프·결과 상이(전체 Σ43 / 2024 Σ12.6 / 2026 Σ31). screen 기준연도와 별개 축.",
+        "단일 디스패치(run_scenario): Streamlit·API·라이브러리가 동일 경로 — UI 결과와 교차검증 수치 일치.",
     ]
     for o in obs:
         doc.add_paragraph(o, style="List Bullet")

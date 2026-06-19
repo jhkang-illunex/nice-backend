@@ -104,7 +104,7 @@ def build() -> None:
     )
     _table(doc, ["축", "값", "의미", "구현 위치"], [
         ["방향(direction)", "upstream / downstream",
-         "상류·매출 파급(A) / 하류·매입 파급(B). 엣지 방향+정규화 분모 전환", "assemble.py 인자"],
+         "하류·매출 파급(매출처,A) / 상류·매입 파급(매입처,B). 엣지 방향+정규화 분모 전환", "assemble.py 인자"],
         ["시나리오(scenario)", "tariff / transaction_change",
          "W불변·시드주입 / 거래비중 g수정→변화분 Δ", "scenario.py 래퍼"],
     ])
@@ -152,15 +152,16 @@ def build() -> None:
     doc.add_heading("2. 기능 — 관세 충격 (tariff)", level=1)
     doc.add_paragraph(
         "[W 불변] 그래프 구조는 그대로, 1차 기업(시드)에 외생 충격만 주입. 한 번 호출로 "
-        "매출 파급(상류, A)과 매입 파급(하류, B)을 동시 산출."
+        "매출 파급(하류·매출처, A)과 매입 파급(상류·매입처, B)을 동시 산출. "
+        "(★ 문서 기준: 매출 파급=매출처(고객) 방향, 매입 파급=매입처(공급사) 방향.)"
     )
     _mono(doc,
           "init = { seed_node : shock }   (shock = score 비례 또는 균등)\n"
-          "매출 파급: result_A = Σ R_upstream^k · init    (rate=A·α·매출비중)\n"
-          "매입 파급: result_B = Σ R_downstream^k · init  (rate=B·α·매입비중)")
+          "매출 파급: result_A = Σ R_downstream^k · init  (rate=A·α·매출비중)\n"
+          "매입 파급: result_B = Σ R_upstream^k · init    (rate=B·α·매입비중)")
     _table(doc, ["direction", "엣지 방향", "파급 효과", "가중치", "정규화 분모"], [
-        ["upstream", "바이어→셀러", "매출 파급(상류)", "A", "바이어 총매입"],
-        ["downstream", "셀러→바이어", "매입 파급(하류)", "B", "셀러 총매출"],
+        ["downstream", "셀러→바이어", "매출 파급(하류·매출처)", "A", "셀러 총매출"],
+        ["upstream", "바이어→셀러", "매입 파급(상류·매입처)", "B", "바이어 총매입"],
     ])
     doc.add_heading("화면 — 시드 추출 → 시나리오 전파(방향별 탭)", level=2)
     _img(doc, "overview")
@@ -222,7 +223,7 @@ def build() -> None:
         ["scenario", "tariff | transaction_change", "시나리오 종류"],
         ["seeds", "[{bizno, upchecd, shock}]", "1차 기업 + 초기충격"],
         ["directions", "[upstream, downstream]", "계산 방향(기본 둘 다)"],
-        ["weight_a / weight_b", "float (>0)", "상류(매출) / 하류(매입) 가중치"],
+        ["weight_a / weight_b", "float (>0)", "매출(하류·A) / 매입(상류·B) 가중치"],
         ["normalize", "source | counterparty", "분모 기준 — source(수렴보장)/counterparty(매출·매입 비중)"],
         ["edge_overrides", "[{from_bizno, to_bizno, factor}]", "거래변화 — 명시 g"],
         ["random_override", "{side, low, high, seed, only_firms}", "거래변화 — 1차↔2차 매출/매입 랜덤 g"],
@@ -272,15 +273,21 @@ def build() -> None:
     )
 
     # 6
-    doc.add_heading("6. 확정 대기 — 도메인 의미 (기능 버그 아님, 정의 선택)", level=1)
+    doc.add_heading("6. 도메인 정의 — 확정 사항", level=1)
     doc.add_paragraph(
-        "정규화↔라벨: 수렴 보장을 위해 상류(매출 파급)를 '바이어 총매입' 분모로 정규화함. "
-        "경제적으로 '셀러 총매출' 분모가 맞다면 assemble 의 src_col 만 전환(엔진 무변경).",
+        "방향↔라벨(2026-06-19 화면기획안 기준 확정): 매출 파급=매출처(고객)/하류/downstream/A, "
+        "매입 파급=매입처(공급사)/상류/upstream/B. 정규화도 정합(매출=셀러 총매출, 매입=바이어 총매입). "
+        "엔진(orientation·normalize) 무변경, 라벨·가중치 바인딩만 문서에 맞춤.",
         style="List Bullet",
     )
     doc.add_paragraph(
-        "변화분 정의: difference-of-runs(수정W−원W)로 구현. '델타를 seed로 직접 주입'이 본 "
-        "의도면 해당 부분만 교체.",
+        "변화분 정의(확정): 거래변화=거래내역(매입/매출 비중)에 g 반영(W→W′), 변화분=그 순효과="
+        "difference-of-runs(수정W′−원W)의 Δ. 명세 '변화분을 seed로'='결과로 나오는 값이 곧 변화분'.",
+        style="List Bullet",
+    )
+    doc.add_paragraph(
+        "전파 거래연도: 1차 시드 선택 후 company_edge.trade_year(전체/2024/2026) 선택 "
+        "— screen 의 기준연도(ra603 bse_yr)와 별개 축.",
         style="List Bullet",
     )
 

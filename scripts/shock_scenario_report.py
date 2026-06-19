@@ -84,7 +84,7 @@ def build_html() -> str:
       "<b>두 직교 축의 조합</b>으로 구현된다. 알고리즘은 무변경.</p>")
     a("<table><tr><th>축</th><th>값</th><th>의미</th><th>구현 위치</th></tr>"
       "<tr><td>방향(direction)</td><td>upstream / downstream</td>"
-      "<td>상류·매출 파급(가중치 A) / 하류·매입 파급(가중치 B). 엣지 방향 + 정규화 분모 전환</td>"
+      "<td>하류·매출 파급(매출처, 가중치 A) / 상류·매입 파급(매입처, 가중치 B). 엣지 방향 + 정규화 분모 전환</td>"
       "<td><code>assemble.py</code> 인자</td></tr>"
       "<tr><td>시나리오(scenario)</td><td>tariff / transaction_change</td>"
       "<td>W불변·시드주입 / 특정 거래비중 g수정→변화분 Δ</td>"
@@ -135,21 +135,23 @@ def build_html() -> str:
     # ── 기능 2: 관세 충격 ──────────────────────────────────────────────────────
     a("<h2 class='pagebreak'>2. 기능 — 관세 충격 (tariff)</h2>")
     a("<p><span class='tag'>W 불변</span> 그래프 구조는 그대로, 1차 기업(시드)에 외생 충격만 주입. "
-      "한 번 호출로 <b>매출 파급(상류, A)</b>과 <b>매입 파급(하류, B)</b>을 동시 산출.</p>")
+      "한 번 호출로 <b>매출 파급(하류·매출처, A)</b>과 <b>매입 파급(상류·매입처, B)</b>을 동시 산출.</p>")
+    a("<div class='callout'>★ 문서(화면기획안 v1.0) 기준: 매출 파급=1차 기업의 매출처(고객) 방향(하류), "
+      "매입 파급=매입처(공급사) 방향(상류). 엔진(orientation·정규화) 무변경, 라벨·가중치 바인딩만 문서에 맞춤.</div>")
     a("<h3>계산식</h3>")
     a("<div class='formula'>"
       "init = { seed_node : shock }   (shock = score 비례 또는 균등)\n"
-      "매출 파급:  result_A = Σ R<sub>upstream</sub><sup>k</sup> · init    (rate = A·α·매출비중)\n"
-      "매입 파급:  result_B = Σ R<sub>downstream</sub><sup>k</sup> · init  (rate = B·α·매입비중)"
+      "매출 파급:  result_A = Σ R<sub>downstream</sub><sup>k</sup> · init  (rate = A·α·매출비중)\n"
+      "매입 파급:  result_B = Σ R<sub>upstream</sub><sup>k</sup> · init    (rate = B·α·매입비중)"
       "</div>")
     a("<h3>내용 — 방향 ↔ 라벨 ↔ 가중치</h3>")
     a("<table><tr><th>direction</th><th>엣지 방향</th><th>파급 효과</th><th>가중치</th><th>정규화 분모</th></tr>"
-      "<tr><td>upstream</td><td>바이어→셀러</td><td>매출 파급(상류)</td><td>A</td><td>바이어 총매입</td></tr>"
-      "<tr><td>downstream</td><td>셀러→바이어</td><td>매입 파급(하류)</td><td>B</td><td>셀러 총매출</td></tr></table>")
+      "<tr><td>downstream</td><td>셀러→바이어</td><td>매출 파급(하류·매출처)</td><td>A</td><td>셀러 총매출</td></tr>"
+      "<tr><td>upstream</td><td>바이어→셀러</td><td>매입 파급(상류·매입처)</td><td>B</td><td>바이어 총매입</td></tr></table>")
     a("<h3>화면 — 시드 추출 → 시나리오 전파 (방향별 탭)</h3>")
     a(_img(IMG["overview"]))
     a("<div class='small'>HS 8481 → 1차 기업 10곳 → depth-3 (노드 321·엣지 747). "
-      "하단에 '매출 파급(upstream)' / '매입 파급(downstream)' 탭이 생성된다.</div>")
+      "하단에 '매입 파급(upstream)' / '매출 파급(downstream)' 탭이 생성된다.</div>")
 
     a("<h3>화면 — 노드 그리드 (값 반영 결과)</h3>")
     a(_img(IMG["nodes"]))
@@ -208,8 +210,8 @@ def build_html() -> str:
       "실측: HS 8481·seed 42 → 40건(매출 24·매입 16).</div>")
     a("<h3>화면 — 변화분 Δ 결과 (랜덤 적용 후)</h3>")
     a(_img(IMG["random_delta"]))
-    a("<div class='small'>매출(상류)/매입(하류) 방향별 탭 · 변화분Δ 그리드(음수=거래축소로 인한 파급 감소) · CSV. "
-      "실측 Σ변화분Δ=−15.898 (매출 방향, 수렴 104회).</div>")
+    a("<div class='small'>매출(하류)/매입(상류) 방향별 탭 · 변화분Δ 그리드(음수=거래축소로 인한 파급 감소) · CSV. "
+      "실측 Σ변화분Δ=−19.07 (매출 방향=downstream, 수렴 103회).</div>")
 
     # ── 엔드포인트 ────────────────────────────────────────────────────────────
     a("<h2>4. 엔드포인트 — <code>POST /api/shock/scenario</code></h2>")
@@ -218,7 +220,7 @@ def build_html() -> str:
       "<tr><td>scenario</td><td>tariff | transaction_change</td><td>시나리오 종류</td></tr>"
       "<tr><td>seeds</td><td>[{bizno, upchecd, shock}]</td><td>1차 기업 + 초기충격</td></tr>"
       "<tr><td>directions</td><td>[upstream, downstream]</td><td>계산 방향(기본 둘 다)</td></tr>"
-      "<tr><td>weight_a / weight_b</td><td>float (&gt;0)</td><td>상류(매출) / 하류(매입) 가중치</td></tr>"
+      "<tr><td>weight_a / weight_b</td><td>float (&gt;0)</td><td>매출(하류·A) / 매입(상류·B) 가중치</td></tr>"
       "<tr><td>depth, damping, within_subgraph, trade_year</td><td>—</td><td>조립/전파 파라미터</td></tr>"
       "<tr><td>normalize</td><td>source | counterparty</td><td>분모 기준 — source(수렴보장) / counterparty(매출·매입 비중 라벨)</td></tr>"
       "<tr><td>edge_overrides</td><td>[{from_bizno, to_bizno, factor}]</td><td>거래변화 전용 — 명시 g (factor, 0~1)</td></tr>"
@@ -274,12 +276,16 @@ def build_html() -> str:
     a("<div class='callout'><b>종합</b>: 기능 정상 동작. 렌더링뿐 아니라 방향 전환·정규화·가중치·"
       "거래변화 Δ의 수치 정확성까지 확인됨.</div>")
 
-    # ── 미확정 ────────────────────────────────────────────────────────────────
-    a("<h2>6. 확정 대기 — 도메인 의미 (기능 버그 아님, 정의 선택)</h2>")
+    # ── 확정 사항 ──────────────────────────────────────────────────────────────
+    a("<h2>6. 도메인 정의 — 확정 사항</h2>")
     a("<ul>"
-      "<li><b>정규화 ↔ 라벨</b>: 수렴 보장을 위해 상류(매출 파급)를 '바이어 총매입' 분모로 정규화함. "
-      "경제적으로 '셀러 총매출' 분모가 맞다면 <code>assemble</code>의 <code>src_col</code>만 전환(엔진 무변경).</li>"
-      "<li><b>변화분 정의</b>: difference-of-runs(수정W−원W)로 구현. '델타를 seed로 직접 주입'이 본 의도면 해당 부분만 교체.</li></ul>")
+      "<li><b>방향 ↔ 라벨</b>(2026-06-19 화면기획안 기준 확정): 매출 파급=매출처(고객)/하류/downstream/가중치A, "
+      "매입 파급=매입처(공급사)/상류/upstream/가중치B. 정규화도 정합 — 매출 파급=셀러 총매출 분모(매출비중), "
+      "매입 파급=바이어 총매입 분모(매입비중). 엔진(orientation·normalize) 무변경, 라벨·가중치 바인딩만 문서에 맞춤.</li>"
+      "<li><b>변화분 정의</b>(확정): 거래변화=거래내역(매입/매출 비중)에 g 가중치 반영(W→W′). 변화분 = 그 순효과 "
+      "= difference-of-runs(수정W′−원W)의 Δ. 명세 '변화분을 seed로'는 '결과로 나오는 값이 곧 변화분'의 의미.</li>"
+      "<li><b>전파 거래연도</b>: 1차 시드 선택 후 company_edge.trade_year(전체/2024/2026) 선택 가능 — "
+      "screen 의 기준연도(ra603 bse_yr)와 별개 축.</li></ul>")
 
     a("</body></html>")
     return "".join(p)
