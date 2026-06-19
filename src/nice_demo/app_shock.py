@@ -40,6 +40,10 @@ from nice_poc.db import get_pg_engine
 # 기업규모 코드(scaledivcd) → 라벨 (대략). 미상은 코드 그대로.
 _SCALE_LABEL = {"1": "대기업", "2": "중견기업", "3": "중소기업"}
 
+# 공공기관 상세유형(eprdtldivcd) → 라벨 (NICE 장재혁 매니저 회신 기준).
+#   정부대상 매출 정의는 eprmdydivcd='2'(공공)이고, 그 안에서 4종으로 세분류된다.
+_PUBLIC_DETAIL_LABEL = {"110": "공기업", "111": "준정부기관", "112": "정부기관", "119": "기타공공"}
+
 # 방향 라벨(데모) ↔ assemble/scenario 의 Direction (★ 문서 기준).
 #   매출 파급 = 매출처(고객)/하류 = downstream, 매입 파급 = 매입처(공급사)/상류 = upstream.
 _DIR_MAP = {"매출 파급(하류)": "downstream", "매입 파급(상류)": "upstream"}
@@ -567,10 +571,13 @@ def _fetch_firm_amounts(biznos: tuple, trade_year: str | None) -> dict:
         f"WHERE to_bizno = ANY(:b) {yr} GROUP BY to_bizno"
     )
     attr_sql = text(
-        "SELECT bizno, scaledivcd, eprmdydivcd FROM public.origin_kis_em__s_em001 "
-        "WHERE bizno = ANY(:b)"
+        "SELECT bizno, scaledivcd, eprmdydivcd, eprdtldivcd "
+        "FROM public.origin_kis_em__s_em001 WHERE bizno = ANY(:b)"
     )
-    out = {b: {"sales": 0.0, "buy": 0.0, "scale": None, "public": False} for b in bl}
+    out = {
+        b: {"sales": 0.0, "buy": 0.0, "scale": None, "public": False, "public_detail": None}
+        for b in bl
+    }
     with get_pg_engine().connect() as c:
         for r in c.execute(sales_sql, params).mappings():
             out[r["b"]]["sales"] = r["v"]
@@ -581,6 +588,9 @@ def _fetch_firm_amounts(biznos: tuple, trade_year: str | None) -> dict:
             if o:
                 o["scale"] = r["scaledivcd"]
                 o["public"] = str(r["eprmdydivcd"]).strip() == "2"
+                # 공공일 때만 상세유형 보존(공기업/준정부/정부기관/기타공공).
+                if o["public"]:
+                    o["public_detail"] = str(r["eprdtldivcd"]).strip() or None
     return out
 
 
@@ -606,7 +616,11 @@ def _render_amount_grid(asm, shock_by_node: dict[str, float], val_label: str, cf
                 "기업명": n.korentrnm or n.bizno,
                 "사업자번호": n.bizno,
                 "기업규모": _SCALE_LABEL.get(str(a.get("scale")), a.get("scale") or "-"),
-                "기업유형": "공공" if a.get("public") else "일반",
+                "기업유형": (
+                    _PUBLIC_DETAIL_LABEL.get(a.get("public_detail"), "공공")
+                    if a.get("public")
+                    else "일반"
+                ),
                 "매출액(기준)": round(bs),
                 "매출변화": round(bs * rate),
                 "매출액(결과)": round(bs * (1 + rate)),
@@ -628,7 +642,8 @@ def _render_amount_grid(asm, shock_by_node: dict[str, float], val_label: str, cf
     c2.metric("영향 기업 수", f"{n_aff}")
     st.caption(
         f"기준 매출액=Σ_out(sly_amt)·매입액=Σ_in · 변화액=기준×{val_label}(변화율 해석) · "
-        "기업규모/유형=em001. ※ 기능 실증용(실 충격강도 입력은 Spring 프론트)."
+        "기업규모(scaledivcd)/유형=em001 · 공공은 eprdtldivcd로 공기업·준정부·정부기관·기타공공 "
+        "세분류. ※ 기능 실증용(실 충격강도 입력은 Spring 프론트)."
     )
     st.dataframe(df, height=420, use_container_width=True)
     _dl(df, "금액 결과표 CSV", f"amount_{asm.direction}.csv", f"dl_amt_{asm.direction}")
