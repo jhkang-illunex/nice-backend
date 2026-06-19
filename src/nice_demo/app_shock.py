@@ -47,8 +47,9 @@ _DIR_MAP = {"매출 파급(하류)": "downstream", "매입 파급(상류)": "ups
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
-_YEAR_OPTIONS = ["전체", "2026", "2025", "2024", "2023"]
+_YEAR_OPTIONS = ["전체", "2026", "2025", "2024", "2023"]  # 시드(ra603 bse_yr)용
 _EXIM_OPTIONS = {"전체": None, "수출입 0": "0", "수출입 3": "3"}
+_TRADE_YEAR_OPTIONS = ["전체", "2026", "2024"]  # 전파 거래(company_edge.trade_year)용 — 2025 없음
 
 _COLOR_SEED = "#E74C3C"   # 시드 (빨강)
 _COLOR_HOT = "#F39C12"    # 높은 shock (주황)
@@ -74,6 +75,14 @@ def sidebar() -> dict:
 
     st.sidebar.markdown("---")
     st.sidebar.subheader("그래프 / 전파")
+    # ★ 기획서 누락분: 1차 시드 선택 후 '전파에 쓸 거래 데이터 연도' 선택.
+    #   screen 의 '기준연도'(ra603 bse_yr)와 별개 — 전파/금액은 company_edge.trade_year 기준.
+    trade_year_label = st.sidebar.selectbox(
+        "거래 연도 (전파 데이터)",
+        _TRADE_YEAR_OPTIONS,
+        index=0,
+        help="company_edge.trade_year 기준. '전체'=전 연도 합산. 데이터: 2024·2026.",
+    )
     depth = st.sidebar.slider("확장 depth", 1, 6, value=3)
     damping = st.sidebar.slider("damping α (감쇠율)", 0.1, 1.0, value=0.85, step=0.05)
     within = st.sidebar.checkbox("서브그래프 내 정규화 (Σ_out=1)", value=True)
@@ -109,6 +118,7 @@ def sidebar() -> dict:
     return {
         "query": query.strip(),
         "year": None if year_label == "전체" else year_label,
+        "trade_year": None if trade_year_label == "전체" else trade_year_label,
         "exim": _EXIM_OPTIONS[exim_label],
         "top_k": int(top_k),
         "min_ratio": float(min_ratio),
@@ -245,6 +255,7 @@ def step_scenario(cfg: dict) -> None:
         weight_b=cfg["weight_b"],
         directions=cfg["directions"],
         depth=cfg["depth"],
+        trade_year=cfg["trade_year"],
         within_subgraph=cfg["within"],
         damping=cfg["damping"],
         normalize=cfg["normalize"],
@@ -253,7 +264,8 @@ def step_scenario(cfg: dict) -> None:
     st.caption(
         f"시나리오=**{cfg['scenario']}** · 방향={cfg['directions']} · "
         f"A(매출)={cfg['weight_a']} · B(매입)={cfg['weight_b']} · depth={cfg['depth']} · "
-        f"damping={cfg['damping']} · 정규화={cfg['normalize']}"
+        f"damping={cfg['damping']} · 정규화={cfg['normalize']} · "
+        f"거래연도={cfg['trade_year'] or '전체'}"
     )
 
     overrides: dict[tuple[str, str], float] = {}
@@ -334,6 +346,7 @@ def _override_random(
                 seed_pairs,
                 spec=spec,
                 depth=cfg["depth"],
+                trade_year=cfg["trade_year"],
                 within_subgraph=cfg["within"],
                 damping=cfg["damping"],
                 seed_shock=seed_shock,
@@ -377,6 +390,7 @@ def _override_manual(
                 seed_pairs,
                 side="sales",
                 depth=cfg["depth"],
+                trade_year=cfg["trade_year"],
                 within_subgraph=cfg["within"],
                 damping=cfg["damping"],
                 seed_shock=seed_shock,
@@ -577,7 +591,7 @@ def _render_amount_grid(asm, shock_by_node: dict[str, float], val_label: str, cf
     """
     biznos = tuple(sorted({n.bizno for n in asm.nodes}))
     try:
-        amt = _fetch_firm_amounts(biznos, cfg.get("year"))
+        amt = _fetch_firm_amounts(biznos, cfg.get("trade_year"))
     except Exception as exc:  # noqa: BLE001
         st.error(f"기준 거래액 조회 실패: {exc.__class__.__name__} — {exc}")
         return
