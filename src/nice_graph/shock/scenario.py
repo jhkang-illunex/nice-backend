@@ -24,6 +24,28 @@
   >>> res = run_tariff_shock(primary_pairs, weight_a=0.8, weight_b=0.6)
   >>> for d in res.directions:           # 매출(상류)·매입(하류) 각각
   ...     print(d.effect_label, d.result.total_shock)
+
+호출자 (caller) 체계 — 누가 어떤 함수를 호출 가능한가
+  ┌─ run_scenario ────────────── 단일 디스패치(권장 진입점)
+  │     호출자: ① API 라우터  api/routers/shock.py  `scenario()` (별칭 _run_scenario)
+  │            ② Streamlit 데모 nice_demo/app_shock.py `step_scenario()`
+  │            ③ 라이브러리 직접 사용(테스트·스크립트)
+  │     내부에서 시나리오에 따라 ↓ 둘 중 하나로 분기:
+  ├─ run_tariff_shock ────────── 관세 충격(W불변)
+  │     호출자: run_scenario(권장) · 라이브러리 직접 · 테스트.
+  │             (라우터·데모는 run_scenario 를 통해 간접 호출 — 직접 호출 안 함)
+  ├─ run_transaction_change ──── 거래 변화(수정 W·Δ)
+  │     호출자: run_scenario(권장) · 라이브러리 직접 · 테스트.
+  ├─ build_primary_secondary_random_overrides ── 1차↔2차 랜덤 g 생성
+  │     호출자: run_scenario(random_spec 경로 내부) · 데모 `_override_random` ·
+  │             라이브러리 직접.
+  └─ enumerate_primary_secondary ── 1차↔2차 거래쌍 열거(매출/매입 분류, 공유 경로)
+        호출자: build_primary_secondary_random_overrides(내부) ·
+                데모 `_override_manual`(수동 편집기 후보 목록) · 라이브러리 직접.
+
+  요약: 외부(API/데모)는 **run_scenario 단일 진입점**으로 들어오고, 그 아래
+  run_tariff_shock / run_transaction_change 는 run_scenario 가 호출하는 것을 권장한다
+  (직접 호출도 가능하나 라우터·데모는 일관성을 위해 run_scenario 만 사용).
 """
 
 from __future__ import annotations
@@ -181,6 +203,9 @@ def run_tariff_shock(
 ) -> ScenarioResult:
     """관세 충격 — W 불변, 시드에 외생 충격만 주입. 요청 방향 각각 전파.
 
+    호출자: run_scenario(권장 진입점) · 라이브러리 직접 · 테스트.
+            (API 라우터·데모는 run_scenario 를 통해 간접 호출)
+
     Args:
       seeds: 1차 기업 (PrimarySelectionResult 또는 (bizno,upchecd) 쌍).
       weight_a/weight_b: 상류(매출)/하류(매입) 비중 가중치.
@@ -227,6 +252,9 @@ def run_transaction_change(
     **propagate_kwargs,
 ) -> ScenarioResult:
     """거래 변화 — 특정 1차→2차 엣지 비중에 g(0~1) 반영한 수정 W. 변화분(Δ) 반환.
+
+    호출자: run_scenario(권장 진입점) · 라이브러리 직접 · 테스트.
+            (API 라우터·데모는 run_scenario 를 통해 간접 호출)
 
     각 방향마다 baseline(원 W) 1회 + changed(수정 W) 1회 전파 후 노드별 Δ.
 
@@ -321,6 +349,9 @@ def enumerate_primary_secondary(
 ) -> list[PrimarySecondaryEdge]:
     """1차(시드)↔2차(직접 거래상대) 엣지를 매출/매입으로 분류해 열거 (단일 공유 경로).
 
+    호출자: build_primary_secondary_random_overrides(내부) ·
+            데모 _override_manual(수동 편집기 후보 목록) · 라이브러리 직접.
+
     분류 (company_edge 저장방향 = 셀러→바이어):
       매출(sales)    = 1차(셀러) → 2차(바이어)  : sb∈1차, bb∉1차
       매입(purchase) = 2차(셀러) → 1차(바이어)  : bb∈1차, sb∉1차
@@ -383,6 +414,8 @@ def build_primary_secondary_random_overrides(
 ) -> dict[tuple[str, str], float]:
     """1차↔2차 매출/매입 엣지에 랜덤 g 를 부여한 edge_overrides 생성.
 
+    호출자: run_scenario(random_spec 경로 내부) · 데모 _override_random · 라이브러리 직접.
+
     enumerate_primary_secondary 후보를 정렬해 random.Random(spec.seed) 로 g 부여
     (DB 행순서 무관·재현 보장).
     """
@@ -426,6 +459,11 @@ def run_scenario(
     **propagate_kwargs,
 ) -> ScenarioResult:
     """시나리오 단일 디스패치 — 라우터·데모가 공유하는 진입점.
+
+    호출자: ① API 라우터 api/routers/shock.py `scenario()` (별칭 _run_scenario)
+            ② Streamlit 데모 nice_demo/app_shock.py `step_scenario()`
+            ③ 라이브러리 직접(테스트·스크립트).
+    외부 진입은 이 함수로 일원화 — 내부에서 tariff/transaction_change 로 분기한다.
 
     tariff             : run_tariff_shock.
     transaction_change : random_spec 있으면 1차↔2차 랜덤 g 생성, 없으면 edge_overrides 사용.
