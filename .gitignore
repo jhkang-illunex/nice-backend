@@ -220,3 +220,6 @@ __marimo__/
 # RAG 품질 리포트 (생성 산출물 — repo 에 커밋하지 않음). reports/rag/ 하위로 이동.
 docs/reports/rag/
 docs/RAG_*.pdf
+
+# 원천 데이터 (바이너리 — repo 에 커밋하지 않음)
+docs/data/*.xlsx
