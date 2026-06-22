@@ -114,7 +114,76 @@ seeds ─▶ assemble(depth3) ─┬─▶ baseline 전파(원 W)
 
 ---
 
-## 3. 두 시나리오 비교
+## 3. 수렴 조건 (왜 항상 수렴하는가)
+
+### 계산 = 행렬 무한등비급수
+
+전파는 round-by-round 로 거듭제곱급수를 누적한다:
+
+```
+total = Σ_k Rᵏ·init = (I − R)⁻¹·init      (Neumann 급수 = Leontief 역행렬)
+```
+
+이는 스칼라 무한등비급수 `Σ rᵏ = 1/(1−r)` 의 **행렬 일반화**다. k번째 라운드가
+`Rᵏ·init` 항을 더하고, 그 항이 `epsilon`(기본 1e-8) 아래로 떨어지면 꼬리를 잘라
+종료한다(`max_iter` 기본 500 도달 시 `converged=False`).
+
+### 수렴 조건은 ρ(R) < 1 — 개별 rate < 1 이 아니다
+
+스칼라는 공비 `|r|<1` 이면 수렴하지만, 여기선 공비가 **행렬 R** 이라 조건이
+**스펙트럴 반경 `ρ(R) < 1`** 이다. 개별 엣지 rate 가 모두 <1 이어도 **팬아웃**이 있으면
+발산할 수 있다:
+
+> 반례: 노드 A 가 B·C 로 각각 rate 0.8(<1) 을 보내고(Σ_out=1.6), B·C 가 A 로 0.8 씩
+> 되돌리면 한 바퀴마다 질량이 증폭 → 발산. 개별 값이 아니라 **나가는 합**이 문제.
+
+충분조건: `ρ(R) ≤ ‖R‖ = max_node Σ_out(node)`. 즉 **각 노드의 나가는 rate 합 < 1**.
+
+### source 정규화 + damping 이 합을 묶는다
+
+`rate = direction_weight · damping · (amt / 분모) · g` 에서 한 source 의 출력 엣지를
+다 더하면 `Σ(amt)/분모` 가 1 이하라:
+
+```
+Σ_out(node) = direction_weight · damping · (sub_total/분모) · g  ≤  damping (≈0.85) < 1
+```
+
+개별 rate 가 아니라 **합이 damping 으로 묶여** `ρ(R) ≤ damping < 1` → 절대수렴.
+
+### 서브그래프 truncation 과 leakage (within_subgraph)
+
+실제 그래프에서 depth-N 서브그래프는 잘린 그래프라, 경계 노드의 거래가 밖으로
+나간다. 서브그래프 안 출력 합이 자연히 1 이 된다는 보장은 없다 — 이는 `within_subgraph`
+파라미터로 처리한다:
+
+| within_subgraph | 분모 | Σ_out(node) | 의미 |
+|---|---|---|---|
+| `True` (기본) | 서브그래프 안 합 `sub_total` | **= damping** (정확히) | 닫힌계 가정 — 충격 전량 서브그래프 내 유지 |
+| `False` | 실제 전체 합 `full_total` | **≤ damping** (누수만큼 작음) | 밖으로 가는 비중은 leakage 로 소멸, 실제 비중 충실 |
+
+실측(real `company_edge`, depth-2): `True` → 모든 노드 Σ_out=0.8500, `False` → 0.7915~0.8500.
+**두 모드 모두 Σ_out ≤ damping < 1** → truncation 이 있어도 수렴은 깨지지 않는다. 누수는
+ρ(R) 를 **더 작게** 만들 뿐이다(수렴의 적이 아니라 친구). 트레이드오프는 정확도뿐 —
+`True` 는 충격 과대평가(닫힌계), `False` 는 과소평가(누수분 소멸).
+
+### damping=1.0 과 순환
+
+| 그래프 | damping=1.0 | damping<1 |
+|---|---|---|
+| DAG(순환 없음) | 수렴 (R nilpotent, 경로 유한 → 실질 ρ=0) | 수렴 |
+| 순환 포함 | **비수렴** (Σ_out=1, 충격이 루프를 안 줄고 순회 → ρ=1) | 수렴 (ρ≤damping<1) |
+
+순환 그래프에서 damping<1 이 "매 단계 (1−α) 흡수"로 루프를 감쇠시키는 안전장치다.
+
+### 유일한 발산 위험 — normalize=counterparty
+
+`normalize="counterparty"` 는 분모가 source 가 아니라 **거래상대**(매출/매입 비중 라벨)라
+한 source 의 Σ_out 이 1 을 넘을 수 있다 → `ρ(R)>1` 가능 → 발산 시 `converged=False` 로
+표면화. source 정규화에는 없는 위험이며, 그래서 counterparty 모드는 경고를 띄운다.
+
+---
+
+## 4. 두 시나리오 비교
 
 | 항목 | 관세 충격 (`tariff`) | 거래량 변동 (`transaction_change`) |
 |---|---|---|
@@ -127,7 +196,7 @@ seeds ─▶ assemble(depth3) ─┬─▶ baseline 전파(원 W)
 
 ---
 
-## 4. API 조합
+## 5. API 조합
 
 ```
 ① POST /api/shock/select_primary   HS코드 → 1차 시드
@@ -139,7 +208,7 @@ seeds ─▶ assemble(depth3) ─┬─▶ baseline 전파(원 W)
 
 ---
 
-## 5. 구현 위치
+## 6. 구현 위치
 | 요소 | 파일 |
 |---|---|
 | 시나리오 래퍼 | `src/nice_graph/shock/scenario.py` |
