@@ -313,18 +313,32 @@ def step_scenario(cfg: dict) -> None:
         f"거래연도={cfg['trade_year'] or '전체'}"
     )
 
-    # 거래량 변동(volume): 1차의 (방향별 side) 거래 전체에 증감율 적용 → firm_specs
+    # 거래량 변동(volume): 적용 대상 시드 선택 → 그 1차의 (방향별 side) 거래에 증감율
     firm_specs: list[VolumeSpec] = []
     if cfg["scenario"] == "volume":
         factor = cfg.get("preset_factor") or 1.0
+        name_by_bizno = {f.bizno: (f.korentrnm or f.bizno) for f in res.firms if f.bizno}
+        label_to_bizno = {f"{name_by_bizno[b]} ({b})": b for b in seed_biznos}
+        picked_labels = st.multiselect(
+            "변동 적용 대상 1차 기업 (비우면 전체)",
+            list(label_to_bizno),
+            default=[],
+            help="선택한 시드 기업의 매출/매입만 변동시킨다. 비우면 추출된 1차 전체.",
+        )
+        target_biznos = (
+            [label_to_bizno[x] for x in picked_labels] if picked_labels else sorted(seed_biznos)
+        )
         for d in cfg["directions"]:
             side = "sales" if d == "downstream" else "purchase"
-            firm_specs += [VolumeSpec(bizno=b, side=side, factor=factor) for b in seed_biznos]
+            firm_specs += [VolumeSpec(bizno=b, side=side, factor=factor) for b in target_biznos]
         side_kr = "·".join(
             ("매출" if d == "downstream" else "매입") for d in cfg["directions"]
         )
+        tgt_kr = (
+            f"{len(target_biznos)}곳" if picked_labels else f"전체 {len(target_biznos)}곳"
+        )
         st.caption(
-            f"거래량 변동 — 1차 {len(seed_biznos)}곳의 {side_kr} 거래 전체에 m={factor} "
+            f"거래량 변동 — 1차 {tgt_kr}의 {side_kr} 거래에 m={factor} "
             f"(상대에 거래 비중 가중 전파). 1차 자신은 입력값 고정."
         )
 
