@@ -81,6 +81,18 @@ EFFECT_LABEL: dict[str, str] = {
 
 DEFAULT_DIRECTIONS: tuple[Direction, ...] = ("upstream", "downstream")
 
+# 거래 변화 g(factor) 상한. g=1+증감율: 0.8=20%감소, 1.1=10%증가, 1.0=무변화.
+#   g<1=감소(항상 수렴), g>1=증가(Σ_out 가 1 을 넘으면 수렴 보장 깨짐 → 경고).
+MAX_OVERRIDE_FACTOR = 3.0
+
+
+def _max_source_outsum(edges: list[dict]) -> float:
+    """엣지에서 source 별 Σ_out(rate 합) 최댓값. >1 이면 ρ(R)>1 발산 위험."""
+    acc: dict[str, float] = {}
+    for e in edges:
+        acc[e["from_bizno"]] = acc.get(e["from_bizno"], 0.0) + float(e["rate"])
+    return max(acc.values(), default=0.0)
+
 
 # ── 결과 타입 ─────────────────────────────────────────────────────────────────
 
@@ -281,7 +293,12 @@ def run_transaction_change(
     out: list[DirectionResult] = []
     warnings: list[str] = ["변화분 = 수정W − 원W (difference-of-runs)"]
     if all(abs(g - 1.0) < 1e-12 for g in ov.values()):
-        warnings.append("모든 override g=1.0 — 변화 없음(Δ=0). factor<1.0 로 변경 대상을 지정하세요.")
+        warnings.append("모든 override g=1.0 — 변화 없음(Δ=0). g≠1.0 로 변경 대상을 지정하세요.")
+    if any(g > 1.0 for g in ov.values()):
+        warnings.append(
+            "g>1(거래 증가) 포함 — Σ_out 가 1 을 넘으면 수렴 보장이 깨질 수 있음"
+            "(발산 시 converged=False). 큰 rate 엣지를 키울수록 위험."
+        )
     for d in directions:
         w = _weight_for(d, weight_a, weight_b)
         # 방향별 baseline 만 DB 조립(1회). 수정 W 는 in-memory g 적용(2차 조립 생략).
@@ -300,6 +317,12 @@ def run_transaction_change(
         )
         warnings.extend(f"[{d}] {m}" for m in base_asm.warnings)
         chg_asm = replace(base_asm, edges=_apply_overrides(base_asm, ov))
+        max_out = _max_source_outsum(chg_asm.edges)
+        if max_out > 1.0 + 1e-9:
+            warnings.append(
+                f"[{d}] 수정 W 의 Σ_out 최대={max_out:.3f}>1 (g>1 로 비중 합 초과) "
+                "→ ρ(R)>1 발산 가능. damping 을 낮추거나 g 를 줄이세요."
+            )
         base_res = run_propagation(base_asm, **propagate_kwargs)
         chg_res = run_propagation(chg_asm, **propagate_kwargs)
         out.append(DirectionResult(d, EFFECT_LABEL[d], w, chg_asm, _delta(base_res, chg_res)))
@@ -318,7 +341,8 @@ class RandomOverrideSpec:
     """1차↔2차 거래에 부여할 랜덤 g 사양.
 
     side: 'both'(매출+매입) | 'sales'(매출=1차 판매→2차) | 'purchase'(매입=2차 판매→1차).
-    low/high: g 범위 (0≤low≤high≤1). 수렴 보장 위해 상한 1.
+    low/high: g 범위 (0≤low≤high≤MAX_OVERRIDE_FACTOR). g=1+증감율 — <1 감소, >1 증가.
+             >1 은 Σ_out>1 시 수렴 보장 깨짐(경고).
     seed: 재현용 난수 시드 (None=비결정).
     only_firms: 일부 1차 기업 bizno 한정 (None=연계된 모든 1차).
     """
@@ -435,8 +459,10 @@ def build_primary_secondary_random_overrides(
     enumerate_primary_secondary 후보를 정렬해 random.Random(spec.seed) 로 g 부여
     (DB 행순서 무관·재현 보장).
     """
-    if not (0.0 <= spec.low <= spec.high <= 1.0):
-        raise ValueError(f"랜덤 범위는 0≤low≤high≤1 이어야 함: [{spec.low}, {spec.high}]")
+    if not (0.0 <= spec.low <= spec.high <= MAX_OVERRIDE_FACTOR):
+        raise ValueError(
+            f"랜덤 범위는 0≤low≤high≤{MAX_OVERRIDE_FACTOR} 이어야 함: [{spec.low}, {spec.high}]"
+        )
     edges = enumerate_primary_secondary(
         seeds,
         side=spec.side,

@@ -247,9 +247,13 @@ class EdgeOverrideIn(BaseModel):
     from_bizno: str = Field(..., description="저장방향 셀러 bizno.", examples=["1018116406"])
     to_bizno: str = Field(..., description="저장방향 바이어 bizno.", examples=["1130452404"])
     factor: float = Field(
-        ..., ge=0.0, le=1.0,
-        description="이 (셀러→바이어) 엣지 비중에 곱할 0~1 인자 g.",
-        examples=[0.5],
+        ..., ge=0.0, le=3.0,
+        description=(
+            "이 (셀러→바이어) 거래 비중에 곱할 인자 g = 1+증감율. "
+            "0.8=20%감소 · 1.0=무변화 · 1.1=10%증가. g<1 감소(수렴) / "
+            "g>1 증가(Σ_out>1 시 수렴 보장 깨짐, 경고)."
+        ),
+        examples=[0.8, 1.1],
     )
 
 
@@ -260,8 +264,8 @@ class RandomOverrideIn(BaseModel):
         "both",
         description="sales=매출(1차 판매→2차) / purchase=매입(2차 판매→1차) / both=둘 다.",
     )
-    low: float = Field(0.0, ge=0.0, le=1.0, description="랜덤 g 하한.")
-    high: float = Field(1.0, ge=0.0, le=1.0, description="랜덤 g 상한.")
+    low: float = Field(0.0, ge=0.0, le=3.0, description="랜덤 g 하한 (g=1+증감율).")
+    high: float = Field(1.0, ge=0.0, le=3.0, description="랜덤 g 상한 (>1=증가 허용).")
     seed: int | None = Field(None, description="재현용 난수 시드. None=비결정.")
     only_firms: list[str] | None = Field(
         None, description="일부 1차 기업 bizno 한정. None=연계된 모든 1차."
