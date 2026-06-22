@@ -626,3 +626,30 @@ def test_volume_via_run_scenario(monkeypatch) -> None:
     assert res.scenario == "volume"
     vals = {r["bizno"]: r["shock"] for r in res.directions[0].result.shock_list}
     assert vals["A|1"] == pytest.approx(0.8)
+
+
+def test_volume_edge_multipliers_share_weighted(monkeypatch) -> None:
+    """엣지 단위 볼륨 — 파트너에 share×(g−1) 주입, 허브 자신은 불변(0%)."""
+    # A(허브)→B(rate0.5), A→C(rate0.5). 엣지 A→B +20%(g=1.2).
+    edges = [
+        {"from_bizno": "A|1", "to_bizno": "B|2", "rate": 0.5},
+        {"from_bizno": "A|1", "to_bizno": "C|3", "rate": 0.5},
+    ]
+    def fake(seeds, *, seed_shock, edge_overrides=None, **kw):
+        from nice_graph.shock.assemble import AssembledNode
+        init = {f"{b}|1": float(seed_shock[b]) for b in seed_shock}
+        def _n(nid, b, up, nm):
+            return AssembledNode(node_id=nid, bizno=b, upchecd=up, korentrnm=nm,
+                                 is_seed=(b in seed_shock), seed_shock=init.get(nid, 0.0))
+        return PropagationInput(edges=edges, init_sub_graph=init, depth=2, nodes=[
+            _n("A|1", "A", "1", "허브"), _n("B|2", "B", "2", "삼성"), _n("C|3", "C", "3", "LG"),
+        ])
+    monkeypatch.setattr(scen_mod, "assemble_propagation_input", fake)
+    # B 의 매입 중 A 비중 = 0.4 (share)
+    monkeypatch.setattr(scen_mod, "edge_in_shares", lambda keys, ty: {("A", "B"): 0.4})
+
+    res = run_volume_shock([("A", "1")], edge_multipliers={("A", "B"): 1.2},
+                           directions=["downstream"], pin_seeds=True)
+    by = {r["bizno"]: r["shock"] for r in res.directions[0].result.shock_list}
+    assert by["A|1"] == pytest.approx(1.0)          # 허브 불변(δ=0)
+    assert by["B|2"] == pytest.approx(1.0 + 0.4 * 0.2)  # share0.4 × +20% = +8%

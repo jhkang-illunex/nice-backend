@@ -283,6 +283,44 @@ def _fetch_induced_edges(
         return c.execute(sql, params).fetchall()
 
 
+def edge_in_shares(
+    edge_keys: list[tuple[str, str]], trade_year: str | None = None
+) -> dict[tuple[str, str], float]:
+    """각 (from,to) 거래가 **to(바이어)의 총 매입**에서 차지하는 비중.
+
+    share(from→to) = amount(from→to) / Σ_in(to). 볼륨 충격의 엣지 단위 입력을
+    파트너 노드 δ 로 환산할 때 쓴다(쿠팡↔삼성 +10% → 삼성 δ = share×0.10).
+    """
+    if not edge_keys:
+        return {}
+    froms = sorted({f for f, _ in edge_keys})
+    tos = sorted({t for _, t in edge_keys})
+    yr = "AND CAST(trade_year AS text) = :yr" if trade_year is not None else ""
+    sql = text(
+        f"""
+        WITH pair AS (
+            SELECT TRIM(from_bizno) f, TRIM(to_bizno) t, COALESCE(SUM(sly_amt),0)::float amt
+            FROM public.company_edge
+            WHERE TRIM(from_bizno)=ANY(:froms) AND TRIM(to_bizno)=ANY(:tos) {yr}
+            GROUP BY 1,2
+        ),
+        tin AS (
+            SELECT TRIM(to_bizno) t, COALESCE(SUM(sly_amt),0)::float tot
+            FROM public.company_edge WHERE TRIM(to_bizno)=ANY(:tos) {yr} GROUP BY 1
+        )
+        SELECT p.f, p.t, CASE WHEN ti.tot>0 THEN p.amt/ti.tot ELSE 0 END AS share
+        FROM pair p JOIN tin ti ON p.t = ti.t
+        """
+    )
+    params: dict[str, object] = {"froms": froms, "tos": tos}
+    if trade_year is not None:
+        params["yr"] = str(trade_year)
+    want = set(edge_keys)
+    with get_pg_engine().connect() as c:
+        rows = c.execute(sql, params).fetchall()
+    return {(f, t): float(s) for f, t, s in rows if (f, t) in want}
+
+
 def _filter_biznos_by_industry(biznos: list[str], chapters: list[str]) -> set[str]:
     """biznos 중 선택 산업(HS chapter) 의 거래구성을 가진 기업만 반환 (시드 필터용)."""
     if not biznos:
