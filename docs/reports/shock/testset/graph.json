@@ -38,7 +38,7 @@
   "seeds": ["1000000001", "1000000002", "1000000003"],
   "common_args": {
     "depth": 3,
-    "damping": 0.85,
+    "damping": 1.0,
     "normalize": "source",
     "within_subgraph": true,
     "weight_a": 1.0,

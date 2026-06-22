@@ -17,6 +17,7 @@ from collections import defaultdict
 from pathlib import Path
 
 import nice_graph.shock.assemble as asm
+from nice_graph.shock.assemble import assemble_propagation_input
 from nice_graph.shock.scenario import run_scenario
 
 HERE = Path(__file__).resolve().parent.parent
@@ -86,12 +87,19 @@ def _run_one(graph: dict, sc: dict) -> dict:
             key=lambda x: abs(x["value"]),
             reverse=True,
         )
-        matrix = [
-            {"src": name_by_id.get(e["from_bizno"], e["from_bizno"]),
-             "dst": name_by_id.get(e["to_bizno"], e["to_bizno"]),
-             "rate": e["rate"]}
-            for e in d.assembled.edges
-        ]
+        def _mtx(edges):
+            return [
+                {"src": name_by_id.get(e["from_bizno"], e["from_bizno"]),
+                 "dst": name_by_id.get(e["to_bizno"], e["to_bizno"]),
+                 "rate": e["rate"]}
+                for e in edges
+            ]
+
+        # 거래 변화: 원본 W(오버라이드 미반영) 별도 조립 → baseline 매트릭스.
+        matrix_base = None
+        if sc["scenario"] == "transaction_change":
+            base = _assemble_matrix(graph, d.direction, overrides=None)
+            matrix_base = _mtx(base)
         dirs.append(
             {
                 "direction": d.direction,
@@ -103,7 +111,8 @@ def _run_one(graph: dict, sc: dict) -> dict:
                 "iterations": d.result.iterations,
                 "converged": d.result.converged,
                 "rows": rows,
-                "matrix": matrix,
+                "matrix": _mtx(d.assembled.edges),
+                "matrix_base": matrix_base,
             }
         )
     return {"args": args, "warnings": list(res.warnings), "dirs": dirs}
@@ -114,6 +123,25 @@ def _up(graph: dict, bizno: str) -> str | None:
         if n["bizno"] == bizno:
             return n["upchecd"]
     return None
+
+
+def _assemble_matrix(graph: dict, direction: str, overrides):
+    """주어진 방향·오버라이드로 조립한 환산 엣지(edges) 반환 — 매트릭스용."""
+    common = graph["common_args"]
+    seeds = [(b, _up(graph, b)) for b in graph["seeds"]]
+    w = common["weight_a"] if direction == "downstream" else common["weight_b"]
+    pin = assemble_propagation_input(
+        seeds,
+        depth=common["depth"],
+        direction=direction,
+        direction_weight=w,
+        damping=common["damping"],
+        normalize=common["normalize"],
+        within_subgraph=common["within_subgraph"],
+        seed_shock=common["seed_shock"],
+        edge_overrides=overrides,
+    )
+    return pin.edges
 
 
 # ── MD 렌더 ──────────────────────────────────────────────────────────────────
@@ -210,10 +238,14 @@ def build_md(graph: dict, results: list[dict]) -> str:
                       f"노드 {d['n_nodes']} · 엣지 {d['n_edges']} · "
                       f"수렴 {'✅' if d['converged'] else '❌'}({d['iterations']}회) · "
                       f"Σ{kind}={d['total']:.6f}\n")
-            mtx_kind = "환산 엣지 매트릭스 R′ (g 반영 후)" if sc["scenario"] == "transaction_change" \
-                else "환산 엣지 매트릭스 R"
-            md.append(f"_{mtx_kind} — 전파 계산에 실제 투입된 값_\n")
-            md.extend(_render_matrix(d["matrix"]))
+            if sc["scenario"] == "transaction_change":
+                md.append("_① 원본 weight 매트릭스 W — 매입/매출 감소 미반영 (g=1)_\n")
+                md.extend(_render_matrix(d["matrix_base"]))
+                md.append("_② 가중치 반영 매트릭스 W′ — 시드↔2차 오버라이드 ×g 적용 (전파에 실제 투입)_\n")
+                md.extend(_render_matrix(d["matrix"]))
+            else:
+                md.append("_환산 엣지 매트릭스 R — 전파 계산에 실제 투입된 값_\n")
+                md.extend(_render_matrix(d["matrix"]))
             md.append("_전파 결과_\n")
             md.append(f"| 노드 | {kind} |")
             md.append("|---|---|")
