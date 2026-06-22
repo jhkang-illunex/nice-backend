@@ -2,9 +2,8 @@
 
 검증 축
   1. assemble 방향 — downstream(셀러→바이어) / upstream(바이어→셀러) 엣지 방향 + 정규화 src 전환
-  2. assemble 가중치/오버라이드 — direction_weight(A/B)·edge_overrides(g) 가 rate 에 반영
-  3. scenario — tariff(양방향), transaction_change(변화분 Δ = changed − baseline)
-  4. 라우터 — /scenario 직렬화 + transaction_change 빈 overrides → 422
+  3. scenario — tariff(외생충격) / volume(거래량 변동)
+  4. 라우터 — /scenario 직렬화 + 입력 검증
 
 DB 의존(_fetch_induced_edges / _fetch_node_attrs)은 monkeypatch 로 격리한다 (실 PG 불필요).
 """
@@ -21,13 +20,10 @@ from nice_graph.shock.assemble import PropagationInput, assemble_propagation_inp
 from nice_graph.shock.propagate import ShockResult, ShockRow
 from nice_graph.shock.scenario import (
     DirectionResult,
-    RandomOverrideSpec,
     ScenarioResult,
     VolumeSpec,
-    build_primary_secondary_random_overrides,
     run_scenario,
     run_tariff_shock,
-    run_transaction_change,
     run_volume_shock,
 )
 
@@ -152,68 +148,6 @@ def test_tariff_runs_both_directions(monkeypatch) -> None:
     assert res.directions[0].result.shock_list == [{"bizno": "A|1", "shock": 1.0}]
 
 
-def test_transaction_change_returns_delta(monkeypatch) -> None:
-    """baseline(원W) 대비 changed(수정W=in-memory g)의 노드별 Δ + assemble 1회/방향(E1)."""
-    calls = {"n": 0}
-
-    def fake_assemble(seeds, *, edge_overrides=None, **kw):
-        calls["n"] += 1
-        # baseline 은 항상 셀러A→바이어B(rate 0.5)를 포함. E1 은 g 를 in-memory 로 적용.
-        return _fake_assembled(
-            [{"from_bizno": "A|1", "to_bizno": "B|2", "rate": 0.5}], {"A|1": 1.0}
-        )
-
-    monkeypatch.setattr(scen_mod, "assemble_propagation_input", fake_assemble)
-    res = run_transaction_change(
-        [("A", "1")], edge_overrides={("A", "B"): 0.5}, directions=["downstream"]
-    )
-
-    delta = {r["bizno"]: r["shock"] for r in res.directions[0].result.shock_list}
-    assert delta["A|1"] == pytest.approx(0.0)  # 시드 자기 충격 동일 → Δ=0
-    assert delta["B|2"] == pytest.approx(-0.25)  # 거래 0.5배 → 하류 전파 0.5→0.25 감소
-    assert any("difference-of-runs" in w for w in res.warnings)
-    assert calls["n"] == 1  # E1: 방향당 baseline 1회만 (수정 W 는 in-memory)
-
-
-def test_transaction_change_increase_positive_delta(monkeypatch) -> None:
-    """g>1(증가) → 하류 전파 증가 → Δ>0 + g>1·Σ_out>1 경고."""
-    def fake_assemble(seeds, *, edge_overrides=None, **kw):
-        # baseline rate 0.8(큰 비중). g=1.5 → 1.2 로 Σ_out>1.
-        return _fake_assembled(
-            [{"from_bizno": "A|1", "to_bizno": "B|2", "rate": 0.8}], {"A|1": 1.0}
-        )
-
-    monkeypatch.setattr(scen_mod, "assemble_propagation_input", fake_assemble)
-    res = run_transaction_change(
-        [("A", "1")], edge_overrides={("A", "B"): 1.5}, directions=["downstream"]
-    )
-    delta = {r["bizno"]: r["shock"] for r in res.directions[0].result.shock_list}
-    assert delta["B|2"] == pytest.approx(0.4)  # 0.8→1.2 → 하류 전파 +0.4 증가
-    assert any("g>1" in w for w in res.warnings)            # 증가 경고
-    assert any("Σ_out" in w and ">1" in w for w in res.warnings)  # Σ_out>1 발산 위험
-
-
-def test_transaction_change_all_g_one_warns(monkeypatch) -> None:
-    monkeypatch.setattr(
-        scen_mod,
-        "assemble_propagation_input",
-        lambda seeds, **kw: _fake_assembled(
-            [{"from_bizno": "A|1", "to_bizno": "B|2", "rate": 0.5}], {"A|1": 1.0}
-        ),
-    )
-    res = run_transaction_change(
-        [("A", "1")], edge_overrides={("A", "B"): 1.0}, directions=["downstream"]
-    )
-    assert any("변화 없음" in w for w in res.warnings)
-    # g=1.0 → Δ 전부 0
-    assert all(abs(r["shock"]) < 1e-12 for r in res.directions[0].result.shock_list)
-
-
-def test_transaction_change_empty_overrides_raises() -> None:
-    with pytest.raises(ValueError):
-        run_transaction_change([("A", "1")], edge_overrides={})
-
-
 # ── 4. 라우터 ──────────────────────────────────────────────────────────────
 
 
@@ -257,19 +191,6 @@ def test_scenario_endpoint_serializes(monkeypatch) -> None:
     assert {row["bizno"]: row["shock"] for row in d0["shock_list"]} == {"A|1": 1.0, "B|2": 0.5}
 
 
-def test_scenario_transaction_change_requires_overrides() -> None:
-    # 실제 함수가 빈 overrides 에 ValueError → 라우터가 422 로 매핑 (DB 미접근).
-    r = client.post(
-        "/api/shock/scenario",
-        json={
-            "scenario": "transaction_change",
-            "seeds": [{"bizno": "A", "upchecd": "1"}],
-            "edge_overrides": [],
-        },
-    )
-    assert r.status_code == 422, r.text
-
-
 def test_scenario_passes_directions_and_weights(monkeypatch) -> None:
     captured: dict = {}
 
@@ -301,10 +222,8 @@ def test_scenario_passes_directions_and_weights(monkeypatch) -> None:
     assert captured["kwargs"]["seed_shock"] == {"A": 0.9}
 
 
-# ── 5. 1차↔2차 매출/매입 랜덤 override 생성기 ─────────────────────────────────
 
 # downstream(셀러→바이어) 조립 결과를 흉내낸 canned 엣지. 복합키 'bizno|upchecd'.
-_GEN_SEEDS = [("S1", "u1"), ("S2", "u2")]
 _GEN_EDGES = [
     {"from_bizno": "S1|u1", "to_bizno": "A|ua", "rate": 0.1},   # 매출(S1 판매→2차 A)
     {"from_bizno": "S2|u2", "to_bizno": "A|ua", "rate": 0.1},   # 매출(S2 판매→2차 A)
@@ -314,129 +233,7 @@ _GEN_EDGES = [
 ]
 
 
-def _patch_gen(monkeypatch):
-    def fake(seeds, **kw):
-        return PropagationInput(edges=list(_GEN_EDGES), init_sub_graph={}, nodes=[], depth=3)
-    monkeypatch.setattr(scen_mod, "assemble_propagation_input", fake)
-
-
-def test_random_both_classifies_1to2(monkeypatch) -> None:
-    _patch_gen(monkeypatch)
-    ov = build_primary_secondary_random_overrides(_GEN_SEEDS, spec=RandomOverrideSpec(side="both", seed=1))
-    assert set(ov) == {("S1", "A"), ("S2", "A"), ("B", "S1")}  # 1차↔1차·2차↔3차 제외
-
-
-def test_random_sales_only(monkeypatch) -> None:
-    _patch_gen(monkeypatch)
-    ov = build_primary_secondary_random_overrides(_GEN_SEEDS, spec=RandomOverrideSpec(side="sales", seed=1))
-    assert set(ov) == {("S1", "A"), ("S2", "A")}
-
-
-def test_random_purchase_only(monkeypatch) -> None:
-    _patch_gen(monkeypatch)
-    ov = build_primary_secondary_random_overrides(_GEN_SEEDS, spec=RandomOverrideSpec(side="purchase", seed=1))
-    assert set(ov) == {("B", "S1")}
-
-
-def test_random_only_firms_subset(monkeypatch) -> None:
-    _patch_gen(monkeypatch)
-    ov = build_primary_secondary_random_overrides(
-        _GEN_SEEDS, spec=RandomOverrideSpec(side="both", only_firms=("S1",), seed=1)
-    )
-    assert set(ov) == {("S1", "A"), ("B", "S1")}  # S2 매출 제외
-
-
-def test_random_seed_reproducible(monkeypatch) -> None:
-    _patch_gen(monkeypatch)
-    a = build_primary_secondary_random_overrides(_GEN_SEEDS, spec=RandomOverrideSpec(seed=7))
-    b = build_primary_secondary_random_overrides(_GEN_SEEDS, spec=RandomOverrideSpec(seed=7))
-    c = build_primary_secondary_random_overrides(_GEN_SEEDS, spec=RandomOverrideSpec(seed=8))
-    assert a == b and a != c
-
-
-def test_random_range_respected(monkeypatch) -> None:
-    _patch_gen(monkeypatch)
-    ov = build_primary_secondary_random_overrides(
-        _GEN_SEEDS, spec=RandomOverrideSpec(low=0.2, high=0.5, seed=3)
-    )
-    assert ov and all(0.2 <= g <= 0.5 for g in ov.values())
-
-
-@pytest.mark.parametrize("lo,hi", [(0.5, 0.2), (-0.1, 0.5), (0.5, 3.5)])
-def test_random_bad_range_raises(monkeypatch, lo: float, hi: float) -> None:
-    _patch_gen(monkeypatch)
-    with pytest.raises(ValueError):
-        build_primary_secondary_random_overrides(_GEN_SEEDS, spec=RandomOverrideSpec(low=lo, high=hi))
-
-
-def test_random_increase_range_allowed(monkeypatch) -> None:
-    """g>1(증가) 범위는 MAX_OVERRIDE_FACTOR 이하면 허용 (예: 1.1~1.5)."""
-    _patch_gen(monkeypatch)
-    ov = build_primary_secondary_random_overrides(
-        _GEN_SEEDS, spec=RandomOverrideSpec(low=1.1, high=1.5, seed=1)
-    )
-    assert ov and all(1.1 <= g <= 1.5 for g in ov.values())
-
-
-# ── 6. 엔드포인트 random_override 경로 ───────────────────────────────────────
-
-
-def test_scenario_random_override_endpoint(monkeypatch) -> None:
-    captured: dict = {}
-
-    def spy(scenario, seeds, *, random_spec=None, edge_overrides=None, **kw):
-        captured["scenario"] = scenario
-        captured["random_spec"] = random_spec
-        return ScenarioResult(
-            "transaction_change",
-            _canned_scenario().directions,
-            ["w"],
-            applied_overrides={("S1", "A"): 0.3, ("B", "S1"): 0.7},
-        )
-
-    monkeypatch.setattr(f"{ROUTER}._run_scenario", spy)
-
-    r = client.post(
-        "/api/shock/scenario",
-        json={
-            "scenario": "transaction_change",
-            "seeds": [{"bizno": "S1", "upchecd": "u1"}],
-            "random_override": {"side": "sales", "low": 0.0, "high": 1.0, "seed": 42},
-        },
-    )
-    assert r.status_code == 200, r.text
-    # 라우터가 random_override → RandomOverrideSpec 로 만들어 run_scenario 에 전달
-    assert captured["random_spec"].side == "sales" and captured["random_spec"].seed == 42
-    # 결과의 applied_overrides 가 응답에 직렬화(정렬)되어 노출
-    ao = {(o["from_bizno"], o["to_bizno"]): o["factor"] for o in r.json()["applied_overrides"]}
-    assert ao == {("S1", "A"): 0.3, ("B", "S1"): 0.7}
-
-
-def test_run_scenario_random_dispatch(monkeypatch) -> None:
-    # run_scenario 가 random_spec → 랜덤 생성 → run_transaction_change 로 디스패치
-    captured: dict = {}
-
-    def fake_build(seeds, *, spec, **kw):
-        captured["spec"] = spec
-        return {("S1", "A"): 0.3}
-
-    def fake_txn(seeds, *, edge_overrides, **kw):
-        captured["ov"] = edge_overrides
-        return ScenarioResult(
-            "transaction_change", [], ["w"], applied_overrides=dict(edge_overrides)
-        )
-
-    monkeypatch.setattr(scen_mod, "build_primary_secondary_random_overrides", fake_build)
-    monkeypatch.setattr(scen_mod, "run_transaction_change", fake_txn)
-    res = run_scenario(
-        "transaction_change", [("S1", "u1")], random_spec=RandomOverrideSpec(side="sales", seed=7)
-    )
-    assert captured["spec"].side == "sales" and captured["spec"].seed == 7
-    assert captured["ov"] == {("S1", "A"): 0.3}
-    assert res.applied_overrides == {("S1", "A"): 0.3}
-
-
-# ── 7. normalize(source/counterparty) 옵션 ───────────────────────────────────
+# ── normalize(source/counterparty) 옵션 ──────────────────────────────────────
 
 
 def test_normalize_source_partition(monkeypatch) -> None:
@@ -513,15 +310,6 @@ def test_scenario_rejects_empty_directions() -> None:
         },
     )
     assert r.status_code == 422, r.text
-
-
-def test_random_only_firms_no_intersection_raises(monkeypatch) -> None:
-    # C3: only_firms 가 시드와 교집합 없으면 명확한 ValueError
-    _patch_gen(monkeypatch)
-    with pytest.raises(ValueError, match="교집합"):
-        build_primary_secondary_random_overrides(
-            _GEN_SEEDS, spec=RandomOverrideSpec(only_firms=("ZZZ",), seed=1)
-        )
 
 
 # ── industry_code (HS chapter 산업 필터) ──────────────────────────────────────

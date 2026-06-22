@@ -1,6 +1,6 @@
 # 외생충격 시나리오 — 동작 정리
 
-> 대상: `nice_graph.shock` 의 두 시나리오 래퍼(관세 충격 · 거래량 변동).
+> 대상: `nice_graph.shock` 의 두 시나리오 래퍼(외생충격 tariff · 거래량 변동 volume).
 > 단일 전파 엔진(`propagate_shock`, 거듭제곱급수 합 `Σ_k Rᵏ·init`) 위에 얇은 래퍼 2겹.
 > 엔드포인트: `POST /api/shock/scenario` · 라이브러리: `nice_graph.shock.scenario`.
 
@@ -63,54 +63,54 @@ seeds ─▶ assemble(depth3, W 그대로) ─▶ init=seed_shock 주입
 
 ---
 
-## 2. 거래량 변동 (`transaction_change`)
+## 2. 거래량 변동 (`volume`)
+
+> 2026-06-22: 구 `transaction_change`(W 수정·2회 차분, difference-of-runs)는 **폐기**되고
+> 거래량 변동은 `volume`(W 불변·편차 전파·매출/매입 반영) 하나로 일원화됐다.
 
 ### 정의
-특정 **1차→2차 거래의 비중(W)을 수정**하고, 그로 인한 파급의 **변화분(Δ)** 을 본다.
-"이 거래쌍의 매출/매입 비중이 g배로 바뀌면, 거래망 전체 파급이 얼마나 달라지는가".
+특정 기업/거래의 **매출·매입 거래량이 m배(1=중립) 변할 때**, 연결 기업들의 매출/매입이
+얼마나 변하는지 본다. "쿠팡 매출 −20% → 연결 기업 매출 몇 % 변동?" 류.
 
-### 동작
-1. 시드 → depth-3 그래프 조립 (**나머지 엣지는 원본 W 그대로**).
-2. `edge_overrides`(또는 `random_override`)에 지정한 **그 엣지의 rate에만 인자 g(0~1) 곱**.
-3. 방향마다 **baseline(원 W) + changed(수정 W)** 두 번 전파.
-4. 노드별 **변화분 `Δ = changed − baseline`** 반환 (difference-of-runs).
-5. 전파 **2회/방향**.
+### 동작 (편차 전파)
+1. 시드 → depth-3 그래프 조립 (**W 불변**).
+2. 변동을 **편차 δ=m−1** 로 주입 (m=1+증감율: 0.8=−20%, 1.1=+10%).
+3. **1회** 전파 후 `shock = 1 + Σ_k Wᵏ·δ` (δ=0 노드는 정확히 1=무변화).
+4. 노드별 **조정 매출/매입 = shock × 기준액**, 변동율 = `shock − 1`.
+5. 매출 변동→하류(downstream), 매입 변동→상류(upstream).
 
-### 입력 — 두 방식
-**(a) 특정 거래쌍 지정** — `edge_overrides`
+### 입력 — 3가지 (택1·병용)
+**(a) `firm_specs` (권장)** — 1차 기업의 매출/매입 거래량 변동
 | 필드 | 의미 |
 |---|---|
-| `from_bizno` | 저장방향 셀러 |
-| `to_bizno` | 저장방향 바이어 |
-| `factor` | 그 (셀러→바이어) 비중에 곱할 g (0~1) |
+| `bizno` | 1차(시드) 기업 |
+| `side` | `sales`(매출=1차→2차) / `purchase`(매입=2차→1차) |
+| `factor` | m=1+증감율 |
+| `partner` | 2차 bizno. **None이면 1차의 그 side 모든 거래처** |
 
-**(b) 1차↔2차 일괄 랜덤** — `random_override` (지정 시 edge_overrides 대체)
-| 필드 | 의미 |
-|---|---|
-| `side` | `sales`(매출=1차 판매→2차) / `purchase`(매입=2차 판매→1차) / `both` |
-| `low`·`high` | 랜덤 g 범위(⊆[0,1]) |
-| `seed` | 재현용 난수 시드 |
-| `only_firms` | 일부 1차 기업 한정(None=연계된 모든 1차) |
+**(b) `multipliers`** `{bizno: m}` — 기업 전체 매출/매입 m배 (δ 시드 주입)
+**(c) `edge_multipliers`** `[{from,to,factor}]` — 특정 거래만, 상대에 거래 비중 가중
 
-그 외 공통 파라미터(`directions`/`weight_a·b`/`depth`/`trade_year`/`normalize`)는 관세 충격과 동일.
+각 거래는 **상대(2차) 노드에 거래 비중 가중** `δ=share·(m−1)` 주입 (매출은 상대 매입 비중,
+매입은 상대 매출 비중). 방향은 side로 자동 도출.
+
+### pin_seeds — 시드 되돌이
+| | 동작 | 시드값 |
+|---|---|---|
+| `True`(기본) | 시드 incoming 차단 → 입력값 고정 | 정확히 m |
+| `False` | 순환 피드백 허용 | 증폭(일반균형) |
 
 ### 출력
-- 방향별 **노드 변화분 Δ**(`shock_list`; g<1이면 보통 음수=파급 감소).
-- `applied_overrides` = 실제 적용된 g(랜덤 생성분 포함) — 재현·표시용.
+- 방향별 노드 `shock`(=1+변동율). 매출/매입에 ×반영해 조정액·변동율 산출.
 
 ### 동작 흐름
 ```
-seeds ─▶ assemble(depth3) ─┬─▶ baseline 전파(원 W)
-                            └─▶ changed 전파(지정 엣지만 rate×g)
-                                 → Δ = changed − baseline (노드별)
+seeds ─▶ assemble(depth3, W 불변) ─▶ δ 주입(firm_specs/multipliers/edge_multipliers)
+      ─▶ 1회 전파 ─▶ shock=1+Σ_k Wᵏ·δ ─▶ ×매출/매입
 ```
 
-### 핵심 — "나머지 그래프는 그대로"
-오버라이드한 엣지 **외에는 분자(거래액)도 분모(Σ_out)도 불변**. depth-3 그래프 전체를
-그대로 재사용하면서 **콕 집은 거래만** 바꿔 그 순효과만 분리해낸다.
-
-> `edge_overrides` 키는 항상 **저장방향(셀러→바이어)** — `directions`(매출/매입 관점)와 직교.
-> 1차가 2차에 판매하는 거래면 `from=1차,to=2차`, 1차가 2차에서 매입하는 거래면 `from=2차,to=1차`.
+> 곱셈 중립(1)을 덧셈 전파(0)로 잇는 편차 변환이 핵심 — `init=1` 직접 전파는 변동 0인데도
+> 노드값이 폭증(매출×137)하는 버그라, δ=m−1 주입 후 +1 로 복원한다.
 
 ---
 
@@ -185,14 +185,14 @@ total = Σ_k Rᵏ·init = (I − R)⁻¹·init      (Neumann 급수 = Leontief �
 
 ## 4. 두 시나리오 비교
 
-| 항목 | 관세 충격 (`tariff`) | 거래량 변동 (`transaction_change`) |
+| 항목 | 외생충격 (`tariff`) | 거래량 변동 (`volume`) |
 |---|---|---|
-| 거래 구조 W | **불변** | 지정 엣지 rate × g (**수정**) |
-| 충격 주입 | 시드 init 외생 주입 | 없음(구조 변화 자체가 충격원) |
-| 전파 횟수 | 방향당 1회 | 방향당 2회(baseline+changed) |
-| 결과 의미 | 절대 파급량 | 변화분 Δ(원본 대비) |
-| 전용 입력 | — | `edge_overrides` / `random_override` |
-| 공유 | 시드·depth-3 그래프·방향·가중치·정규화·연도 — **동일** |
+| 거래 구조 W | **불변** | **불변** |
+| 주입 | 시드 init 외생 충격(seed_shock) | 편차 δ=m−1 (firm_specs/multipliers/edge_multipliers) |
+| 전파 횟수 | 방향당 1회 | 방향당 1회 |
+| 결과 의미 | 절대 파급량 | shock=1+δ전파 → ×매출/매입 |
+| 전용 입력 | — | `firm_specs`·`multipliers`·`edge_multipliers`·`pin_seeds` |
+| 공유 | 시드·depth-3 그래프·방향·가중치·정규화·연도·industry_code — **동일** |
 
 ---
 
@@ -201,7 +201,7 @@ total = Σ_k Rᵏ·init = (I − R)⁻¹·init      (Neumann 급수 = Leontief �
 ```
 ① POST /api/shock/select_primary   HS코드 → 1차 시드
 ②(선택) POST /api/shock/assemble    시드 → depth-3 그래프(바꿀 1→2 엣지 식별용)
-③ POST /api/shock/scenario         scenario + (관세=시드만 / 거래변동=edge_overrides|random_override)
+③ POST /api/shock/scenario         scenario + (tariff=시드 외생충격 / volume=firm_specs·multipliers·edge_multipliers)
 ```
 `/api/shock/scenario` 한 콜이 내부에서 depth-3 조립·전파를 모두 수행한다. 바꿀 2차 bizno를
 이미 알면 ②는 생략(①+③ 2-콜). 상세 요청 바디·아규먼트 표는 [`SHOCK_API.md`](SHOCK_API.md) 참조.

@@ -17,9 +17,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy.exc import SQLAlchemyError
 
 from nice_graph.shock import (
-    RandomOverrideSpec as _RandomOverrideSpec,
-)
-from nice_graph.shock import (
     VolumeSpec as _VolumeSpec,
 )
 from nice_graph.shock import (
@@ -276,27 +273,12 @@ class VolumeSpecIn(BaseModel):
     )
 
 
-class RandomOverrideIn(BaseModel):
-    """transaction_change 전용 — 1차↔2차 매출/매입 거래에 랜덤 g 자동 부여."""
-
-    side: Literal["both", "sales", "purchase"] = Field(
-        "both",
-        description="sales=매출(1차 판매→2차) / purchase=매입(2차 판매→1차) / both=둘 다.",
-    )
-    low: float = Field(0.0, ge=0.0, le=3.0, description="랜덤 g 하한 (g=1+증감율).")
-    high: float = Field(1.0, ge=0.0, le=3.0, description="랜덤 g 상한 (>1=증가 허용).")
-    seed: int | None = Field(None, description="재현용 난수 시드. None=비결정.")
-    only_firms: list[str] | None = Field(
-        None, description="일부 1차 기업 bizno 한정. None=연계된 모든 1차."
-    )
-
-
 class ScenarioRequest(BaseModel):
-    scenario: Literal["tariff", "transaction_change", "volume"] = Field(
+    scenario: Literal["tariff", "volume"] = Field(
         ...,
         description=(
-            "tariff=W불변·시드주입 / transaction_change=엣지비중 g수정 후 변화분(Δ) / "
-            "volume=기업 매출/매입 m배 변동(δ=m−1)을 시드 주입·1회 전파·매출/매입 반영."
+            "tariff=외생충격(W불변·시드 외생주입) / "
+            "volume=거래량 변동(W불변·δ=m−1 편차 전파·매출/매입 반영)."
         ),
     )
     seeds: list[SeedIn] = Field(..., description="1차 기업 (bizno,upchecd,shock).")
@@ -316,17 +298,6 @@ class ScenarioRequest(BaseModel):
         description=(
             "rate 분모 기준. source=전파 소스 기준(Σ_out≤1 수렴보장) / "
             "counterparty=거래상대 기준(경제적 매출·매입 비중 라벨, 수렴 보장 약화)."
-        ),
-    )
-    edge_overrides: list[EdgeOverrideIn] = Field(
-        default_factory=list,
-        description="transaction_change 전용 — 명시 비중 수정 대상 (셀러→바이어, g).",
-    )
-    random_override: RandomOverrideIn | None = Field(
-        None,
-        description=(
-            "transaction_change 전용 — 1차↔2차 매출/매입에 랜덤 g 자동 생성. "
-            "지정 시 edge_overrides 대신 사용."
         ),
     )
     multipliers: dict[str, float] = Field(
@@ -377,7 +348,7 @@ class DirectionResultOut(BaseModel):
     effect_label: str = Field(..., description="매출 파급 | 매입 파급.")
     weight: float = Field(..., description="적용된 가중치 A 또는 B.")
     shock_list: list[ShockRowOut] = Field(
-        ..., description="tariff=누적 파급, transaction_change=노드별 변화분 Δ."
+        ..., description="tariff=누적 파급, volume=shock(=1+δ전파)."
     )
     total_shock: float
     iterations: int
@@ -390,10 +361,6 @@ class ScenarioResponse(BaseModel):
     scenario: str
     directions: list[DirectionResultOut]
     warnings: list[str]
-    applied_overrides: list[EdgeOverrideIn] = Field(
-        default_factory=list,
-        description="실제 적용된 거래변화 g (랜덤 생성 포함). 재현·표시용.",
-    )
 
 
 # ─── 엔드포인트 ───────────────────────────────────────────────────────────
@@ -544,17 +511,6 @@ def extract_first_target(
 def scenario(req: ScenarioRequest) -> ScenarioResponse:
     seeds = [(s.bizno, s.upchecd) for s in req.seeds]
     shock_map = {s.bizno: s.shock for s in req.seeds}
-    random_spec = None
-    if req.random_override is not None:
-        ro = req.random_override
-        random_spec = _RandomOverrideSpec(
-            side=ro.side,
-            low=ro.low,
-            high=ro.high,
-            seed=ro.seed,
-            only_firms=tuple(ro.only_firms) if ro.only_firms else None,
-        )
-    edge_overrides = {(o.from_bizno, o.to_bizno): o.factor for o in req.edge_overrides} or None
     try:
         sres = _run_scenario(
             req.scenario,
@@ -568,8 +524,6 @@ def scenario(req: ScenarioRequest) -> ScenarioResponse:
             damping=req.damping,
             normalize=req.normalize,
             seed_shock=shock_map,
-            edge_overrides=edge_overrides,
-            random_spec=random_spec,
             firm_specs=[
                 _VolumeSpec(bizno=s.bizno, side=s.side, factor=s.factor, partner=s.partner)
                 for s in req.firm_specs
@@ -582,7 +536,6 @@ def scenario(req: ScenarioRequest) -> ScenarioResponse:
             industry_code=req.industry_code,
         )
     except ValueError as exc:
-        # 빈 edge_overrides·only_firms 무교집합 등 입력 오류 → 422
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except SQLAlchemyError as exc:
         log.exception("scenario db error")
@@ -590,10 +543,6 @@ def scenario(req: ScenarioRequest) -> ScenarioResponse:
             status_code=503, detail=f"db unreachable: {exc.__class__.__name__}"
         ) from exc
     return ScenarioResponse(
-        applied_overrides=[
-            EdgeOverrideIn(from_bizno=s, to_bizno=b, factor=g)
-            for (s, b), g in sorted(sres.applied_overrides.items())
-        ],
         scenario=sres.scenario,
         directions=[
             DirectionResultOut(
