@@ -333,8 +333,9 @@ curl -X POST http://localhost:18001/api/shock/propagate \
 ## 시나리오 래퍼 — 파급 알고리즘 아규먼트
 
 `src/nice_graph/shock/scenario.py` 의 두 시나리오(`run_tariff_shock` =
-관세 충격, `run_transaction_change` = 거래 변화)가 파급 파이프라인에 투입하는
-아규먼트 전체 목록. 파이프라인 3계층:
+외생충격, `run_volume_shock` = 거래량 변동)가 파급 파이프라인에 투입하는
+아규먼트 전체 목록. (구 `transaction_change`/`edge_overrides`/`random_override`는
+2026-06-22 폐기, volume 으로 일원화.) 파이프라인 3계층:
 
 ```
 시나리오 래퍼 → assemble_propagation_input (R 행렬 + init 벡터 조립)
@@ -344,7 +345,7 @@ curl -X POST http://localhost:18001/api/shock/propagate \
 아규먼트의 작용 지점이 갈린다: 대부분은 **조립 단계에서 R 행렬을 빚고**,
 `seed_shock` 은 **init 벡터**, `epsilon`/`max_iter` 만 **순수 엔진 종료조건**.
 
-### 공통 아규먼트 (관세 충격 · 거래 변화 둘 다)
+### 공통 아규먼트 (외생충격 · 거래량 변동 둘 다)
 
 | 아규먼트 | 기본값 | 역할 | 알고리즘 영향 |
 |---|---|---|---|
@@ -362,21 +363,24 @@ curl -X POST http://localhost:18001/api/shock/propagate \
 `weight_a`↔downstream, `weight_b`↔upstream 바인딩은 `_weight_for()` 한 곳에서
 결정: `return weight_a if direction == "downstream" else weight_b`.
 
-### 관세 충격 (`run_tariff_shock`) — 전용
+### 외생충격 (`run_tariff_shock`) — 전용
 
-- `edge_overrides` **없음**(`None` 고정) → W 불변, init 벡터만 주입
-- 전파 횟수: 방향당 **1회**
-- 결과: 방향별 절대 shock 벡터
+- W 불변, 시드 `init` 벡터에 외생 충격(`seed_shock`)만 주입
+- 전파 횟수: 방향당 **1회** · 결과: 방향별 절대 shock 벡터
 
-### 거래 변화 (`run_transaction_change`) — 전용
+### 거래량 변동 (`run_volume_shock`) — 전용
 
-| 아규먼트 | 기본값 | 역할 |
-|---|---|---|
-| `edge_overrides` | **(필수, 비면 ValueError)** | `{(from_bizno, to_bizno): g}` — 저장방향(셀러→바이어) 키, g∈[0,1] |
+W 불변, 변동을 **편차 δ=m−1** 로 주입해 1회 전파 후 `shock=1+δ전파`. 입력 3가지:
 
-- 전파 횟수: 방향당 **2회** — baseline(원 W) + changed(수정 W)
-- 변화분: `Δ = changed − baseline` (difference-of-runs)
-- 최적화: changed 는 in-memory `_apply_overrides` 로 g 반영(2차 DB 조립 생략)
+| 아규먼트 | 의미 |
+|---|---|
+| `firm_specs` (권장) | `[VolumeSpec(bizno, side, factor, partner?)]` — 1차 매출/매입. partner None=그 side 전체 거래처. 방향 자동 |
+| `multipliers` | `{bizno: m}` — 기업 전체 m배 (δ 시드 주입) |
+| `edge_multipliers` | `{(from,to): g}` — 특정 거래만, 상대에 거래 비중 가중 |
+| `pin_seeds` | `True`(기본)=시드 입력값 고정(되돌이 차단) / `False`=순환 피드백 |
+
+- 매출 변동→하류(downstream), 매입 변동→상류(upstream). 전파 **1회/방향**.
+- 각 거래 δ = `share·(m−1)` (share=상대 거래 비중, `firm_partner_shares`/`edge_in_shares`).
 
 ### 엔진 레벨 (`propagate_shock`) — `**propagate_kwargs` 로 전달
 
@@ -385,17 +389,8 @@ curl -X POST http://localhost:18001/api/shock/propagate \
 | `epsilon` | `1e-8` | round 내 모든 \|propagated\| ≤ epsilon 이면 자연 수렴 종료 |
 | `max_iter` | `500` | 무한루프 방지 상한 (도달 시 `converged=False`) |
 
-### 랜덤 g 생성 (`RandomOverrideSpec`) — 거래 변화의 `edge_overrides` 공급원
-
-| 필드 | 기본값 | 역할 |
-|---|---|---|
-| `side` | `"both"` | `sales`(1차→2차 매출) / `purchase`(2차→1차 매입) / `both` |
-| `low` / `high` | `0.0` / `1.0` | g 난수 범위 (상한 1 → 수렴 보장) |
-| `seed` | `None` | 재현용 난수 시드 |
-| `only_firms` | `None` | 일부 1차 기업 bizno 한정 (None=연계된 전체) |
-
-> 두 시나리오의 본질적 차이는 단 하나: 관세 충격은 **R 고정 + init 주입(1회 전파)**,
-> 거래 변화는 **R 수정 + 차분(2회 전파)**. 나머지 공통 아규먼트는 동일하게 흐른다.
+> 두 시나리오 모두 **R 고정 + 1회 전파**. 차이는 주입값뿐 — 외생충격은 init=seed_shock,
+> 거래량 변동은 init=δ(=m−1) 후 결과에 +1. 나머지 공통 아규먼트는 동일하게 흐른다.
 
 ---
 

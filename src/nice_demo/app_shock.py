@@ -10,8 +10,7 @@
   1. RAG       : rag-server /api/hsk/search  (HTTP) → HS 후보
   2. 1차 시드  : nice_graph.shock.select_primary_firms  (ra603 거래구성 기반)
   3. 그래프    : nice_graph.shock.assemble_propagation_input  (company_edge 3depth, 복합키)
-  4. 시나리오  : nice_graph.shock.run_tariff_shock / run_transaction_change
-                 (관세 충격 / 거래 변화, 방향=매출(상류)·매입(하류), 가중치 A/B, 거래변화 g)
+  4. 시나리오  : nice_graph.shock.run_scenario (tariff 외생충격 / volume 거래량 변동)
   5. 결과 표시 : 방향별 노드·에지(rate)·값(shock 또는 Δ) 그리드 + 네트워크 그래프
 
 graph-analysis 서버 없이 PG 직결로 동작 (RAG 만 별도 서비스).
@@ -28,9 +27,7 @@ from streamlit_agraph import Config, Edge, Node, agraph
 
 from nice_demo.clients import get_rag_client
 from nice_graph.shock import (
-    RandomOverrideSpec,
-    build_primary_secondary_random_overrides,
-    enumerate_primary_secondary,
+    VolumeSpec,
     parse_node_id,
     run_scenario,
     select_primary_firms,
@@ -48,13 +45,13 @@ _PUBLIC_DETAIL_LABEL = {"110": "공기업", "111": "준정부기관", "112": "�
 #   매출 파급 = 매출처(고객)/하류 = downstream, 매입 파급 = 매입처(공급사)/상류 = upstream.
 _DIR_MAP = {"매출 파급(하류)": "downstream", "매입 파급(상류)": "upstream"}
 
-# 4개 명명 시나리오 프리셋 — 선택 시 scenario·방향(·거래변화 side) 자동 구성.
-#   side 가 있으면 transaction_change(1차↔2차 해당 거래에 일괄 증감율 g 적용).
+# 명명 시나리오 프리셋 — 선택 시 scenario·방향(·volume side) 자동 구성.
+#   side 가 있으면 volume(거래량 변동): 1차의 그 side 전체 거래에 증감율 적용(firm_specs).
 _SCENARIO_PRESETS: dict[str, dict | None] = {
     "① 매입 충격": {"scenario": "tariff", "directions": ["upstream"]},
     "② 매출 충격": {"scenario": "tariff", "directions": ["downstream"]},
-    "③ 2차 매입 변동": {"scenario": "transaction_change", "directions": ["upstream"], "side": "purchase"},
-    "④ 2차 매출 변동": {"scenario": "transaction_change", "directions": ["downstream"], "side": "sales"},
+    "③ 매출 변동(volume)": {"scenario": "volume", "directions": ["downstream"], "side": "sales"},
+    "④ 매입 변동(volume)": {"scenario": "volume", "directions": ["upstream"], "side": "purchase"},
     "사용자 정의": None,
 }
 
@@ -118,25 +115,25 @@ def sidebar() -> dict:
         scenario = preset["scenario"]
         directions = preset["directions"]
         preset_side = preset.get("side")
-        if preset_side is not None:  # 거래 변화 프리셋 — 증감율 g=1+증감율
+        if preset_side is not None:  # 거래량 변동 프리셋 — 증감율 m=1+증감율
             chg_pct = st.sidebar.slider(
-                "거래 증감율 (%)", -50, 200, value=-10, step=5,
-                help="해당 1차↔2차 거래 비중 증감(g=1+증감율). 예: −20%→g=0.8(감소) / "
-                "+10%→g=1.1(증가). 증가(>0)는 Σ_out>1 시 수렴 보장 약화.",
+                "매출/매입 증감율 (%)", -50, 200, value=-20, step=5,
+                help="1차 기업의 그 side 거래량 증감(m=1+증감율). 예: −20%→m=0.8(감소) / "
+                "+10%→m=1.1(증가). 상대(2차)에 거래 비중 가중으로 전파.",
             )
             preset_factor = round(1.0 + chg_pct / 100.0, 4)
         st.sidebar.caption(
             f"→ `{scenario}` · 방향={directions}"
             + (f" · {preset_side} ×{preset_factor}" if preset_side else "")
         )
-    else:  # 사용자 정의 — 기존 수동 구성
+    else:  # 사용자 정의 — tariff / volume 직접 구성
         scenario_label = st.sidebar.radio(
             "시나리오 유형",
-            ["관세 충격", "거래 변화"],
+            ["외생충격 (tariff)", "거래량 변동 (volume)"],
             index=0,
-            help="관세=W불변·시드주입 / 거래변화=특정 거래비중 g수정 → 변화분 Δ(=수정W−원W)",
+            help="tariff=W불변·시드 외생주입 / volume=거래량 변동(δ=m−1 편차 전파·매출/매입 반영)",
         )
-        scenario = "tariff" if scenario_label == "관세 충격" else "transaction_change"
+        scenario = "tariff" if scenario_label.startswith("외생충격") else "volume"
         dir_labels = st.sidebar.multiselect(
             "방향 (파급)",
             list(_DIR_MAP),
@@ -144,6 +141,12 @@ def sidebar() -> dict:
             help="upstream=상류/매입(가중치 B), downstream=하류/매출(가중치 A)",
         )
         directions = [_DIR_MAP[d] for d in dir_labels] or ["upstream", "downstream"]
+        if scenario == "volume":
+            chg_pct = st.sidebar.slider(
+                "매출/매입 증감율 (%)", -50, 200, value=-20, step=5,
+                help="선택 방향(매출=하류/매입=상류) 거래량 증감(m=1+증감율).",
+            )
+            preset_factor = round(1.0 + chg_pct / 100.0, 4)
     weight_a = st.sidebar.slider("가중치 A — 매출/하류(매출처)", 0.05, 1.0, value=1.0, step=0.05)
     weight_b = st.sidebar.slider("가중치 B — 매입/상류(매입처)", 0.05, 1.0, value=1.0, step=0.05)
     norm_label = st.sidebar.radio(
@@ -279,7 +282,7 @@ def step_seeds(cfg: dict) -> None:
 
 def step_scenario(cfg: dict) -> None:
     res = st.session_state.get("select_result")
-    st.subheader("Step 3·4 — 시나리오 래퍼 (관세 충격 / 거래 변화)")
+    st.subheader("Step 3·4 — 시나리오 래퍼 (외생충격 / 거래량 변동)")
     if res is None or not getattr(res, "firms", None):
         st.info("Step 2 에서 시드를 먼저 추출하세요.")
         return
@@ -310,32 +313,27 @@ def step_scenario(cfg: dict) -> None:
         f"거래연도={cfg['trade_year'] or '전체'}"
     )
 
-    overrides: dict[tuple[str, str], float] = {}
-    if cfg["scenario"] == "transaction_change":
-        if cfg.get("preset_side"):  # 프리셋(2차 매입/매출 일괄 감소) — 결정적 g 자동 생성
-            overrides = _preset_override(seed_pairs, seed_shock, cfg)
-            side_kr = "매입" if cfg["preset_side"] == "purchase" else "매출"
-            if overrides:
-                st.caption(
-                    f"프리셋 **{cfg['preset_label']}** — 1차↔2차 {side_kr} 거래 "
-                    f"{len(overrides)}건에 g={cfg['preset_factor']} 일괄 적용."
-                )
-            else:
-                st.warning(f"연계된 1차↔2차 {side_kr} 거래가 없어 적용 대상이 없습니다.")
-        else:  # 사용자 정의 — 수동/랜덤 에디터
-            overrides = _override_editor(seed_pairs, seed_shock, seed_biznos, cfg)
+    # 거래량 변동(volume): 1차의 (방향별 side) 거래 전체에 증감율 적용 → firm_specs
+    firm_specs: list[VolumeSpec] = []
+    if cfg["scenario"] == "volume":
+        factor = cfg.get("preset_factor") or 1.0
+        for d in cfg["directions"]:
+            side = "sales" if d == "downstream" else "purchase"
+            firm_specs += [VolumeSpec(bizno=b, side=side, factor=factor) for b in seed_biznos]
+        side_kr = "·".join(
+            ("매출" if d == "downstream" else "매입") for d in cfg["directions"]
+        )
+        st.caption(
+            f"거래량 변동 — 1차 {len(seed_biznos)}곳의 {side_kr} 거래 전체에 m={factor} "
+            f"(상대에 거래 비중 가중 전파). 1차 자신은 입력값 고정."
+        )
 
     if st.button("시나리오 전파 실행", type="primary"):
-        if cfg["scenario"] == "transaction_change" and not overrides:
-            st.warning(
-                "거래 변화: 적용할 거래쌍이 없습니다. "
-                "수동이면 factor≠1.0 지정, 랜덤이면 ‘랜덤 가중치 생성’을 먼저 실행하세요."
-            )
-            return
         try:
-            sres = run_scenario(
-                cfg["scenario"], seed_pairs, edge_overrides=overrides or None, **common
-            )
+            kw = dict(common)
+            if cfg["scenario"] == "volume":
+                kw["firm_specs"] = firm_specs
+            sres = run_scenario(cfg["scenario"], seed_pairs, **kw)
         except Exception as exc:  # noqa: BLE001
             st.error(f"시나리오 전파 실패: {exc.__class__.__name__} — {exc}")
             return
@@ -354,170 +352,6 @@ def step_scenario(cfg: dict) -> None:
     for tab, dr in zip(st.tabs(labels), sres.directions, strict=True):
         with tab:
             _render_direction(dr, sres.scenario, cfg)
-
-
-def _preset_override(
-    seed_pairs: list, seed_shock: dict, cfg: dict
-) -> dict[tuple[str, str], float]:
-    """프리셋 거래변화 — 1차↔2차 해당 side 거래 전체에 결정적 g(=preset_factor) 일괄 적용.
-
-    RandomOverrideSpec 의 low=high=factor 로 균일(비랜덤) g 를 부여한다.
-    """
-    spec = RandomOverrideSpec(
-        side=cfg["preset_side"],
-        low=cfg["preset_factor"],
-        high=cfg["preset_factor"],
-        seed=0,
-    )
-    try:
-        return build_primary_secondary_random_overrides(
-            seed_pairs,
-            spec=spec,
-            depth=cfg["depth"],
-            trade_year=cfg["trade_year"],
-            within_subgraph=cfg["within"],
-            damping=cfg["damping"],
-            seed_shock=seed_shock,
-        )
-    except Exception as exc:  # noqa: BLE001
-        st.error(f"프리셋 거래변화 생성 실패: {exc.__class__.__name__} — {exc}")
-        return {}
-
-
-def _override_editor(
-    seed_pairs: list, seed_shock: dict, seed_biznos: set[str], cfg: dict
-) -> dict[tuple[str, str], float]:
-    """거래 변화용 — 수동 입력 / 1차↔2차 매출·매입 랜덤 중 선택."""
-    mode = st.radio(
-        "거래 변화 입력 방식",
-        ["랜덤 (1차↔2차 매출/매입)", "수동 입력"],
-        horizontal=True,
-        key="ovr_mode",
-    )
-    if mode.startswith("랜덤"):
-        return _override_random(seed_pairs, seed_shock, seed_biznos, cfg)
-    return _override_manual(seed_pairs, seed_shock, seed_biznos, cfg)
-
-
-def _override_random(
-    seed_pairs: list, seed_shock: dict, seed_biznos: set[str], cfg: dict
-) -> dict[tuple[str, str], float]:
-    """랜덤 — 1차↔2차 매출/매입 거래에 랜덤 g 자동 부여 (재현용 seed)."""
-    st.markdown("**거래 변화(랜덤) — HS 연계 1차↔2차 거래의 매출/매입에 랜덤 g (1=무변화)**")
-    c1, c2, c3 = st.columns([2, 3, 2])
-    side_label = c1.selectbox("대상 거래", ["매출+매입", "매출만", "매입만"], index=0)
-    side = {"매출+매입": "both", "매출만": "sales", "매입만": "purchase"}[side_label]
-    lo, hi = c2.slider("랜덤 g 범위 (g=1+증감율, >1=증가)", 0.0, 3.0, value=(0.5, 1.0), step=0.05)
-    use_seed = c3.checkbox("재현 시드 고정", value=True)
-    seed_val = c3.number_input("seed", value=42, step=1, disabled=not use_seed)
-    firm_sel = st.multiselect(
-        "대상 1차 기업 (비우면 연계된 전체 1차)", sorted(seed_biznos), default=[]
-    )
-
-    if st.button("랜덤 가중치 생성", type="secondary"):
-        spec = RandomOverrideSpec(
-            side=side,
-            low=float(lo),
-            high=float(hi),
-            seed=int(seed_val) if use_seed else None,
-            only_firms=tuple(firm_sel) if firm_sel else None,
-        )
-        try:
-            ov = build_primary_secondary_random_overrides(
-                seed_pairs,
-                spec=spec,
-                depth=cfg["depth"],
-                trade_year=cfg["trade_year"],
-                within_subgraph=cfg["within"],
-                damping=cfg["damping"],
-                seed_shock=seed_shock,
-            )
-        except Exception as exc:  # noqa: BLE001
-            st.error(f"랜덤 생성 실패: {exc.__class__.__name__} — {exc}")
-            return {}
-        st.session_state["ovr_random"] = ov
-
-    ov = st.session_state.get("ovr_random")
-    if not ov:
-        st.info("‘랜덤 가중치 생성’ 을 눌러 1차↔2차 매출/매입에 랜덤 g 를 부여하세요.")
-        return {}
-
-    rows = [
-        {
-            "구분": "매출" if s in seed_biznos else "매입",
-            "from(셀러)": s,
-            "to(바이어)": b,
-            "factor(g)": g,
-        }
-        for (s, b), g in sorted(ov.items())
-    ]
-    df = pd.DataFrame(rows)
-    n_sales = int((df["구분"] == "매출").sum())
-    n_buy = int((df["구분"] == "매입").sum())
-    st.caption(f"생성된 거래변화 {len(df)}건 — 매출 {n_sales} · 매입 {n_buy} (g∈[{lo},{hi}])")
-    st.dataframe(df, height=240, use_container_width=True)
-    return ov
-
-
-def _override_manual(
-    seed_pairs: list, seed_shock: dict, seed_biznos: set[str], cfg: dict
-) -> dict[tuple[str, str], float]:
-    """수동 — 1차→2차(셀러→바이어) 거래쌍을 불러와 factor(g=1+증감율) 로 비중 조정."""
-    st.markdown("**거래 변화(수동) — 1차→2차(셀러→바이어) 거래쌍의 비중에 factor(g=1+증감율) 적용**")
-    if st.button("거래쌍 불러오기 (downstream 기준)"):
-        try:
-            # 랜덤 생성기와 동일한 공유 열거 경로(매출=1차→2차)를 재사용.
-            edges = enumerate_primary_secondary(
-                seed_pairs,
-                side="sales",
-                depth=cfg["depth"],
-                trade_year=cfg["trade_year"],
-                within_subgraph=cfg["within"],
-                damping=cfg["damping"],
-                seed_shock=seed_shock,
-            )
-        except Exception as exc:  # noqa: BLE001
-            st.error(f"거래쌍 조회 실패: {exc.__class__.__name__} — {exc}")
-            return {}
-        st.session_state["ovr_candidates"] = [
-            {
-                "from_bizno": e.from_bizno,
-                "to_bizno": e.to_bizno,
-                "셀러": e.from_name or e.from_bizno,
-                "바이어": e.to_name or e.to_bizno,
-                "기준 rate": round(e.rate, 4),
-                "factor": 1.0,
-            }
-            for e in edges
-        ]
-
-    cands = st.session_state.get("ovr_candidates")
-    if not cands:
-        st.info("‘거래쌍 불러오기’ 를 눌러 1차→2차 거래쌍을 가져온 뒤 factor 를 조정하세요.")
-        return {}
-
-    edited = st.data_editor(
-        pd.DataFrame(cands),
-        height=260,
-        use_container_width=True,
-        column_config={
-            "factor": st.column_config.NumberColumn(
-                "factor (g=1+증감율)", min_value=0.0, max_value=3.0, step=0.05,
-                help="이 거래 비중에 곱할 인자. 1.0=변화없음, 0.8=20%↓, 1.1=10%↑. "
-                "g>1(증가)은 Σ_out>1 시 수렴 보장 약화.",
-            )
-        },
-        disabled=["from_bizno", "to_bizno", "셀러", "바이어", "기준 rate"],
-        key="ovr_editor",
-    )
-    overrides: dict[tuple[str, str], float] = {}
-    for _, r in edited.iterrows():
-        f = float(r["factor"])
-        if abs(f - 1.0) > 1e-9:  # 변화 있는 쌍만(증가/감소 모두)
-            overrides[(str(r["from_bizno"]), str(r["to_bizno"]))] = f
-    if overrides:
-        st.caption(f"변경 대상 {len(overrides)} 쌍 (factor≠1.0) → 변화분 Δ 계산에 반영.")
-    return overrides
 
 
 # ── 렌더 헬퍼 ─────────────────────────────────────────────────────────────────
@@ -590,7 +424,7 @@ def _render_direction(dr, scenario: str, cfg: dict) -> None:
     """한 방향(매출/매입)의 노드·에지·값 그리드 + 네트워크 그래프."""
     asm = dr.assembled
     shock_by_node = {r["bizno"]: r["shock"] for r in dr.result.shock_list}
-    val_label = "변화분Δ" if scenario == "transaction_change" else "shock"
+    val_label = "shock(1=무변화)" if scenario == "volume" else "shock"
 
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("노드", len(asm.nodes))
