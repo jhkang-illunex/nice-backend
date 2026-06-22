@@ -173,6 +173,24 @@ def test_transaction_change_returns_delta(monkeypatch) -> None:
     assert calls["n"] == 1  # E1: 방향당 baseline 1회만 (수정 W 는 in-memory)
 
 
+def test_transaction_change_increase_positive_delta(monkeypatch) -> None:
+    """g>1(증가) → 하류 전파 증가 → Δ>0 + g>1·Σ_out>1 경고."""
+    def fake_assemble(seeds, *, edge_overrides=None, **kw):
+        # baseline rate 0.8(큰 비중). g=1.5 → 1.2 로 Σ_out>1.
+        return _fake_assembled(
+            [{"from_bizno": "A|1", "to_bizno": "B|2", "rate": 0.8}], {"A|1": 1.0}
+        )
+
+    monkeypatch.setattr(scen_mod, "assemble_propagation_input", fake_assemble)
+    res = run_transaction_change(
+        [("A", "1")], edge_overrides={("A", "B"): 1.5}, directions=["downstream"]
+    )
+    delta = {r["bizno"]: r["shock"] for r in res.directions[0].result.shock_list}
+    assert delta["B|2"] == pytest.approx(0.4)  # 0.8→1.2 → 하류 전파 +0.4 증가
+    assert any("g>1" in w for w in res.warnings)            # 증가 경고
+    assert any("Σ_out" in w and ">1" in w for w in res.warnings)  # Σ_out>1 발산 위험
+
+
 def test_transaction_change_all_g_one_warns(monkeypatch) -> None:
     monkeypatch.setattr(
         scen_mod,
@@ -342,11 +360,20 @@ def test_random_range_respected(monkeypatch) -> None:
     assert ov and all(0.2 <= g <= 0.5 for g in ov.values())
 
 
-@pytest.mark.parametrize("lo,hi", [(0.5, 0.2), (-0.1, 0.5), (0.5, 1.5)])
+@pytest.mark.parametrize("lo,hi", [(0.5, 0.2), (-0.1, 0.5), (0.5, 3.5)])
 def test_random_bad_range_raises(monkeypatch, lo: float, hi: float) -> None:
     _patch_gen(monkeypatch)
     with pytest.raises(ValueError):
         build_primary_secondary_random_overrides(_GEN_SEEDS, spec=RandomOverrideSpec(low=lo, high=hi))
+
+
+def test_random_increase_range_allowed(monkeypatch) -> None:
+    """g>1(증가) 범위는 MAX_OVERRIDE_FACTOR 이하면 허용 (예: 1.1~1.5)."""
+    _patch_gen(monkeypatch)
+    ov = build_primary_secondary_random_overrides(
+        _GEN_SEEDS, spec=RandomOverrideSpec(low=1.1, high=1.5, seed=1)
+    )
+    assert ov and all(1.1 <= g <= 1.5 for g in ov.values())
 
 
 # ── 6. 엔드포인트 random_override 경로 ───────────────────────────────────────

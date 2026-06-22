@@ -49,12 +49,12 @@ _PUBLIC_DETAIL_LABEL = {"110": "공기업", "111": "준정부기관", "112": "�
 _DIR_MAP = {"매출 파급(하류)": "downstream", "매입 파급(상류)": "upstream"}
 
 # 4개 명명 시나리오 프리셋 — 선택 시 scenario·방향(·거래변화 side) 자동 구성.
-#   side 가 있으면 transaction_change(1차↔2차 해당 거래에 일괄 감소율 g 적용).
+#   side 가 있으면 transaction_change(1차↔2차 해당 거래에 일괄 증감율 g 적용).
 _SCENARIO_PRESETS: dict[str, dict | None] = {
     "① 매입 충격": {"scenario": "tariff", "directions": ["upstream"]},
     "② 매출 충격": {"scenario": "tariff", "directions": ["downstream"]},
-    "③ 2차 매입 감소": {"scenario": "transaction_change", "directions": ["upstream"], "side": "purchase"},
-    "④ 2차 매출 감소": {"scenario": "transaction_change", "directions": ["downstream"], "side": "sales"},
+    "③ 2차 매입 변동": {"scenario": "transaction_change", "directions": ["upstream"], "side": "purchase"},
+    "④ 2차 매출 변동": {"scenario": "transaction_change", "directions": ["downstream"], "side": "sales"},
     "사용자 정의": None,
 }
 
@@ -118,12 +118,13 @@ def sidebar() -> dict:
         scenario = preset["scenario"]
         directions = preset["directions"]
         preset_side = preset.get("side")
-        if preset_side is not None:  # 거래 변화 프리셋 — 감소율 g
-            drop_pct = st.sidebar.slider(
-                "거래 감소율 (%)", 5, 50, value=10, step=5,
-                help="해당 1차↔2차 거래 비중을 이 비율만큼 감소(g=1−감소율). 예: 10%→g=0.9",
+        if preset_side is not None:  # 거래 변화 프리셋 — 증감율 g=1+증감율
+            chg_pct = st.sidebar.slider(
+                "거래 증감율 (%)", -50, 200, value=-10, step=5,
+                help="해당 1차↔2차 거래 비중 증감(g=1+증감율). 예: −20%→g=0.8(감소) / "
+                "+10%→g=1.1(증가). 증가(>0)는 Σ_out>1 시 수렴 보장 약화.",
             )
-            preset_factor = round(1.0 - drop_pct / 100.0, 4)
+            preset_factor = round(1.0 + chg_pct / 100.0, 4)
         st.sidebar.caption(
             f"→ `{scenario}` · 방향={directions}"
             + (f" · {preset_side} ×{preset_factor}" if preset_side else "")
@@ -328,7 +329,7 @@ def step_scenario(cfg: dict) -> None:
         if cfg["scenario"] == "transaction_change" and not overrides:
             st.warning(
                 "거래 변화: 적용할 거래쌍이 없습니다. "
-                "수동이면 factor<1.0 지정, 랜덤이면 ‘랜덤 가중치 생성’을 먼저 실행하세요."
+                "수동이면 factor≠1.0 지정, 랜덤이면 ‘랜덤 가중치 생성’을 먼저 실행하세요."
             )
             return
         try:
@@ -402,11 +403,11 @@ def _override_random(
     seed_pairs: list, seed_shock: dict, seed_biznos: set[str], cfg: dict
 ) -> dict[tuple[str, str], float]:
     """랜덤 — 1차↔2차 매출/매입 거래에 랜덤 g 자동 부여 (재현용 seed)."""
-    st.markdown("**거래 변화(랜덤) — HS 연계 1차↔2차 거래의 매출/매입에 랜덤 g(0~1)**")
+    st.markdown("**거래 변화(랜덤) — HS 연계 1차↔2차 거래의 매출/매입에 랜덤 g (1=무변화)**")
     c1, c2, c3 = st.columns([2, 3, 2])
     side_label = c1.selectbox("대상 거래", ["매출+매입", "매출만", "매입만"], index=0)
     side = {"매출+매입": "both", "매출만": "sales", "매입만": "purchase"}[side_label]
-    lo, hi = c2.slider("랜덤 g 범위", 0.0, 1.0, value=(0.0, 1.0), step=0.05)
+    lo, hi = c2.slider("랜덤 g 범위 (g=1+증감율, >1=증가)", 0.0, 3.0, value=(0.5, 1.0), step=0.05)
     use_seed = c3.checkbox("재현 시드 고정", value=True)
     seed_val = c3.number_input("seed", value=42, step=1, disabled=not use_seed)
     firm_sel = st.multiselect(
@@ -461,8 +462,8 @@ def _override_random(
 def _override_manual(
     seed_pairs: list, seed_shock: dict, seed_biznos: set[str], cfg: dict
 ) -> dict[tuple[str, str], float]:
-    """수동 — 1차→2차(셀러→바이어) 거래쌍을 불러와 factor(0~1) 로 비중 조정."""
-    st.markdown("**거래 변화(수동) — 1차→2차(셀러→바이어) 거래쌍의 비중에 factor(0~1) 적용**")
+    """수동 — 1차→2차(셀러→바이어) 거래쌍을 불러와 factor(g=1+증감율) 로 비중 조정."""
+    st.markdown("**거래 변화(수동) — 1차→2차(셀러→바이어) 거래쌍의 비중에 factor(g=1+증감율) 적용**")
     if st.button("거래쌍 불러오기 (downstream 기준)"):
         try:
             # 랜덤 생성기와 동일한 공유 열거 경로(매출=1차→2차)를 재사용.
@@ -501,8 +502,9 @@ def _override_manual(
         use_container_width=True,
         column_config={
             "factor": st.column_config.NumberColumn(
-                "factor (0~1)", min_value=0.0, max_value=1.0, step=0.05,
-                help="이 거래 비중에 곱할 인자. 1.0=변화없음, 0.5=절반으로 축소.",
+                "factor (g=1+증감율)", min_value=0.0, max_value=3.0, step=0.05,
+                help="이 거래 비중에 곱할 인자. 1.0=변화없음, 0.8=20%↓, 1.1=10%↑. "
+                "g>1(증가)은 Σ_out>1 시 수렴 보장 약화.",
             )
         },
         disabled=["from_bizno", "to_bizno", "셀러", "바이어", "기준 rate"],
@@ -511,10 +513,10 @@ def _override_manual(
     overrides: dict[tuple[str, str], float] = {}
     for _, r in edited.iterrows():
         f = float(r["factor"])
-        if f < 1.0:  # 변화 있는 쌍만
+        if abs(f - 1.0) > 1e-9:  # 변화 있는 쌍만(증가/감소 모두)
             overrides[(str(r["from_bizno"]), str(r["to_bizno"]))] = f
     if overrides:
-        st.caption(f"변경 대상 {len(overrides)} 쌍 (factor<1.0) → 변화분 Δ 계산에 반영.")
+        st.caption(f"변경 대상 {len(overrides)} 쌍 (factor≠1.0) → 변화분 Δ 계산에 반영.")
     return overrides
 
 
