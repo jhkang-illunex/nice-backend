@@ -16,6 +16,8 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
+import networkx as nx
+
 import nice_graph.shock.assemble as asm
 from nice_graph.shock.assemble import assemble_propagation_input
 from nice_graph.shock.scenario import run_scenario
@@ -193,6 +195,62 @@ def _render_mermaid(graph: dict) -> list[str]:
     return out
 
 
+def _cycle_info(graph: dict):
+    """단순순환 탐지 → (순환참여 엣지 set, 순환참여 노드 set, 순환 리스트[짧은순])."""
+    G = nx.DiGraph()
+    for e in graph["edges"]:
+        G.add_edge(e["from"], e["to"])
+    cycles = [c for c in nx.simple_cycles(G)]
+    cyc_edges: set[tuple[str, str]] = set()
+    cyc_nodes: set[str] = set()
+    for c in cycles:
+        cyc_nodes.update(c)
+        ring = c + [c[0]]
+        for a, b in zip(ring, ring[1:], strict=False):
+            cyc_edges.add((a, b))
+    cycles.sort(key=len)
+    return cyc_edges, cyc_nodes, cycles
+
+
+def _render_cycle_diagram(graph: dict) -> list[str]:
+    """순환 참여 엣지/노드만 강조한 Mermaid + 순환 경로 목록."""
+    nm = {n["bizno"]: n["name"] for n in graph["nodes"]}
+    cyc_edges, cyc_nodes, cycles = _cycle_info(graph)
+
+    def nid(b: str) -> str:
+        return "N" + b
+
+    out = [f"단순순환 **{len(cycles)}개** 탐지. 빨강 굵은 화살표=순환 참여 거래, 회색 점선=비순환(피드포워드).\n"]
+    out += ["```mermaid", "flowchart LR"]
+    out.append("  classDef cyc fill:#ffd9d4,stroke:#e8503a,stroke-width:2px;")
+    out.append("  classDef plain fill:#eef2f7,stroke:#9bb0c9;")
+    for n in graph["nodes"]:
+        out.append(f'  {nid(n["bizno"])}["{n["name"]}"]')
+    cyc_idx, plain_idx = [], []
+    for i, e in enumerate(graph["edges"]):
+        out.append(f'  {nid(e["from"])} -->|"{e["amount"]:,}"| {nid(e["to"])}')
+        (cyc_idx if (e["from"], e["to"]) in cyc_edges else plain_idx).append(i)
+    cyc_n = [nid(n["bizno"]) for n in graph["nodes"] if n["bizno"] in cyc_nodes]
+    plain_n = [nid(n["bizno"]) for n in graph["nodes"] if n["bizno"] not in cyc_nodes]
+    if cyc_n:
+        out.append(f"  class {','.join(cyc_n)} cyc;")
+    if plain_n:
+        out.append(f"  class {','.join(plain_n)} plain;")
+    if cyc_idx:
+        out.append(f"  linkStyle {','.join(map(str, cyc_idx))} stroke:#e8503a,stroke-width:3px;")
+    if plain_idx:
+        out.append(f"  linkStyle {','.join(map(str, plain_idx))} stroke:#c9d2dc,stroke-width:1px;")
+    out.append("```")
+    out.append("")
+    # 순환 경로 목록
+    out.append("**탐지된 순환 경로** (짧은 순)\n")
+    for c in cycles:
+        chain = " → ".join(nm[b] for b in c) + f" → {nm[c[0]]}"
+        out.append(f"- ({len(c)}-순환) {chain}")
+    out.append("")
+    return out
+
+
 def _short(name: str) -> str:
     """매트릭스 헤더용 짧은 라벨: '공급사P(2차)'→'공급P', '고객A(2차)'→'고객A'."""
     return name.split("(")[0].replace("공급사", "공급")
@@ -240,6 +298,8 @@ def build_md(graph: dict, results: list[dict]) -> str:
               f"{len(graph['edges'])}엣지. `edge_direction`: {m['edge_direction']}\n")
     md.append("### 그래프 다이어그램 (방향성 엣지 + 거래금액)\n")
     md.extend(_render_mermaid(graph))
+    md.append("### 순환 경로 강조 다이어그램\n")
+    md.extend(_render_cycle_diagram(graph))
     md.append("### 노드\n")
     md.append("| bizno | 기업명 | tier | 시드 |")
     md.append("|---|---|---|---|")
