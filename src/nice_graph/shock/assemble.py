@@ -321,6 +321,48 @@ def edge_in_shares(
     return {(f, t): float(s) for f, t, s in rows if (f, t) in want}
 
 
+def firm_partner_shares(
+    bizno: str, side: str, trade_year: str | None = None, partner: str | None = None
+) -> dict[str, float]:
+    """1차 기업의 (매출/매입) 거래처별 **상대 기준 거래 비중** {partner_bizno: share}.
+
+    side='sales'    : 1차→거래처(매출 엣지). share = amount / 거래처의 총매입(Σ_in).
+    side='purchase' : 거래처→1차(매입 엣지). share = amount / 거래처의 총매출(Σ_out).
+    partner 지정 시 그 거래처만. 거래량 변동을 상대 노드 δ 로 환산할 때(거래 비중 가중) 사용.
+    """
+    if side not in ("sales", "purchase"):
+        raise ValueError(f"side 는 sales|purchase: {side!r}")
+    yr = "AND CAST(trade_year AS text) = :yr" if trade_year is not None else ""
+    if side == "sales":  # 1차=셀러, 상대=바이어(to). 상대의 Σ_in 정규화.
+        pcol, tcol, tot_col = "to_bizno", "to_bizno", "to_bizno"
+        fixed = f"TRIM(from_bizno)=:bizno {('AND TRIM(to_bizno)=:partner' if partner else '')}"
+    else:  # 1차=바이어, 상대=셀러(from). 상대의 Σ_out 정규화.
+        pcol, tcol, tot_col = "from_bizno", "from_bizno", "from_bizno"
+        fixed = f"TRIM(to_bizno)=:bizno {('AND TRIM(from_bizno)=:partner' if partner else '')}"
+    sql = text(
+        f"""
+        WITH e AS (
+            SELECT TRIM({pcol}) p, COALESCE(SUM(sly_amt),0)::float amt
+            FROM public.company_edge WHERE {fixed} {yr} GROUP BY 1
+        ),
+        tot AS (
+            SELECT TRIM({tot_col}) p, COALESCE(SUM(sly_amt),0)::float t
+            FROM public.company_edge
+            WHERE TRIM({tcol}) IN (SELECT p FROM e) {yr} GROUP BY 1
+        )
+        SELECT e.p, CASE WHEN tot.t>0 THEN e.amt/tot.t ELSE 0 END
+        FROM e JOIN tot ON e.p = tot.p
+        """
+    )
+    params: dict[str, object] = {"bizno": str(bizno).strip()}
+    if partner is not None:
+        params["partner"] = str(partner).strip()
+    if trade_year is not None:
+        params["yr"] = str(trade_year)
+    with get_pg_engine().connect() as c:
+        return {p: float(s) for p, s in c.execute(sql, params).fetchall()}
+
+
 def _filter_biznos_by_industry(biznos: list[str], chapters: list[str]) -> set[str]:
     """biznos 중 선택 산업(HS chapter) 의 거래구성을 가진 기업만 반환 (시드 필터용)."""
     if not biznos:
