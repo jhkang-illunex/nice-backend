@@ -27,6 +27,7 @@ from nice_graph.shock.scenario import (
     run_scenario,
     run_tariff_shock,
     run_transaction_change,
+    run_volume_shock,
 )
 
 client = TestClient(app)
@@ -571,3 +572,57 @@ def test_industry_filter_drops_unclassified_seed(monkeypatch) -> None:
     assert out.init_sub_graph == {}          # 시드 제외 → 초기 충격 없음
     assert any("제외" in w or "0" in w for w in out.warnings)
     assert cap["seeds"] == []                # 필터 후 시드 없음
+
+
+# ── 7. volume (거래량 변동 v2 — 편차 전파·시드 고정) ──────────────────────────
+
+
+def _fake_volume_assemble(monkeypatch, edges):
+    """assemble_propagation_input 을 대체 — init 을 seed_shock(δ) 맵에서 구성."""
+    def fake(seeds, *, seed_shock, edge_overrides=None, **kw):
+        init = {f"{b}|1": float(seed_shock[b]) for b in seed_shock}
+        return _fake_assembled(list(edges), init)
+    monkeypatch.setattr(scen_mod, "assemble_propagation_input", fake)
+
+
+def test_volume_neutral_keeps_one(monkeypatch) -> None:
+    """모든 multiplier=1.0 → δ=0 → 전 노드 shock=1(무변화)."""
+    _fake_volume_assemble(monkeypatch, [{"from_bizno": "A|1", "to_bizno": "B|2", "rate": 0.5}])
+    res = run_volume_shock([("A", "1")], multipliers={"A": 1.0}, directions=["downstream"])
+    vals = {r["bizno"]: r["shock"] for r in res.directions[0].result.shock_list}
+    assert all(abs(v - 1.0) < 1e-9 for v in vals.values())
+
+
+def test_volume_propagates_deviation(monkeypatch) -> None:
+    """시드 A 매출 −20%(m=0.8) → δ=−0.2, B(rate0.5) shock=1+0.5·(−0.2)=0.9."""
+    _fake_volume_assemble(monkeypatch, [{"from_bizno": "A|1", "to_bizno": "B|2", "rate": 0.5}])
+    res = run_volume_shock([("A", "1")], multipliers={"A": 0.8}, directions=["downstream"])
+    vals = {r["bizno"]: r["shock"] for r in res.directions[0].result.shock_list}
+    assert vals["A|1"] == pytest.approx(0.8)   # 시드 = 입력 m (incoming 없음)
+    assert vals["B|2"] == pytest.approx(0.9)   # 1 + 0.5·(−0.2)
+
+
+def test_volume_pin_vs_feedback(monkeypatch) -> None:
+    """2-순환 A↔B 에서 pin=True 면 시드 A 고정(=m), False 면 되돌이로 증폭."""
+    cyc = [
+        {"from_bizno": "A|1", "to_bizno": "B|2", "rate": 0.5},
+        {"from_bizno": "B|2", "to_bizno": "A|1", "rate": 0.5},  # 되돌이
+    ]
+    _fake_volume_assemble(monkeypatch, cyc)
+    pinned = run_volume_shock([("A", "1")], multipliers={"A": 0.8},
+                              directions=["downstream"], pin_seeds=True)
+    fed = run_volume_shock([("A", "1")], multipliers={"A": 0.8},
+                           directions=["downstream"], pin_seeds=False)
+    a_pin = {r["bizno"]: r["shock"] for r in pinned.directions[0].result.shock_list}["A|1"]
+    a_fed = {r["bizno"]: r["shock"] for r in fed.directions[0].result.shock_list}["A|1"]
+    assert a_pin == pytest.approx(0.8)   # 고정: 입력 그대로
+    assert a_fed < 0.8                   # 피드백: 되돌이로 더 감소(증폭)
+
+
+def test_volume_via_run_scenario(monkeypatch) -> None:
+    """run_scenario('volume') 디스패치 경로."""
+    _fake_volume_assemble(monkeypatch, [{"from_bizno": "A|1", "to_bizno": "B|2", "rate": 0.5}])
+    res = run_scenario("volume", [("A", "1")], multipliers={"A": 0.8}, directions=["downstream"])
+    assert res.scenario == "volume"
+    vals = {r["bizno"]: r["shock"] for r in res.directions[0].result.shock_list}
+    assert vals["A|1"] == pytest.approx(0.8)
