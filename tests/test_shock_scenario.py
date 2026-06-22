@@ -40,9 +40,10 @@ def _patch_assemble_db(monkeypatch, rows, attrs):
     """assemble 의 두 DB 호출을 canned 로 교체. _fetch_induced_edges 의 src_col 캡처."""
     captured: dict = {}
 
-    def fake_edges(seeds, depth, trade_year, src_col="from_bizno"):
+    def fake_edges(seeds, depth, trade_year, src_col="from_bizno", chapters=None):
         captured["src_col"] = src_col
         captured["seeds"] = list(seeds)
+        captured["chapters"] = chapters
         return rows
 
     monkeypatch.setattr(asm_mod, "_fetch_induced_edges", fake_edges)
@@ -492,3 +493,54 @@ def test_random_only_firms_no_intersection_raises(monkeypatch) -> None:
         build_primary_secondary_random_overrides(
             _GEN_SEEDS, spec=RandomOverrideSpec(only_firms=("ZZZ",), seed=1)
         )
+
+
+# ── industry_code (HS chapter 산업 필터) ──────────────────────────────────────
+
+
+def test_resolve_industry_chapters_mapping() -> None:
+    from nice_graph.shock.assemble import resolve_industry_chapters as r
+
+    assert r(None) is None
+    assert r(["전체"]) is None            # 전체 포함 → 필터 없음
+    assert r("화학") == [f"{i:02d}" for i in range(28, 40)]
+    assert r("기계") == ["84"]
+    assert r("에너지") == ["27"]
+    # 여러 개 → 합집합(정렬·중복제거)
+    assert r(["화학", "철강/금속"]) == sorted(
+        {f"{i:02d}" for i in range(28, 40)} | {f"{i:02d}" for i in range(72, 84)}
+    )
+    with pytest.raises(ValueError, match="알 수 없는 industry_code"):
+        r(["없는산업"])
+
+
+def test_industry_all_skips_filter(monkeypatch) -> None:
+    """industry_code=['전체'] → chapters=None, 시드 필터 DB 호출 없음."""
+    cap = _patch_assemble_db(monkeypatch, _ROWS, _ATTRS)
+
+    def boom(*a, **k):  # _filter_biznos_by_industry 가 불리면 실패
+        raise AssertionError("전체인데 산업 필터 DB 호출됨")
+
+    monkeypatch.setattr(asm_mod, "_filter_biznos_by_industry", boom)
+    out = assemble_propagation_input([("A", "1")], industry_code=["전체"])
+    assert cap["chapters"] is None
+    assert out.edges  # 정상 조립
+
+
+def test_industry_filter_threads_chapters(monkeypatch) -> None:
+    """industry_code=['화학'] → 해당 chapters 가 _fetch_induced_edges 로 전달."""
+    cap = _patch_assemble_db(monkeypatch, _ROWS, _ATTRS)
+    # 시드 A 는 산업 통과로 간주
+    monkeypatch.setattr(asm_mod, "_filter_biznos_by_industry", lambda biznos, ch: set(biznos))
+    assemble_propagation_input([("A", "1")], industry_code=["화학"])
+    assert cap["chapters"] == [f"{i:02d}" for i in range(28, 40)]
+
+
+def test_industry_filter_drops_unclassified_seed(monkeypatch) -> None:
+    """산업 미통과 시드는 init/노드에서 제외 → 빈 그래프."""
+    cap = _patch_assemble_db(monkeypatch, _ROWS, _ATTRS)
+    monkeypatch.setattr(asm_mod, "_filter_biznos_by_industry", lambda biznos, ch: set())
+    out = assemble_propagation_input([("A", "1")], industry_code=["화학"])
+    assert out.init_sub_graph == {}          # 시드 제외 → 초기 충격 없음
+    assert any("제외" in w or "0" in w for w in out.warnings)
+    assert cap["seeds"] == []                # 필터 후 시드 없음

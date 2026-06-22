@@ -303,6 +303,17 @@ class ScenarioRequest(BaseModel):
             "지정 시 edge_overrides 대신 사용."
         ),
     )
+    industry_code: list[str] = Field(
+        default=["전체"],
+        min_length=1,
+        description=(
+            "산업 필터(HS chapter prefix-2). 시드+확장 노드를 선택 산업의 HS 거래구성을 "
+            "가진 기업으로 한정(미분류 제외). 가능: 전체 / 농산물(01~24) / 에너지(27) / "
+            "화학(28~39) / 철강·금속(72~83) / 기계(84) / 전자·반도체(85) / 자동차(87) / "
+            "섬유·의류(50~63). 여러 개 가능. '전체' 포함 시 필터 없음."
+        ),
+        examples=[["전체"], ["화학", "철강/금속"]],
+    )
 
 
 class DirectionResultOut(BaseModel):
@@ -503,6 +514,7 @@ def scenario(req: ScenarioRequest) -> ScenarioResponse:
             seed_shock=shock_map,
             edge_overrides=edge_overrides,
             random_spec=random_spec,
+            industry_code=req.industry_code,
         )
     except ValueError as exc:
         # 빈 edge_overrides·only_firms 무교집합 등 입력 오류 → 422
