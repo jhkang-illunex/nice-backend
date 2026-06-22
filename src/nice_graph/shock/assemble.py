@@ -130,9 +130,56 @@ class PropagationInput:
 # 정규화 source = {src} (downstream→from_bizno, upstream→to_bizno). 방향을 뒤집으면
 #   분모 PARTITION 도 새 source 기준으로 바뀌어야 Σ_out≤1(수렴) 이 유지된다.
 # 반환행: from, to, amt, sub_total(서브그래프 내 source 합), full_total(전체 source 합).
+# ── 산업(HS chapter prefix-2) 분류 ──────────────────────────────────────────────
+#
+# industry_code = 카테고리명 목록. 각 카테고리는 HS 앞 2자리(chapter) 집합으로 매핑.
+# 기업의 산업 = company⋈ra603(upchecd) 의 거래구성 HS(tscdcg='H10') chapter.
+# 필터는 **노드 전체**(시드+확장)에 적용 — 선택 산업 chapter 를 가진 기업만 서브그래프에
+# 포함하고, HS 프로필 없는(미분류) 기업은 제외한다. "전체" 는 필터 없음.
+INDUSTRY_ALL = "전체"
+INDUSTRY_HS_CHAPTERS: dict[str, list[str]] = {
+    "농산물": [f"{i:02d}" for i in range(1, 25)],     # 01~24
+    "에너지": ["27"],                                  # 27
+    "화학": [f"{i:02d}" for i in range(28, 40)],       # 28~39
+    "철강/금속": [f"{i:02d}" for i in range(72, 84)],  # 72~83
+    "기계": ["84"],                                    # 84
+    "전자/반도체": ["85"],                              # 85
+    "자동차": ["87"],                                  # 87
+    "섬유/의류": [f"{i:02d}" for i in range(50, 64)],  # 50~63
+}
+
+
+def resolve_industry_chapters(
+    industry_code: str | Iterable[str] | None,
+) -> list[str] | None:
+    """industry_code(카테고리명 1개 또는 목록) → HS chapter prefix 목록.
+
+    None / "전체" 포함 / 빈 입력 → None(필터 없음). 알 수 없는 코드는 ValueError.
+    """
+    if industry_code is None:
+        return None
+    codes = [industry_code] if isinstance(industry_code, str) else list(industry_code)
+    if not codes or INDUSTRY_ALL in codes:
+        return None
+    chapters: list[str] = []
+    for c in codes:
+        if c not in INDUSTRY_HS_CHAPTERS:
+            raise ValueError(
+                f"알 수 없는 industry_code: {c!r} "
+                f"(가능: {INDUSTRY_ALL}, {', '.join(INDUSTRY_HS_CHAPTERS)})"
+            )
+        chapters.extend(INDUSTRY_HS_CHAPTERS[c])
+    return sorted(set(chapters))
+
+
+# ── SQL (재귀 CTE) ──────────────────────────────────────────────────────────────
+#
+# {industry_cte}/{industry_seed_filter}/{industry_step_filter} 는 industry_code 필터가
+# 활성일 때만 채워진다(없으면 빈 문자열 = 기존 동작).
 _EXPAND_SQL_TMPL = """
-    WITH RECURSIVE reach(bizno, depth) AS (
+    WITH RECURSIVE {industry_cte}reach(bizno, depth) AS (
             SELECT x, 0 FROM unnest(CAST(:seeds AS text[])) AS x
+            {industry_seed_filter}
         UNION
             SELECT CASE WHEN e.from_bizno = r.bizno THEN e.to_bizno ELSE e.from_bizno END,
                    r.depth + 1
@@ -141,6 +188,7 @@ _EXPAND_SQL_TMPL = """
               ON (e.from_bizno = r.bizno OR e.to_bizno = r.bizno)
              {year_join}
             WHERE r.depth < :depth
+              {industry_step_filter}
     ),
     nodes AS (SELECT DISTINCT bizno FROM reach),
     induced AS (
@@ -180,29 +228,73 @@ _NODE_ATTR_SQL = text(
 # ── 확장 (재귀 CTE, depth N) ────────────────────────────────────────────────────
 
 
+# 산업 필터 SQL 조각 — 노드(시드+확장)를 selected chapter 보유 기업으로 한정.
+#   기업 산업 = company⋈ra603(upchecd) 의 H10 거래구성 HS 앞 2자리.
+_INDUSTRY_CTE = (
+    "allowed_industry AS ("
+    " SELECT DISTINCT TRIM(co.bizno) AS bizno"
+    " FROM public.company co"
+    " JOIN public.origin_kis_ra__s_ra603 r ON TRIM(r.upchecd) = TRIM(co.upchecd)"
+    " WHERE r.tscdcg = 'H10' AND SUBSTRING(TRIM(r.tscdvl), 1, 2) = ANY(:chapters)"
+    " ), "
+)
+_INDUSTRY_SEED_FILTER = "WHERE x IN (SELECT bizno FROM allowed_industry)"
+_INDUSTRY_STEP_FILTER = (
+    "AND CASE WHEN e.from_bizno = r.bizno THEN e.to_bizno ELSE e.from_bizno END"
+    " IN (SELECT bizno FROM allowed_industry)"
+)
+
+
 def _fetch_induced_edges(
     seeds: list[str],
     depth: int,
     trade_year: str | None,
     src_col: str = "from_bizno",
+    chapters: list[str] | None = None,
 ):
     """seeds → depth 도달 노드의 유도 부분그래프 엣지 (정규화 분모 포함).
 
     src_col: rate 정규화 source 컬럼 — downstream='from_bizno', upstream='to_bizno'.
              sub_total/full_total 은 이 컬럼 기준으로 집계된다.
+    chapters: 산업 필터 HS chapter prefix 목록(None=필터 없음). 활성 시 시드·확장 노드를
+              해당 chapter 보유 기업으로 한정한다.
 
     Returns: [(from_bizno, to_bizno, amt, sub_total, full_total)].
     """
     yr_clause = "AND CAST(e.trade_year AS text) = :yr" if trade_year is not None else ""
     yr_where = "AND CAST(trade_year AS text) = :yr" if trade_year is not None else ""
+    use_ind = bool(chapters)
     sql = text(
-        _EXPAND_SQL_TMPL.format(year_join=yr_clause, year_where=yr_where, src=src_col)
+        _EXPAND_SQL_TMPL.format(
+            year_join=yr_clause,
+            year_where=yr_where,
+            src=src_col,
+            industry_cte=_INDUSTRY_CTE if use_ind else "",
+            industry_seed_filter=_INDUSTRY_SEED_FILTER if use_ind else "",
+            industry_step_filter=_INDUSTRY_STEP_FILTER if use_ind else "",
+        )
     )
     params: dict[str, object] = {"seeds": list(seeds), "depth": int(depth)}
     if trade_year is not None:
         params["yr"] = str(trade_year)
+    if use_ind:
+        params["chapters"] = list(chapters)
     with get_pg_engine().connect() as c:
         return c.execute(sql, params).fetchall()
+
+
+def _filter_biznos_by_industry(biznos: list[str], chapters: list[str]) -> set[str]:
+    """biznos 중 선택 산업(HS chapter) 의 거래구성을 가진 기업만 반환 (시드 필터용)."""
+    if not biznos:
+        return set()
+    sql = text(
+        "SELECT DISTINCT TRIM(co.bizno) FROM public.company co "
+        "JOIN public.origin_kis_ra__s_ra603 r ON TRIM(r.upchecd) = TRIM(co.upchecd) "
+        "WHERE r.tscdcg = 'H10' AND SUBSTRING(TRIM(r.tscdvl), 1, 2) = ANY(:chapters) "
+        "AND TRIM(co.bizno) = ANY(:biznos)"
+    )
+    with get_pg_engine().connect() as c:
+        return {r[0] for r in c.execute(sql, {"chapters": chapters, "biznos": list(biznos)})}
 
 
 def _fetch_node_attrs(biznos: list[str]) -> dict[str, tuple[str | None, str | None]]:
@@ -278,6 +370,7 @@ def assemble_propagation_input(
     direction_weight: float = 1.0,
     normalize: Normalize = "source",
     edge_overrides: Mapping[tuple[str, str], float] | None = None,
+    industry_code: str | Iterable[str] | None = None,
 ) -> PropagationInput:
     """1차 시드 → N-depth 확장 → propagate_shock 입력 조립.
 
@@ -350,8 +443,27 @@ def assemble_propagation_input(
         src_col = "from_bizno" if direction == "downstream" else "to_bizno"
     else:  # counterparty — 거래상대(매출/매입 라벨) 기준
         src_col = "to_bizno" if direction == "downstream" else "from_bizno"
+    # 산업 필터 → HS chapter 목록(None=전체). 노드(시드+확장)를 해당 산업 기업으로 한정.
+    chapters = resolve_industry_chapters(industry_code)
+    if chapters is not None:  # 미분류·타산업 시드는 init/노드에서도 제외
+        allowed_seeds = _filter_biznos_by_industry(seed_biznos, chapters)
+        dropped = [b for b in seed_biznos if b not in allowed_seeds]
+        if dropped:
+            warnings.append(
+                f"industry_code({industry_code}) 필터로 시드 {len(dropped)}개 제외 "
+                "(선택 산업 HS 미보유)."
+            )
+        seed_biznos = [b for b in seed_biznos if b in allowed_seeds]
+        shock_by_bizno = {b: s for b, s in shock_by_bizno.items() if b in allowed_seeds}
     # 순회+중복합산+정규화분모 = 재귀 CTE 한 쿼리. rows: (from,to,amt,sub_total,full_total)
-    rows = _fetch_induced_edges(seed_biznos, depth, trade_year, src_col=src_col)
+    rows = _fetch_induced_edges(
+        seed_biznos, depth, trade_year, src_col=src_col, chapters=chapters
+    )
+    if chapters is not None and not rows:
+        warnings.append(
+            f"industry_code 필터({industry_code}) 결과 노드 0 — 선택 산업의 HS 프로필을 "
+            "가진 시드/거래상대가 없음(미분류 기업은 제외됨)."
+        )
     visited: set[str] = set(seed_biznos)
     for from_b, to_b, *_ in rows:
         visited.add(from_b)

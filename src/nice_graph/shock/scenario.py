@@ -120,6 +120,7 @@ def _assemble_one(
     seed_shock,
     edge_overrides: Mapping[tuple[str, str], float] | None,
     normalize: Normalize = "source",
+    industry_code=None,
 ) -> PropagationInput:
     return assemble_propagation_input(
         seeds,
@@ -132,6 +133,7 @@ def _assemble_one(
         direction_weight=weight,
         normalize=normalize,
         edge_overrides=edge_overrides,
+        industry_code=industry_code,
     )
 
 
@@ -206,6 +208,7 @@ def run_tariff_shock(
     damping: float = 0.85,
     seed_shock=1.0,
     normalize: Normalize = "source",
+    industry_code=None,
     **propagate_kwargs,
 ) -> ScenarioResult:
     """관세 충격 — W 불변, 시드에 외생 충격만 주입. 요청 방향 각각 전파.
@@ -235,6 +238,7 @@ def run_tariff_shock(
             seed_shock=seed_shock,
             edge_overrides=None,
             normalize=normalize,
+            industry_code=industry_code,
         )
         warnings.extend(f"[{d}] {m}" for m in asm.warnings)
         res = run_propagation(asm, **propagate_kwargs)
@@ -256,6 +260,7 @@ def run_transaction_change(
     damping: float = 0.85,
     seed_shock=1.0,
     normalize: Normalize = "source",
+    industry_code=None,
     **propagate_kwargs,
 ) -> ScenarioResult:
     """거래 변화 — 특정 1차→2차 엣지 비중에 g(0~1) 반영한 수정 W. 변화분(Δ) 반환.
@@ -291,6 +296,7 @@ def run_transaction_change(
             damping=damping,
             seed_shock=seed_shock,
             normalize=normalize,
+            industry_code=industry_code,
         )
         warnings.extend(f"[{d}] {m}" for m in base_asm.warnings)
         chg_asm = replace(base_asm, edges=_apply_overrides(base_asm, ov))
@@ -353,6 +359,7 @@ def enumerate_primary_secondary(
     within_subgraph: bool = True,
     damping: float = 0.85,
     seed_shock=1.0,
+    industry_code=None,
 ) -> list[PrimarySecondaryEdge]:
     """1차(시드)↔2차(직접 거래상대) 엣지를 매출/매입으로 분류해 열거 (단일 공유 경로).
 
@@ -383,6 +390,7 @@ def enumerate_primary_secondary(
         damping=damping,
         seed_shock=seed_shock,
         direction="downstream",
+        industry_code=industry_code,
     )
     idx = dn.node_index()
     want_sales = side in ("both", "sales")
@@ -418,6 +426,7 @@ def build_primary_secondary_random_overrides(
     within_subgraph: bool = True,
     damping: float = 0.85,
     seed_shock=1.0,
+    industry_code=None,
 ) -> dict[tuple[str, str], float]:
     """1차↔2차 매출/매입 엣지에 랜덤 g 를 부여한 edge_overrides 생성.
 
@@ -437,6 +446,7 @@ def build_primary_secondary_random_overrides(
         within_subgraph=within_subgraph,
         damping=damping,
         seed_shock=seed_shock,
+        industry_code=industry_code,
     )
     pairs = sorted({(e.from_bizno, e.to_bizno) for e in edges})
     rng = random.Random(spec.seed)
@@ -463,6 +473,7 @@ def run_scenario(
     seed_shock=1.0,
     edge_overrides: Mapping[tuple[str, str], float] | None = None,
     random_spec: RandomOverrideSpec | None = None,
+    industry_code=None,
     **propagate_kwargs,
 ) -> ScenarioResult:
     """시나리오 단일 디스패치 — 라우터·데모가 공유하는 진입점.
@@ -486,6 +497,7 @@ def run_scenario(
         damping=damping,
         normalize=normalize,
         seed_shock=seed_shock,
+        industry_code=industry_code,
     )
     if scenario == "tariff":
         return run_tariff_shock(seeds, **common, **propagate_kwargs)
@@ -500,6 +512,7 @@ def run_scenario(
             within_subgraph=within_subgraph,
             damping=damping,
             seed_shock=seed_shock,
+            industry_code=industry_code,
         )
     else:
         ov = dict(edge_overrides or {})
