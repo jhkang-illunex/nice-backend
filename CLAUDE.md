@@ -19,7 +19,13 @@
 - 참고: `src/nice_demo/pipeline/shock_runner.py` 가 `nice_poc.propagation.leontief` 를 import 하지만,
   이는 Streamlit **데모 시연용**일 뿐 실제 계산 엔진이 아니다. (삭제 시 데모가 깨지므로 정리 전 데모 의존부터 확인.)
 
-### 문서-코드 드리프트 주의
+### 문서-코드 드리프트 주의 (해소됨, 2026-06-22)
 
 `src/nice_graph/__init__.py` docstring 의 "Neo4j 기반 … `nice_poc.propagation` import" 설명은
-과거 설계 잔재로, 현재 구현(PG 기반 자체 `propagate.py`)과 불일치한다.
+과거 설계 잔재였으나 **PG 기반 현실로 정정 완료**. 현 구현 단일 기준 = `nice_graph/shock/propagate.py`.
+
+### Neo4j — 미사용(비활성)
+
+shock 파이프라인(`nice_graph`)·데모·RAG 는 그래프를 전부 PostgreSQL 에서 읽으므로 Neo4j 가 필요 없다.
+docker-compose 의 neo4j 서비스/볼륨은 **주석 처리(보존)** 됨 — 향후 레거시 dual-write ETL(`nice_poc.etl`
+/ `nice_ingest`) 가동 시에만 해제. 운영 중 neo4j 컨테이너는 정지된 상태.
