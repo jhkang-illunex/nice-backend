@@ -86,6 +86,12 @@ def _run_one(graph: dict, sc: dict) -> dict:
             key=lambda x: abs(x["value"]),
             reverse=True,
         )
+        matrix = [
+            {"src": name_by_id.get(e["from_bizno"], e["from_bizno"]),
+             "dst": name_by_id.get(e["to_bizno"], e["to_bizno"]),
+             "rate": e["rate"]}
+            for e in d.assembled.edges
+        ]
         dirs.append(
             {
                 "direction": d.direction,
@@ -97,6 +103,7 @@ def _run_one(graph: dict, sc: dict) -> dict:
                 "iterations": d.result.iterations,
                 "converged": d.result.converged,
                 "rows": rows,
+                "matrix": matrix,
             }
         )
     return {"args": args, "warnings": list(res.warnings), "dirs": dirs}
@@ -130,6 +137,37 @@ def _fmt_args(args: dict, graph: dict) -> str:
         )
         lines.append(f"- `edge_overrides` (저장방향 셀러→바이어, g) = {len(args['edge_overrides'])}건: {ov}")
     return "\n".join(lines)
+
+
+def _short(name: str) -> str:
+    """매트릭스 헤더용 짧은 라벨: '공급사P(2차)'→'공급P', '고객A(2차)'→'고객A'."""
+    return name.split("(")[0].replace("공급사", "공급")
+
+
+def _render_matrix(matrix: list[dict]) -> list[str]:
+    """환산 엣지(rate)를 행=소스·열=타깃 매트릭스로. 참여 노드만(빈 행/열 제외)."""
+    if not matrix:
+        return ["_(엣지 없음)_", ""]
+    cell: dict[tuple[str, str], float] = {}
+    srcs: list[str] = []
+    dsts: list[str] = []
+    for e in matrix:
+        s, d = _short(e["src"]), _short(e["dst"])
+        cell[(s, d)] = e["rate"]
+        if s not in srcs:
+            srcs.append(s)
+        if d not in dsts:
+            dsts.append(d)
+    srcs.sort()
+    dsts.sort()
+    out = ["행=전파 소스 · 열=전파 타깃 · 값=환산 rate (= weight·damping·amt/Σ_source·g)", ""]
+    out.append("| src＼dst | " + " | ".join(dsts) + " |")
+    out.append("|---|" + "---|" * len(dsts))
+    for s in srcs:
+        cells = [f"{cell[(s, d)]:.3f}" if (s, d) in cell else "" for d in dsts]
+        out.append(f"| **{s}** | " + " | ".join(cells) + " |")
+    out.append("")
+    return out
 
 
 def build_md(graph: dict, results: list[dict]) -> str:
@@ -172,6 +210,11 @@ def build_md(graph: dict, results: list[dict]) -> str:
                       f"노드 {d['n_nodes']} · 엣지 {d['n_edges']} · "
                       f"수렴 {'✅' if d['converged'] else '❌'}({d['iterations']}회) · "
                       f"Σ{kind}={d['total']:.6f}\n")
+            mtx_kind = "환산 엣지 매트릭스 R′ (g 반영 후)" if sc["scenario"] == "transaction_change" \
+                else "환산 엣지 매트릭스 R"
+            md.append(f"_{mtx_kind} — 전파 계산에 실제 투입된 값_\n")
+            md.extend(_render_matrix(d["matrix"]))
+            md.append("_전파 결과_\n")
             md.append(f"| 노드 | {kind} |")
             md.append("|---|---|")
             for row in d["rows"]:
