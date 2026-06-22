@@ -48,6 +48,16 @@ _PUBLIC_DETAIL_LABEL = {"110": "공기업", "111": "준정부기관", "112": "�
 #   매출 파급 = 매출처(고객)/하류 = downstream, 매입 파급 = 매입처(공급사)/상류 = upstream.
 _DIR_MAP = {"매출 파급(하류)": "downstream", "매입 파급(상류)": "upstream"}
 
+# 4개 명명 시나리오 프리셋 — 선택 시 scenario·방향(·거래변화 side) 자동 구성.
+#   side 가 있으면 transaction_change(1차↔2차 해당 거래에 일괄 감소율 g 적용).
+_SCENARIO_PRESETS: dict[str, dict | None] = {
+    "① 매입 충격": {"scenario": "tariff", "directions": ["upstream"]},
+    "② 매출 충격": {"scenario": "tariff", "directions": ["downstream"]},
+    "③ 2차 매입 감소": {"scenario": "transaction_change", "directions": ["upstream"], "side": "purchase"},
+    "④ 2차 매출 감소": {"scenario": "transaction_change", "directions": ["downstream"], "side": "sales"},
+    "사용자 정의": None,
+}
+
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
@@ -95,20 +105,44 @@ def sidebar() -> dict:
 
     st.sidebar.markdown("---")
     st.sidebar.subheader("시나리오 (래퍼)")
-    scenario_label = st.sidebar.radio(
-        "시나리오",
-        ["관세 충격", "거래 변화"],
+    preset_label = st.sidebar.radio(
+        "시나리오 선택",
+        list(_SCENARIO_PRESETS),
         index=0,
-        help="관세=W불변·시드주입 / 거래변화=특정 거래비중 g수정 → 변화분 Δ(=수정W−원W)",
+        help="4개 명명 시나리오 프리셋 중 선택하거나 ‘사용자 정의’로 직접 구성.",
     )
-    scenario = "tariff" if scenario_label == "관세 충격" else "transaction_change"
-    dir_labels = st.sidebar.multiselect(
-        "방향 (파급)",
-        list(_DIR_MAP),
-        default=list(_DIR_MAP),
-        help="upstream=상류/매출(가중치 A), downstream=하류/매입(가중치 B)",
-    )
-    directions = [_DIR_MAP[d] for d in dir_labels] or ["upstream", "downstream"]
+    preset = _SCENARIO_PRESETS[preset_label]
+    preset_side: str | None = None
+    preset_factor: float | None = None
+    if preset is not None:
+        scenario = preset["scenario"]
+        directions = preset["directions"]
+        preset_side = preset.get("side")
+        if preset_side is not None:  # 거래 변화 프리셋 — 감소율 g
+            drop_pct = st.sidebar.slider(
+                "거래 감소율 (%)", 5, 50, value=10, step=5,
+                help="해당 1차↔2차 거래 비중을 이 비율만큼 감소(g=1−감소율). 예: 10%→g=0.9",
+            )
+            preset_factor = round(1.0 - drop_pct / 100.0, 4)
+        st.sidebar.caption(
+            f"→ `{scenario}` · 방향={directions}"
+            + (f" · {preset_side} ×{preset_factor}" if preset_side else "")
+        )
+    else:  # 사용자 정의 — 기존 수동 구성
+        scenario_label = st.sidebar.radio(
+            "시나리오 유형",
+            ["관세 충격", "거래 변화"],
+            index=0,
+            help="관세=W불변·시드주입 / 거래변화=특정 거래비중 g수정 → 변화분 Δ(=수정W−원W)",
+        )
+        scenario = "tariff" if scenario_label == "관세 충격" else "transaction_change"
+        dir_labels = st.sidebar.multiselect(
+            "방향 (파급)",
+            list(_DIR_MAP),
+            default=list(_DIR_MAP),
+            help="upstream=상류/매입(가중치 B), downstream=하류/매출(가중치 A)",
+        )
+        directions = [_DIR_MAP[d] for d in dir_labels] or ["upstream", "downstream"]
     weight_a = st.sidebar.slider("가중치 A — 매출/하류(매출처)", 0.05, 1.0, value=1.0, step=0.05)
     weight_b = st.sidebar.slider("가중치 B — 매입/상류(매입처)", 0.05, 1.0, value=1.0, step=0.05)
     norm_label = st.sidebar.radio(
@@ -136,6 +170,9 @@ def sidebar() -> dict:
         "weight_a": float(weight_a),
         "weight_b": float(weight_b),
         "normalize": normalize,
+        "preset_label": preset_label,
+        "preset_side": preset_side,
+        "preset_factor": preset_factor,
     }
 
 
@@ -274,7 +311,18 @@ def step_scenario(cfg: dict) -> None:
 
     overrides: dict[tuple[str, str], float] = {}
     if cfg["scenario"] == "transaction_change":
-        overrides = _override_editor(seed_pairs, seed_shock, seed_biznos, cfg)
+        if cfg.get("preset_side"):  # 프리셋(2차 매입/매출 일괄 감소) — 결정적 g 자동 생성
+            overrides = _preset_override(seed_pairs, seed_shock, cfg)
+            side_kr = "매입" if cfg["preset_side"] == "purchase" else "매출"
+            if overrides:
+                st.caption(
+                    f"프리셋 **{cfg['preset_label']}** — 1차↔2차 {side_kr} 거래 "
+                    f"{len(overrides)}건에 g={cfg['preset_factor']} 일괄 적용."
+                )
+            else:
+                st.warning(f"연계된 1차↔2차 {side_kr} 거래가 없어 적용 대상이 없습니다.")
+        else:  # 사용자 정의 — 수동/랜덤 에디터
+            overrides = _override_editor(seed_pairs, seed_shock, seed_biznos, cfg)
 
     if st.button("시나리오 전파 실행", type="primary"):
         if cfg["scenario"] == "transaction_change" and not overrides:
@@ -305,6 +353,34 @@ def step_scenario(cfg: dict) -> None:
     for tab, dr in zip(st.tabs(labels), sres.directions, strict=True):
         with tab:
             _render_direction(dr, sres.scenario, cfg)
+
+
+def _preset_override(
+    seed_pairs: list, seed_shock: dict, cfg: dict
+) -> dict[tuple[str, str], float]:
+    """프리셋 거래변화 — 1차↔2차 해당 side 거래 전체에 결정적 g(=preset_factor) 일괄 적용.
+
+    RandomOverrideSpec 의 low=high=factor 로 균일(비랜덤) g 를 부여한다.
+    """
+    spec = RandomOverrideSpec(
+        side=cfg["preset_side"],
+        low=cfg["preset_factor"],
+        high=cfg["preset_factor"],
+        seed=0,
+    )
+    try:
+        return build_primary_secondary_random_overrides(
+            seed_pairs,
+            spec=spec,
+            depth=cfg["depth"],
+            trade_year=cfg["trade_year"],
+            within_subgraph=cfg["within"],
+            damping=cfg["damping"],
+            seed_shock=seed_shock,
+        )
+    except Exception as exc:  # noqa: BLE001
+        st.error(f"프리셋 거래변화 생성 실패: {exc.__class__.__name__} — {exc}")
+        return {}
 
 
 def _override_editor(
