@@ -63,10 +63,11 @@ from nice_graph.shock.assemble import (
     Normalize,
     PropagationInput,
     assemble_propagation_input,
+    edge_in_shares,
     parse_node_id,
     run_propagation,
 )
-from nice_graph.shock.propagate import ShockResult, ShockRow
+from nice_graph.shock.propagate import ShockResult, ShockRow, propagate_shock
 
 log = logging.getLogger(__name__)
 
@@ -336,10 +337,27 @@ def run_transaction_change(
 # ── 볼륨 충격 (거래량 변동 v2) — W 불변·편차 전파·매출/매입 반영 ─────────────────
 
 
+def _volume_shock_result(asm, init_delta, pin_ids, **propagate_kwargs):
+    """init_delta(편차) 로 1회 전파 → shock=1+propagated. pin_ids 노드는 incoming 차단."""
+    prop_asm = replace(
+        asm, edges=[e for e in asm.edges if e["to_bizno"] not in pin_ids]
+    ) if pin_ids else asm
+    res = propagate_shock(
+        edges=prop_asm.edges, init_sub_graph=init_delta, **propagate_kwargs
+    )
+    return ShockResult(
+        shock_list=[{"bizno": r["bizno"], "shock": 1.0 + r["shock"]} for r in res.shock_list],
+        total_shock=res.total_shock,
+        iterations=res.iterations,
+        converged=res.converged,
+    )
+
+
 def run_volume_shock(
     seeds,
     *,
-    multipliers: Mapping[str, float],
+    multipliers: Mapping[str, float] | None = None,
+    edge_multipliers: Mapping[tuple[str, str], float] | None = None,
     directions: Sequence[Direction] = DEFAULT_DIRECTIONS,
     weight_a: float = 1.0,
     weight_b: float = 1.0,
@@ -363,22 +381,28 @@ def run_volume_shock(
 
     호출자: run_scenario(scenario='volume') · 데모 · 라이브러리/테스트.
 
+    두 가지 입력 단위(택1 또는 병용):
+      multipliers      : {bizno: m} — **기업 전체** 매출/매입이 m배. δ_seed = m−1 시드 주입.
+      edge_multipliers : {(from,to): g} — **특정 거래(엣지)** 만 g배. 파트너(to) 노드에
+                         δ += share(from→to)·(g−1) 주입. share = 그 거래가 to 의 총매입에서
+                         차지하는 비중(거래 비중 가중) → 거래분만큼만 반영. 쿠팡 자신은 δ=0.
+
     Args:
-      seeds: 시드 기업 (bizno,upchecd) — multipliers 의 키와 매칭.
-      multipliers: {bizno: m} — m=1+증감율 (0.8=20%감소, 1.1=10%증가, 1.0=무변화).
-                   seeds 중 multipliers 에 없는 기업은 δ=0(무변화)로 처리.
+      seeds: 시드/허브 기업 (bizno,upchecd). 서브그래프 확장 기준.
       directions: 전파 방향. 매출 감소→공급사 영향은 upstream(매입 파급) 축.
-      pin_seeds: True(기본,B)=시드를 입력값에 고정(되돌이 incoming 엣지 차단) — 시드 결과는
-                 정확히 m. False(A)=순환 피드백 허용(시드도 되돌이로 증폭, 일반균형 총효과).
+      pin_seeds: True(기본,B)=주입 노드를 입력값에 고정(되돌이 incoming 차단). False(A)=피드백 허용.
     """
+    multipliers = multipliers or {}
+    edge_multipliers = edge_multipliers or {}
     seed_biznos = _seed_biznos(seeds)
-    delta = {b: float(multipliers.get(b, 1.0)) - 1.0 for b in seed_biznos}
+    node_delta = {b: float(multipliers.get(b, 1.0)) - 1.0 for b in seed_biznos}
+    shares = edge_in_shares(list(edge_multipliers), trade_year) if edge_multipliers else {}
     out: list[DirectionResult] = []
     warnings: list[str] = [
-        "거래량 변동(volume): shock=1+Σ_k Wᵏ·(m−1), 노드별 변동율=shock−1, 조정액=shock×기준액."
+        "거래량 변동(volume): shock=1+Σ_k Wᵏ·δ (δ=m−1 또는 share·(g−1)), 변동율=shock−1, 조정액=shock×기준액."
     ]
-    if all(abs(d) < 1e-12 for d in delta.values()):
-        warnings.append("모든 multiplier=1.0 — 변동 없음(shock=1). m≠1.0 로 변동을 지정하세요.")
+    if not any(abs(v) > 1e-12 for v in node_delta.values()) and not edge_multipliers:
+        warnings.append("변동 입력 없음(δ=0). multipliers 또는 edge_multipliers 를 지정하세요.")
     for d in directions:
         w = _weight_for(d, weight_a, weight_b)
         asm = _assemble_one(
@@ -389,30 +413,28 @@ def run_volume_shock(
             trade_year=trade_year,
             within_subgraph=within_subgraph,
             damping=damping,
-            seed_shock=delta,  # init = δ (편차), 미주입 노드는 0
+            seed_shock=node_delta,  # init = δ_seed (편차), 미주입 노드는 0
             edge_overrides=None,  # W 불변
             normalize=normalize,
             industry_code=industry_code,
         )
         warnings.extend(f"[{d}] {m}" for m in asm.warnings)
-        if pin_seeds:  # B: 시드 incoming(되돌이) 엣지 차단 → 시드는 입력값 m 고정
-            seed_ids = set(asm.init_sub_graph)
-            prop_asm = replace(
-                asm, edges=[e for e in asm.edges if e["to_bizno"] not in seed_ids]
-            )
-        else:  # A: 순환 피드백 허용
-            prop_asm = asm
-        res = run_propagation(prop_asm, **propagate_kwargs)
-        shocked = ShockResult(
-            shock_list=[
-                {"bizno": r["bizno"], "shock": 1.0 + r["shock"]} for r in res.shock_list
-            ],
-            total_shock=res.total_shock,  # = Σ 변동율(shock−1)
-            iterations=res.iterations,
-            converged=res.converged,
-        )
+        # init = 시드 δ 에 엣지 단위 δ(파트너 노드) 를 덧씌움
+        init = dict(asm.init_sub_graph)
+        biz2nid = {n.bizno: n.node_id for n in asm.nodes}
+        for (f, t), g in edge_multipliers.items():
+            nid_t = biz2nid.get(t)
+            if nid_t is None:
+                warnings.append(f"[{d}] edge ({f}→{t}) 의 to 가 서브그래프 밖 — 무시")
+                continue
+            init[nid_t] = init.get(nid_t, 0.0) + shares.get((f, t), 0.0) * (float(g) - 1.0)
+        pin_ids = set(init) if pin_seeds else set()
+        shocked = _volume_shock_result(asm, init, pin_ids, **propagate_kwargs)
         out.append(DirectionResult(d, EFFECT_LABEL[d], w, asm, shocked))
-    log.info("volume: directions=%s seeds=%d", list(directions), len(seed_biznos))
+    log.info(
+        "volume: dirs=%s seeds=%d node_mul=%d edge_mul=%d",
+        list(directions), len(seed_biznos), len(multipliers), len(edge_multipliers),
+    )
     return ScenarioResult("volume", out, warnings)
 
 
@@ -583,6 +605,7 @@ def run_scenario(
     edge_overrides: Mapping[tuple[str, str], float] | None = None,
     random_spec: RandomOverrideSpec | None = None,
     multipliers: Mapping[str, float] | None = None,
+    edge_multipliers: Mapping[tuple[str, str], float] | None = None,
     pin_seeds: bool = True,
     industry_code=None,
     **propagate_kwargs,
@@ -603,6 +626,7 @@ def run_scenario(
         return run_volume_shock(
             seeds,
             multipliers=multipliers or {},
+            edge_multipliers=edge_multipliers or {},
             directions=directions,
             weight_a=weight_a,
             weight_b=weight_b,

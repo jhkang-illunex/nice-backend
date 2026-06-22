@@ -313,10 +313,17 @@ class ScenarioRequest(BaseModel):
     multipliers: dict[str, float] = Field(
         default_factory=dict,
         description=(
-            "volume 전용 — {bizno: m} 기업별 매출/매입 변동 배수(m=1+증감율). "
+            "volume 전용 — {bizno: m} 기업 전체 매출/매입 변동 배수(m=1+증감율). "
             "0.8=20%감소·1.1=10%증가. seeds 중 미지정 기업은 무변화(δ=0)."
         ),
         examples=[{"1018116406": 0.8}],
+    )
+    edge_multipliers: list[EdgeOverrideIn] = Field(
+        default_factory=list,
+        description=(
+            "volume 전용 — 특정 거래(엣지)만 변동. (from→to) 거래가 g배, 파트너(to)에 "
+            "그 거래 비중만큼만 반영(share×(g−1)). 허브 자신은 불변. factor=g(1+증감율)."
+        ),
     )
     pin_seeds: bool = Field(
         True,
@@ -537,6 +544,9 @@ def scenario(req: ScenarioRequest) -> ScenarioResponse:
             edge_overrides=edge_overrides,
             random_spec=random_spec,
             multipliers=req.multipliers,
+            edge_multipliers={
+                (o.from_bizno, o.to_bizno): o.factor for o in req.edge_multipliers
+            },
             pin_seeds=req.pin_seeds,
             industry_code=req.industry_code,
         )
