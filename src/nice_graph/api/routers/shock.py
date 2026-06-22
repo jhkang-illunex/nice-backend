@@ -273,9 +273,12 @@ class RandomOverrideIn(BaseModel):
 
 
 class ScenarioRequest(BaseModel):
-    scenario: Literal["tariff", "transaction_change"] = Field(
+    scenario: Literal["tariff", "transaction_change", "volume"] = Field(
         ...,
-        description="tariff=W불변·시드주입 / transaction_change=엣지비중 g수정 후 변화분(Δ).",
+        description=(
+            "tariff=W불변·시드주입 / transaction_change=엣지비중 g수정 후 변화분(Δ) / "
+            "volume=기업 매출/매입 m배 변동(δ=m−1)을 시드 주입·1회 전파·매출/매입 반영."
+        ),
     )
     seeds: list[SeedIn] = Field(..., description="1차 기업 (bizno,upchecd,shock).")
     directions: list[Literal["upstream", "downstream"]] = Field(
@@ -305,6 +308,21 @@ class ScenarioRequest(BaseModel):
         description=(
             "transaction_change 전용 — 1차↔2차 매출/매입에 랜덤 g 자동 생성. "
             "지정 시 edge_overrides 대신 사용."
+        ),
+    )
+    multipliers: dict[str, float] = Field(
+        default_factory=dict,
+        description=(
+            "volume 전용 — {bizno: m} 기업별 매출/매입 변동 배수(m=1+증감율). "
+            "0.8=20%감소·1.1=10%증가. seeds 중 미지정 기업은 무변화(δ=0)."
+        ),
+        examples=[{"1018116406": 0.8}],
+    )
+    pin_seeds: bool = Field(
+        True,
+        description=(
+            "volume 전용 — True(기본): 시드를 입력값에 고정(되돌이 차단, 시드=정확히 m). "
+            "False: 순환 피드백 허용(시드도 증폭, 일반균형 총효과)."
         ),
     )
     industry_code: list[str] = Field(
@@ -518,6 +536,8 @@ def scenario(req: ScenarioRequest) -> ScenarioResponse:
             seed_shock=shock_map,
             edge_overrides=edge_overrides,
             random_spec=random_spec,
+            multipliers=req.multipliers,
+            pin_seeds=req.pin_seeds,
             industry_code=req.industry_code,
         )
     except ValueError as exc:

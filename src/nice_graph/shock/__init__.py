@@ -40,6 +40,7 @@ from nice_graph.shock.scenario import (
     run_scenario,
     run_tariff_shock,
     run_transaction_change,
+    run_volume_shock,
 )
 from nice_graph.shock.screen import (
     ExposedFirm,
@@ -75,5 +76,6 @@ __all__ = [
     "run_scenario",
     "run_tariff_shock",
     "run_transaction_change",
+    "run_volume_shock",
     "select_primary_firms",
 ]

@@ -333,6 +333,89 @@ def run_transaction_change(
     return ScenarioResult("transaction_change", out, warnings, applied_overrides=dict(ov))
 
 
+# ── 볼륨 충격 (거래량 변동 v2) — W 불변·편차 전파·매출/매입 반영 ─────────────────
+
+
+def run_volume_shock(
+    seeds,
+    *,
+    multipliers: Mapping[str, float],
+    directions: Sequence[Direction] = DEFAULT_DIRECTIONS,
+    weight_a: float = 1.0,
+    weight_b: float = 1.0,
+    depth: int = 3,
+    trade_year: str | None = None,
+    within_subgraph: bool = True,
+    damping: float = 0.85,
+    normalize: Normalize = "source",
+    pin_seeds: bool = True,
+    industry_code=None,
+    **propagate_kwargs,
+) -> ScenarioResult:
+    """거래량 변동 — 특정 기업의 매출/매입이 m배(1=중립) 변할 때 연결 기업 영향.
+
+    "쿠팡 매출 −20% → 연결 기업 매출 몇 % 변동?" 류 시나리오. W(거래 비중)는 불변,
+    충격을 **편차 δ=m−1 로 시드에 주입**해 한 번 전파한 뒤 1 을 더한다:
+        shock[node] = 1 + Σ_k Wᵏ·δ           (δ=0 인 노드는 정확히 1=무변화)
+        조정 매출/매입 = shock[node] × 기준액   (변동율 = shock−1)
+
+    difference-of-runs(W 수정·2회·차분) 와 별개 루틴. 직접 입력(실측 증감율)·1회 전파.
+
+    호출자: run_scenario(scenario='volume') · 데모 · 라이브러리/테스트.
+
+    Args:
+      seeds: 시드 기업 (bizno,upchecd) — multipliers 의 키와 매칭.
+      multipliers: {bizno: m} — m=1+증감율 (0.8=20%감소, 1.1=10%증가, 1.0=무변화).
+                   seeds 중 multipliers 에 없는 기업은 δ=0(무변화)로 처리.
+      directions: 전파 방향. 매출 감소→공급사 영향은 upstream(매입 파급) 축.
+      pin_seeds: True(기본,B)=시드를 입력값에 고정(되돌이 incoming 엣지 차단) — 시드 결과는
+                 정확히 m. False(A)=순환 피드백 허용(시드도 되돌이로 증폭, 일반균형 총효과).
+    """
+    seed_biznos = _seed_biznos(seeds)
+    delta = {b: float(multipliers.get(b, 1.0)) - 1.0 for b in seed_biznos}
+    out: list[DirectionResult] = []
+    warnings: list[str] = [
+        "거래량 변동(volume): shock=1+Σ_k Wᵏ·(m−1), 노드별 변동율=shock−1, 조정액=shock×기준액."
+    ]
+    if all(abs(d) < 1e-12 for d in delta.values()):
+        warnings.append("모든 multiplier=1.0 — 변동 없음(shock=1). m≠1.0 로 변동을 지정하세요.")
+    for d in directions:
+        w = _weight_for(d, weight_a, weight_b)
+        asm = _assemble_one(
+            seeds,
+            direction=d,
+            weight=w,
+            depth=depth,
+            trade_year=trade_year,
+            within_subgraph=within_subgraph,
+            damping=damping,
+            seed_shock=delta,  # init = δ (편차), 미주입 노드는 0
+            edge_overrides=None,  # W 불변
+            normalize=normalize,
+            industry_code=industry_code,
+        )
+        warnings.extend(f"[{d}] {m}" for m in asm.warnings)
+        if pin_seeds:  # B: 시드 incoming(되돌이) 엣지 차단 → 시드는 입력값 m 고정
+            seed_ids = set(asm.init_sub_graph)
+            prop_asm = replace(
+                asm, edges=[e for e in asm.edges if e["to_bizno"] not in seed_ids]
+            )
+        else:  # A: 순환 피드백 허용
+            prop_asm = asm
+        res = run_propagation(prop_asm, **propagate_kwargs)
+        shocked = ShockResult(
+            shock_list=[
+                {"bizno": r["bizno"], "shock": 1.0 + r["shock"]} for r in res.shock_list
+            ],
+            total_shock=res.total_shock,  # = Σ 변동율(shock−1)
+            iterations=res.iterations,
+            converged=res.converged,
+        )
+        out.append(DirectionResult(d, EFFECT_LABEL[d], w, asm, shocked))
+    log.info("volume: directions=%s seeds=%d", list(directions), len(seed_biznos))
+    return ScenarioResult("volume", out, warnings)
+
+
 # ── 1차↔2차 매출/매입 랜덤 가중치 생성 ─────────────────────────────────────────
 
 
@@ -499,6 +582,8 @@ def run_scenario(
     seed_shock=1.0,
     edge_overrides: Mapping[tuple[str, str], float] | None = None,
     random_spec: RandomOverrideSpec | None = None,
+    multipliers: Mapping[str, float] | None = None,
+    pin_seeds: bool = True,
     industry_code=None,
     **propagate_kwargs,
 ) -> ScenarioResult:
@@ -507,12 +592,29 @@ def run_scenario(
     호출자: ① API 라우터 api/routers/shock.py `scenario()` (별칭 _run_scenario)
             ② Streamlit 데모 nice_demo/app_shock.py `step_scenario()`
             ③ 라이브러리 직접(테스트·스크립트).
-    외부 진입은 이 함수로 일원화 — 내부에서 tariff/transaction_change 로 분기한다.
+    외부 진입은 이 함수로 일원화 — 내부에서 tariff/transaction_change/volume 로 분기.
 
     tariff             : run_tariff_shock.
     transaction_change : random_spec 있으면 1차↔2차 랜덤 g 생성, 없으면 edge_overrides 사용.
-    결과 ``.applied_overrides`` 로 실제 적용된 g 노출.
+                         결과 ``.applied_overrides`` 로 실제 적용된 g 노출.
+    volume             : run_volume_shock — multipliers{bizno:m}, pin_seeds(시드 고정).
     """
+    if scenario == "volume":
+        return run_volume_shock(
+            seeds,
+            multipliers=multipliers or {},
+            directions=directions,
+            weight_a=weight_a,
+            weight_b=weight_b,
+            depth=depth,
+            trade_year=trade_year,
+            within_subgraph=within_subgraph,
+            damping=damping,
+            normalize=normalize,
+            pin_seeds=pin_seeds,
+            industry_code=industry_code,
+            **propagate_kwargs,
+        )
     common = dict(
         weight_a=weight_a,
         weight_b=weight_b,
@@ -528,7 +630,7 @@ def run_scenario(
     if scenario == "tariff":
         return run_tariff_shock(seeds, **common, **propagate_kwargs)
     if scenario != "transaction_change":
-        raise ValueError(f"scenario 는 tariff|transaction_change: {scenario!r}")
+        raise ValueError(f"scenario 는 tariff|transaction_change|volume: {scenario!r}")
     if random_spec is not None:
         ov: dict = build_primary_secondary_random_overrides(
             seeds,
