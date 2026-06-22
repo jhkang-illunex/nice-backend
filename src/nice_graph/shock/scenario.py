@@ -337,6 +337,45 @@ def run_transaction_change(
 # ── 볼륨 충격 (거래량 변동 v2) — W 불변·편차 전파·매출/매입 반영 ─────────────────
 
 
+@dataclass
+class VolumeSpec:
+    """거래량 변동 입력 1건 — 1차 기업의 매출/매입 거래가 factor 배.
+
+    bizno  : 1차(시드) 기업.
+    side   : 'sales'(매출=1차→2차) | 'purchase'(매입=2차→1차).
+    factor : g = 1+증감율 (0.8=20%감소, 1.1=10%증가).
+    partner: 2차 bizno. None 이면 **1차의 그 side 모든 거래처**에 적용.
+    """
+
+    bizno: str
+    side: str
+    factor: float
+    partner: str | None = None
+
+
+# side ↔ 전파 방향: 매출 변동=하류(downstream), 매입 변동=상류(upstream).
+_SIDE_DIRECTION = {"sales": "downstream", "purchase": "upstream"}
+
+
+def _firm_specs_delta(
+    specs: Sequence[VolumeSpec], side: str, trade_year, biz2nid: dict[str, str]
+) -> dict[str, float]:
+    """해당 side 의 VolumeSpec 들을 상대(2차) 노드 δ 로 환산 (거래 비중 가중)."""
+    from nice_graph.shock.assemble import firm_partner_shares
+
+    delta: dict[str, float] = {}
+    for sp in specs:
+        if sp.side != side:
+            continue
+        shares = firm_partner_shares(sp.bizno, side, trade_year, partner=sp.partner)
+        for partner_b, share in shares.items():
+            nid = biz2nid.get(partner_b)
+            if nid is None:
+                continue
+            delta[nid] = delta.get(nid, 0.0) + share * (float(sp.factor) - 1.0)
+    return delta
+
+
 def _volume_shock_result(asm, init_delta, pin_ids, **propagate_kwargs):
     """init_delta(편차) 로 1회 전파 → shock=1+propagated. pin_ids 노드는 incoming 차단."""
     prop_asm = replace(
@@ -356,6 +395,7 @@ def _volume_shock_result(asm, init_delta, pin_ids, **propagate_kwargs):
 def run_volume_shock(
     seeds,
     *,
+    firm_specs: Sequence[VolumeSpec] | None = None,
     multipliers: Mapping[str, float] | None = None,
     edge_multipliers: Mapping[tuple[str, str], float] | None = None,
     directions: Sequence[Direction] = DEFAULT_DIRECTIONS,
@@ -394,15 +434,22 @@ def run_volume_shock(
     """
     multipliers = multipliers or {}
     edge_multipliers = edge_multipliers or {}
+    firm_specs = list(firm_specs or [])
     seed_biznos = _seed_biznos(seeds)
     node_delta = {b: float(multipliers.get(b, 1.0)) - 1.0 for b in seed_biznos}
     shares = edge_in_shares(list(edge_multipliers), trade_year) if edge_multipliers else {}
+    # firm_specs 있으면 방향을 side 로부터 도출(매출→하류, 매입→상류).
+    if firm_specs:
+        directions = tuple(
+            dict.fromkeys(_SIDE_DIRECTION[sp.side] for sp in firm_specs)
+        )
     out: list[DirectionResult] = []
     warnings: list[str] = [
         "거래량 변동(volume): shock=1+Σ_k Wᵏ·δ (δ=m−1 또는 share·(g−1)), 변동율=shock−1, 조정액=shock×기준액."
     ]
-    if not any(abs(v) > 1e-12 for v in node_delta.values()) and not edge_multipliers:
-        warnings.append("변동 입력 없음(δ=0). multipliers 또는 edge_multipliers 를 지정하세요.")
+    if not any(abs(v) > 1e-12 for v in node_delta.values()) and not edge_multipliers \
+            and not firm_specs:
+        warnings.append("변동 입력 없음(δ=0). firm_specs/multipliers/edge_multipliers 지정 필요.")
     for d in directions:
         w = _weight_for(d, weight_a, weight_b)
         asm = _assemble_one(
@@ -419,7 +466,7 @@ def run_volume_shock(
             industry_code=industry_code,
         )
         warnings.extend(f"[{d}] {m}" for m in asm.warnings)
-        # init = 시드 δ 에 엣지 단위 δ(파트너 노드) 를 덧씌움
+        # init = 시드 δ 에 엣지/firm_specs δ(파트너 노드) 를 덧씌움
         init = dict(asm.init_sub_graph)
         biz2nid = {n.bizno: n.node_id for n in asm.nodes}
         for (f, t), g in edge_multipliers.items():
@@ -428,6 +475,10 @@ def run_volume_shock(
                 warnings.append(f"[{d}] edge ({f}→{t}) 의 to 가 서브그래프 밖 — 무시")
                 continue
             init[nid_t] = init.get(nid_t, 0.0) + shares.get((f, t), 0.0) * (float(g) - 1.0)
+        # firm_specs — 이 방향(side)에 해당하는 1차 거래처별 δ (거래 비중 가중)
+        side = "sales" if d == "downstream" else "purchase"
+        for nid, dv in _firm_specs_delta(firm_specs, side, trade_year, biz2nid).items():
+            init[nid] = init.get(nid, 0.0) + dv
         pin_ids = set(init) if pin_seeds else set()
         shocked = _volume_shock_result(asm, init, pin_ids, **propagate_kwargs)
         out.append(DirectionResult(d, EFFECT_LABEL[d], w, asm, shocked))
@@ -604,6 +655,7 @@ def run_scenario(
     seed_shock=1.0,
     edge_overrides: Mapping[tuple[str, str], float] | None = None,
     random_spec: RandomOverrideSpec | None = None,
+    firm_specs: Sequence[VolumeSpec] | None = None,
     multipliers: Mapping[str, float] | None = None,
     edge_multipliers: Mapping[tuple[str, str], float] | None = None,
     pin_seeds: bool = True,
@@ -625,6 +677,7 @@ def run_scenario(
     if scenario == "volume":
         return run_volume_shock(
             seeds,
+            firm_specs=firm_specs,
             multipliers=multipliers or {},
             edge_multipliers=edge_multipliers or {},
             directions=directions,

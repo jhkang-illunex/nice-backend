@@ -20,6 +20,9 @@ from nice_graph.shock import (
     RandomOverrideSpec as _RandomOverrideSpec,
 )
 from nice_graph.shock import (
+    VolumeSpec as _VolumeSpec,
+)
+from nice_graph.shock import (
     assemble_propagation_input as _assemble,
 )
 from nice_graph.shock import (
@@ -257,6 +260,22 @@ class EdgeOverrideIn(BaseModel):
     )
 
 
+class VolumeSpecIn(BaseModel):
+    """volume 전용 — 1차 기업의 매출/매입 거래량 변동 1건."""
+
+    bizno: str = Field(..., description="1차(시드) 기업 bizno.", examples=["1018116406"])
+    side: Literal["sales", "purchase"] = Field(
+        ..., description="sales=매출(1차→2차) / purchase=매입(2차→1차)."
+    )
+    factor: float = Field(
+        ..., ge=0.0, le=3.0,
+        description="g=1+증감율. 0.8=20%감소·1.1=10%증가.", examples=[0.8, 1.1],
+    )
+    partner: str | None = Field(
+        None, description="2차 bizno. None=1차의 그 side 모든 거래처에 적용."
+    )
+
+
 class RandomOverrideIn(BaseModel):
     """transaction_change 전용 — 1차↔2차 매출/매입 거래에 랜덤 g 자동 부여."""
 
@@ -318,10 +337,18 @@ class ScenarioRequest(BaseModel):
         ),
         examples=[{"1018116406": 0.8}],
     )
+    firm_specs: list[VolumeSpecIn] = Field(
+        default_factory=list,
+        description=(
+            "volume 전용(권장) — 1차 기업의 매출/매입 거래량 변동. partner 미지정 시 "
+            "1차의 그 side 모든 거래처에 적용. 매출→하류·매입→상류 전파, 상대(2차)에 "
+            "거래 비중 가중 주입. 방향은 side 로 자동 결정."
+        ),
+    )
     edge_multipliers: list[EdgeOverrideIn] = Field(
         default_factory=list,
         description=(
-            "volume 전용 — 특정 거래(엣지)만 변동. (from→to) 거래가 g배, 파트너(to)에 "
+            "volume 저수준 — 특정 거래(엣지)만 변동. (from→to) 거래가 g배, 파트너(to)에 "
             "그 거래 비중만큼만 반영(share×(g−1)). 허브 자신은 불변. factor=g(1+증감율)."
         ),
     )
@@ -543,6 +570,10 @@ def scenario(req: ScenarioRequest) -> ScenarioResponse:
             seed_shock=shock_map,
             edge_overrides=edge_overrides,
             random_spec=random_spec,
+            firm_specs=[
+                _VolumeSpec(bizno=s.bizno, side=s.side, factor=s.factor, partner=s.partner)
+                for s in req.firm_specs
+            ],
             multipliers=req.multipliers,
             edge_multipliers={
                 (o.from_bizno, o.to_bizno): o.factor for o in req.edge_multipliers

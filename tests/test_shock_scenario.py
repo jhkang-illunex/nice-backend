@@ -23,6 +23,7 @@ from nice_graph.shock.scenario import (
     DirectionResult,
     RandomOverrideSpec,
     ScenarioResult,
+    VolumeSpec,
     build_primary_secondary_random_overrides,
     run_scenario,
     run_tariff_shock,
@@ -653,3 +654,29 @@ def test_volume_edge_multipliers_share_weighted(monkeypatch) -> None:
     by = {r["bizno"]: r["shock"] for r in res.directions[0].result.shock_list}
     assert by["A|1"] == pytest.approx(1.0)          # 허브 불변(δ=0)
     assert by["B|2"] == pytest.approx(1.0 + 0.4 * 0.2)  # share0.4 × +20% = +8%
+
+
+def test_volume_firm_specs_sales_auto_direction(monkeypatch) -> None:
+    """firm_specs 매출 spec → 방향 downstream 자동, 상대 B 에 share·(g−1) 주입."""
+    from nice_graph.shock.assemble import AssembledNode
+
+    def fake(seeds, *, seed_shock, edge_overrides=None, **kw):
+        init = {f"{b}|1": float(seed_shock[b]) for b in seed_shock}
+        nodes = [
+            AssembledNode(node_id="A|1", bizno="A", upchecd="1", korentrnm="1차",
+                          is_seed=True, seed_shock=init.get("A|1", 0.0)),
+            AssembledNode(node_id="B|2", bizno="B", upchecd="2", korentrnm="매출처",
+                          is_seed=False, seed_shock=0.0),
+        ]
+        return PropagationInput(
+            edges=[{"from_bizno": "A|1", "to_bizno": "B|2", "rate": 0.5}],
+            init_sub_graph=init, depth=3, nodes=nodes,
+        )
+
+    monkeypatch.setattr(scen_mod, "assemble_propagation_input", fake)
+    monkeypatch.setattr(asm_mod, "firm_partner_shares",
+                        lambda b, side, ty, partner=None: {"B": 0.5} if side == "sales" else {})
+    res = run_volume_shock([("A", "1")], firm_specs=[VolumeSpec("A", "sales", 0.8)])
+    assert [d.direction for d in res.directions] == ["downstream"]  # side→방향 자동
+    by = {r["bizno"]: r["shock"] for r in res.directions[0].result.shock_list}
+    assert by["B|2"] == pytest.approx(1.0 + 0.5 * -0.2)  # share0.5 × −20% = −10%
