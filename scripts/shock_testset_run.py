@@ -167,6 +167,32 @@ def _fmt_args(args: dict, graph: dict) -> str:
     return "\n".join(lines)
 
 
+def _render_mermaid(graph: dict) -> list[str]:
+    """방향성 엣지(셀러→바이어) + 거래금액 라벨 그래프 다이어그램(Mermaid)."""
+    nm = {n["bizno"]: n["name"] for n in graph["nodes"]}
+
+    def nid(b: str) -> str:
+        return "N" + b
+
+    out = ["```mermaid", "flowchart LR"]
+    out.append("  classDef seed fill:#ffe9a8,stroke:#d4a017,stroke-width:2px;")
+    out.append("  classDef tier3 fill:#eef2f7,stroke:#9bb0c9;")
+    for n in graph["nodes"]:
+        out.append(f'  {nid(n["bizno"])}["{n["name"]}"]')
+    for e in graph["edges"]:
+        out.append(f'  {nid(e["from"])} -->|"{e["amount"]:,}"| {nid(e["to"])}')
+    seed_ids = ",".join(nid(b) for b in graph["seeds"])
+    out.append(f"  class {seed_ids} seed;")
+    tier3 = [nid(n["bizno"]) for n in graph["nodes"] if n["tier"] == 3]
+    if tier3:
+        out.append(f"  class {','.join(tier3)} tier3;")
+    out.append("```")
+    out.append("")
+    out.append(f"_노드 색: 노란=시드(1차), 회색=3차. 화살표=셀러→바이어, 라벨=거래금액(원). (총 {len(nm)}노드)_")
+    out.append("")
+    return out
+
+
 def _short(name: str) -> str:
     """매트릭스 헤더용 짧은 라벨: '공급사P(2차)'→'공급P', '고객A(2차)'→'고객A'."""
     return name.split("(")[0].replace("공급사", "공급")
@@ -212,6 +238,8 @@ def build_md(graph: dict, results: list[dict]) -> str:
     md.append("## 1. 테스트 그래프 구조 (12노드)\n")
     md.append(f"- 시드(1차) {len(graph['seeds'])}곳 + depth-3 연결 노드 = 총 {len(graph['nodes'])}노드, "
               f"{len(graph['edges'])}엣지. `edge_direction`: {m['edge_direction']}\n")
+    md.append("### 그래프 다이어그램 (방향성 엣지 + 거래금액)\n")
+    md.extend(_render_mermaid(graph))
     md.append("### 노드\n")
     md.append("| bizno | 기업명 | tier | 시드 |")
     md.append("|---|---|---|---|")
