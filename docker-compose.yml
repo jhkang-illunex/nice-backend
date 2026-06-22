@@ -121,6 +121,47 @@ services:
     networks: [nice-net]
 
   # ─────────────────────────────────────────────────────────────────────────────
+  # Neo4j — 현재 미사용(비활성). 보존용 주석 (나중에 필요 시 해제).
+  #
+  # 현역 shock 파이프라인(nice_graph)·데모(app_shock)·RAG 는 그래프 노드/엣지를
+  # 전부 PostgreSQL 에서 읽으므로 Neo4j 가 필요 없다. Neo4j 를 참조하는 코드는
+  # 레거시 적재 계층(nice_poc.etl.sinks.neo4j / nice_poc.result dual-write /
+  # nice_ingest)뿐이며 현재 어떤 실행 서비스에도 포함되지 않는다.
+  # 향후 dual-write ETL 을 가동할 때만 아래 service 블록 + volumes 주석을 해제할 것.
+  # (원본: 커밋 7ba0279^ 의 neo4j 서비스 정의)
+  #
+  # neo4j:
+  #   profiles: ["server1"]
+  #   image: neo4j:5.24-community
+  #   container_name: nice-neo4j
+  #   environment:
+  #     NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-nice-poc-2026}
+  #     NEO4J_PLUGINS: '["apoc"]'
+  #     NEO4J_server_memory_heap_initial__size: 2G
+  #     NEO4J_server_memory_heap_max__size: 4G
+  #     NEO4J_server_memory_pagecache_size: 8G
+  #     NEO4J_dbms_security_procedures_unrestricted: apoc.*
+  #     NEO4J_dbms_security_procedures_allowlist: apoc.*
+  #     NEO4J_apoc_export_file_enabled: "true"
+  #     NEO4J_apoc_import_file_enabled: "true"
+  #     NEO4J_apoc_import_file_use__neo4j__config: "true"
+  #   ports:
+  #     - "${NEO4J_HTTP_PORT:-7474}:7474"
+  #     - "${NEO4J_BOLT_PORT:-7687}:7687"
+  #   volumes:
+  #     - neo4j-data:/data
+  #     - neo4j-logs:/logs
+  #     - neo4j-import:/import
+  #     - neo4j-plugins:/plugins
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "cypher-shell -u $${NEO4J_AUTH%/*} -p $${NEO4J_AUTH#*/} 'RETURN 1' || exit 1"]
+  #     interval: 15s
+  #     timeout: 10s
+  #     retries: 10
+  #   restart: unless-stopped
+  #   networks: [nice-net]
+
+  # ─────────────────────────────────────────────────────────────────────────────
   # Network layer (graph-analysis)
   #
   # public.node / public.edge → networkx 분석. PG read-only, Neo4j 미사용.
@@ -268,6 +309,11 @@ volumes:
   redis-data:
   llm-models:
   embed-models:
+  # Neo4j 비활성 — 위 neo4j 서비스 주석과 함께 해제 (보존용)
+  # neo4j-data:
+  # neo4j-logs:
+  # neo4j-import:
+  # neo4j-plugins:
 
 networks:
   nice-net:
