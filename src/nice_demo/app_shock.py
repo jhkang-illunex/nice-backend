@@ -434,6 +434,51 @@ def _render_graph(asm, shock_by_node: dict[str, float], *, top_n: int) -> None:
             st.caption(f"선택: {n.korentrnm} | bizno={n.bizno} | upchecd={n.upchecd} | shock={shock_by_node.get(clicked, 0.0):.4f}")
 
 
+def _render_graph_directed(asm, shock_by_node: dict[str, float], *, top_n: int) -> None:
+    """방향성 그래프 — 화살표=전파/거래 방향, 엣지 라벨=거래 비율(rate). Graphviz.
+
+    양방향(A↔B 상호거래)은 각자 rate 라벨이 붙은 **두 개의 별도 화살표**로 그려진다
+    (vis.js 의 겹치는 두 화살표가 아니라 방향이 분명한 directed 그래프).
+    """
+    idx = asm.node_index()
+    hi = max((abs(v) for v in shock_by_node.values()), default=0.0)
+    seed_ids = {n.node_id for n in asm.nodes if n.is_seed}
+    ranked = sorted(shock_by_node.items(), key=lambda kv: abs(kv[1]), reverse=True)
+    show: set[str] = set(seed_ids)
+    for nid, _ in ranked:
+        if len(show) >= top_n:
+            break
+        show.add(nid)
+    if len(asm.nodes) > top_n:
+        st.caption(
+            f"노드 {len(asm.nodes)}개 중 상위 {len(show)}개 표시. "
+            "화살표=전파 방향(매출=셀러→바이어 / 매입=바이어→셀러), 라벨=거래 비율(rate)."
+        )
+
+    def esc(s: str) -> str:
+        return (s or "").replace("\\", "").replace('"', "'")
+
+    dot = [
+        "digraph G {",
+        "  rankdir=LR;",
+        '  bgcolor="white";',
+        '  node [shape=box, style="rounded,filled", fontsize=10, color="#9bb0c9"];',
+        '  edge [fontsize=8, color="#9bb0c9", fontcolor="#c0392b", arrowsize=0.8];',
+    ]
+    for nid in show:
+        n = idx.get(nid)
+        if n is None:
+            continue
+        sv = shock_by_node.get(nid, 0.0)
+        col = _color_for(nid, sv, hi, n.is_seed)
+        dot.append(f'  "{nid}" [label="{esc(n.korentrnm or n.bizno)}\\n{sv:+.3f}", fillcolor="{col}"];')
+    for e in asm.edges:
+        if e["from_bizno"] in show and e["to_bizno"] in show:
+            dot.append(f'  "{e["from_bizno"]}" -> "{e["to_bizno"]}" [label="{e["rate"]:.3f}"];')
+    dot.append("}")
+    st.graphviz_chart("\n".join(dot), use_container_width=True)
+
+
 def _render_direction(dr, scenario: str, cfg: dict) -> None:
     """한 방향(매출/매입)의 노드·에지·값 그리드 + 네트워크 그래프."""
     asm = dr.assembled
@@ -453,9 +498,12 @@ def _render_direction(dr, scenario: str, cfg: dict) -> None:
     for w in asm.warnings:
         st.warning(w)
 
-    tab_g, tab_n, tab_e, tab_r, tab_amt = st.tabs(
-        ["네트워크 그래프", "노드 그리드", "엣지 그리드 (rate)", f"{val_label} 결과", "금액 결과표(STEP6)"]
+    tab_dg, tab_g, tab_n, tab_e, tab_r, tab_amt = st.tabs(
+        ["방향성 그래프(거래비율)", "인터랙티브 그래프", "노드 그리드",
+         "엣지 그리드 (rate)", f"{val_label} 결과", "금액 결과표(STEP6)"]
     )
+    with tab_dg:
+        _render_graph_directed(asm, shock_by_node, top_n=cfg["viz_top"])
     with tab_g:
         _render_graph(asm, shock_by_node, top_n=cfg["viz_top"])
     with tab_n:
