@@ -99,7 +99,13 @@ def sidebar() -> dict:
     # 전역 감쇠율(damping α) 제거 — 감쇠는 SCC 엔진의 '조건부 damping'(ρ≥1 순환에만)으로만 적용.
     # assemble 에는 damping=1.0(무감쇠) 고정 전달.
     within = st.sidebar.checkbox("서브그래프 내 정규화 (Σ_out=1)", value=True)
-    use_score = st.sidebar.checkbox("초기충격 = 시드 score 비례", value=True)
+    shock_amount = st.sidebar.slider(
+        "충격량 (시드 초기충격)", -2.0, 2.0, value=1.0, step=0.05,
+        help="시드에 주입하는 외생충격. 음수=감소/역방향 충격. 0 은 사용 불가.",
+    )
+    if shock_amount == 0.0:
+        st.sidebar.error("충격량은 0 을 쓸 수 없습니다 — −2~2 범위에서 0 이 아닌 값을 선택하세요.")
+        st.stop()
     viz_top = st.sidebar.slider("그래프 표시 상위 N 노드 (shock)", 20, 400, value=80, step=20)
 
     st.sidebar.markdown("---")
@@ -149,17 +155,9 @@ def sidebar() -> dict:
                 help="선택 방향(매출=하류/매입=상류) 거래량 증감(m=1+증감율).",
             )
             preset_factor = round(1.0 + chg_pct / 100.0, 4)
-    weight_a = st.sidebar.slider(
-        "가중치 A — 매출/하류(매출처)", -2.0, 2.0, value=1.0, step=0.05,
-        help="rate 에 곱하는 방향 가중치. 음수=역방향 파급. 0 은 사용 불가.",
-    )
-    weight_b = st.sidebar.slider(
-        "가중치 B — 매입/상류(매입처)", -2.0, 2.0, value=1.0, step=0.05,
-        help="rate 에 곱하는 방향 가중치. 음수=역방향 파급. 0 은 사용 불가.",
-    )
-    if weight_a == 0.0 or weight_b == 0.0:
-        st.sidebar.error("가중치는 0 을 쓸 수 없습니다 — −2~2 범위에서 0 이 아닌 값을 선택하세요.")
-        st.stop()
+    # 가중치 A/B 는 1.0 고정(UI 제거) — 방향 비중은 미사용. 충격 크기는 위 '충격량' 으로 조절.
+    weight_a = 1.0
+    weight_b = 1.0
     norm_label = st.sidebar.radio(
         "정규화 기준",
         ["거래비율·무감쇠 (none)", "전파소스 (수렴보장)", "거래상대 (매출·매입 비중)"],
@@ -202,7 +200,7 @@ def sidebar() -> dict:
         "depth": int(depth),
         "damping": 1.0,  # 전역 무감쇠 — 감쇠는 조건부 damping(SCC)으로만
         "within": bool(within),
-        "use_score": bool(use_score),
+        "shock_amount": float(shock_amount),
         "viz_top": int(viz_top),
         "scenario": scenario,
         "directions": directions,
@@ -329,7 +327,7 @@ def step_scenario(cfg: dict) -> None:
         return
 
     seed_pairs = [(b, u) for b, u, _ in seeds]
-    seed_shock = {b: (s if cfg["use_score"] else 1.0) for b, _, s in seeds}
+    seed_shock = {b: cfg["shock_amount"] for b, _, _ in seeds}  # 시드 균등 충격량(−2~2, 0 제외)
     seed_biznos = {b for b, _, _ in seeds}
 
     common = dict(
@@ -347,7 +345,7 @@ def step_scenario(cfg: dict) -> None:
     )
     st.caption(
         f"시나리오=**{cfg['scenario']}** · 방향={cfg['directions']} · "
-        f"A(매출)={cfg['weight_a']} · B(매입)={cfg['weight_b']} · depth={cfg['depth']} · "
+        f"충격량={cfg['shock_amount']} · depth={cfg['depth']} · "
         f"정규화={cfg['normalize']} · "
         + (f"조건부 damping={cfg['cycle_damping']}(ρ≥1 순환) · " if cfg['method'] == "scc" else "전역 무감쇠 · ")
         + f"거래연도={cfg['trade_year'] or '전체'}"
