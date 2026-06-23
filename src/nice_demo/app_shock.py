@@ -96,7 +96,8 @@ def sidebar() -> dict:
         help="company_edge.trade_year 기준. '전체'=전 연도 합산. 데이터: 2024·2026.",
     )
     depth = st.sidebar.slider("확장 depth", 1, 6, value=3)
-    damping = st.sidebar.slider("damping α (감쇠율)", 0.1, 1.0, value=0.85, step=0.05)
+    # 전역 감쇠율(damping α) 제거 — 감쇠는 SCC 엔진의 '조건부 damping'(ρ≥1 순환에만)으로만 적용.
+    # assemble 에는 damping=1.0(무감쇠) 고정 전달.
     within = st.sidebar.checkbox("서브그래프 내 정규화 (Σ_out=1)", value=True)
     use_score = st.sidebar.checkbox("초기충격 = 시드 score 비례", value=True)
     viz_top = st.sidebar.slider("그래프 표시 상위 N 노드 (shock)", 20, 400, value=80, step=20)
@@ -190,7 +191,7 @@ def sidebar() -> dict:
         "top_k": int(top_k),
         "min_ratio": float(min_ratio),
         "depth": int(depth),
-        "damping": float(damping),
+        "damping": 1.0,  # 전역 무감쇠 — 감쇠는 조건부 damping(SCC)으로만
         "within": bool(within),
         "use_score": bool(use_score),
         "viz_top": int(viz_top),
@@ -338,8 +339,9 @@ def step_scenario(cfg: dict) -> None:
     st.caption(
         f"시나리오=**{cfg['scenario']}** · 방향={cfg['directions']} · "
         f"A(매출)={cfg['weight_a']} · B(매입)={cfg['weight_b']} · depth={cfg['depth']} · "
-        f"damping={cfg['damping']} · 정규화={cfg['normalize']} · "
-        f"거래연도={cfg['trade_year'] or '전체'}"
+        f"정규화={cfg['normalize']} · "
+        + (f"조건부 damping={cfg['cycle_damping']}(ρ≥1 순환) · " if cfg['method'] == "scc" else "전역 무감쇠 · ")
+        + f"거래연도={cfg['trade_year'] or '전체'}"
     )
 
     # 거래량 변동(volume): 적용 대상 시드 선택 → 그 1차의 (방향별 side) 거래에 증감율
@@ -595,13 +597,14 @@ def _render_direction(dr, scenario: str, cfg: dict) -> None:
         c3.metric("조건부 damping 순환", len(damped))
     else:
         c3.metric("반복(iter)", dr.result.iterations)
-    c4.metric("수렴", "✅" if dr.result.converged else "❌ ρ≥α?")
+    c4.metric("수렴", "✅" if dr.result.converged else "❌ 발산")
     c5.metric(f"Σ {val_label}", f"{dr.result.total_shock:.3f}")
     engine_kr = "SCC 닫힌해(반복0회)" if method == "scc" else "반복 거듭제곱급수"
+    cond = f"조건부 damping={cfg.get('cycle_damping', 0.95)}(ρ≥1)" if method == "scc" else "전역 무감쇠"
     st.caption(
         f"engine={engine_kr} · effect={dr.effect_label} · direction={asm.direction} · "
         f"weight={dr.weight} · rate_kind={asm.rate_kind} · "
-        f"within_subgraph={asm.within_subgraph} · damping={asm.damping}"
+        f"within_subgraph={asm.within_subgraph} · {cond}"
     )
     if damped:
         node_name = {n.node_id: (n.korentrnm or n.bizno) for n in asm.nodes}
