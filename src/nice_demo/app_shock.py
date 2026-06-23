@@ -106,6 +106,11 @@ def sidebar() -> dict:
     if shock_amount == 0.0:
         st.sidebar.error("충격량은 0 을 쓸 수 없습니다 — −2~2 범위에서 0 이 아닌 값을 선택하세요.")
         st.stop()
+    pin_seeds = st.sidebar.checkbox(
+        "시드 고정 (pin — 자기 되먹임 차단)", value=True,
+        help="시드로 들어오는 엣지를 끊어 시드를 주입 충격량에 고정. 시드가 자기 순환을 돌아 "
+        "증폭되는 것을 막고, 충격은 거래처로만 전파(시드=1차 외생원). 끄면 시드도 순환 등비급수에 포함.",
+    )
     viz_top = st.sidebar.slider("그래프 표시 상위 N 노드 (shock)", 20, 400, value=80, step=20)
 
     st.sidebar.markdown("---")
@@ -201,6 +206,7 @@ def sidebar() -> dict:
         "damping": 1.0,  # 전역 무감쇠 — 감쇠는 조건부 damping(SCC)으로만
         "within": bool(within),
         "shock_amount": float(shock_amount),
+        "pin_seeds": bool(pin_seeds),
         "viz_top": int(viz_top),
         "scenario": scenario,
         "directions": directions,
@@ -342,11 +348,12 @@ def step_scenario(cfg: dict) -> None:
         seed_shock=seed_shock,
         method=cfg["method"],
         cycle_damping=cfg["cycle_damping"],
+        pin_seeds=cfg["pin_seeds"],
     )
     st.caption(
         f"시나리오=**{cfg['scenario']}** · 방향={cfg['directions']} · "
-        f"충격량={cfg['shock_amount']} · depth={cfg['depth']} · "
-        f"정규화={cfg['normalize']} · "
+        f"충격량={cfg['shock_amount']} · 시드고정(pin)={'ON' if cfg['pin_seeds'] else 'OFF'} · "
+        f"depth={cfg['depth']} · 정규화={cfg['normalize']} · "
         + (f"조건부 damping={cfg['cycle_damping']}(ρ≥1 순환) · " if cfg['method'] == "scc" else "전역 무감쇠 · ")
         + f"거래연도={cfg['trade_year'] or '전체'}"
     )

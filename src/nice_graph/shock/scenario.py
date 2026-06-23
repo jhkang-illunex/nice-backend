@@ -135,10 +135,14 @@ def run_tariff_shock(
     damping: float = 0.85,
     seed_shock=1.0,
     normalize: Normalize = "source",
+    pin_seeds: bool = False,
     industry_code=None,
     **propagate_kwargs,
 ) -> ScenarioResult:
     """관세 충격 — W 불변, 시드에 외생 충격만 주입. 요청 방향 각각 전파.
+
+    pin_seeds=True 면 시드로 **들어오는** 엣지를 끊어 시드를 주입 충격량에 고정한다
+    (시드 자기 순환 되먹임 차단 → 시드는 외생 원인으로만 작동, 충격은 바깥으로만 전파).
 
     호출자: run_scenario(권장 진입점) · 라이브러리 직접 · 테스트.
             (API 라우터·데모는 run_scenario 를 통해 간접 호출)
@@ -168,9 +172,16 @@ def run_tariff_shock(
             industry_code=industry_code,
         )
         warnings.extend(f"[{d}] {m}" for m in asm.warnings)
-        res = run_propagation(asm, **propagate_kwargs)
-        out.append(DirectionResult(d, EFFECT_LABEL[d], w, asm, res))
-    log.info("tariff: directions=%s seeds_done", list(directions))
+        if pin_seeds:  # 시드 incoming 차단 → 시드 자기 되먹임 제거(주입값 고정)
+            pin_ids = set(asm.init_sub_graph)
+            prop_asm = replace(
+                asm, edges=[e for e in asm.edges if e["to_bizno"] not in pin_ids]
+            )
+        else:
+            prop_asm = asm
+        res = run_propagation(prop_asm, **propagate_kwargs)
+        out.append(DirectionResult(d, EFFECT_LABEL[d], w, asm, res))  # asm=전체(표시용)
+    log.info("tariff: directions=%s pin_seeds=%s seeds_done", list(directions), pin_seeds)
     return ScenarioResult("tariff", out, warnings)
 
 
@@ -402,6 +413,7 @@ def run_scenario(
         damping=damping,
         normalize=normalize,
         seed_shock=seed_shock,
+        pin_seeds=pin_seeds,
         industry_code=industry_code,
         **propagate_kwargs,
     )
