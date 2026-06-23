@@ -474,8 +474,10 @@ def assemble_propagation_input(
                  가중치 B, 정규화=바이어 총매입). 방향에 따라 엣지 방향과 정규화
                  분모를 함께 뒤집어 Σ_out≤1(수렴) 을 유지한다. (라벨/가중치는 문서 기준)
       direction_weight: 방향 비중 가중치 A(상류)/B(하류). rate 에 곱하는 스칼라.
-                        effective Σ_out ≤ direction_weight·damping → 이 곱이 ≤1 이어야
-                        수렴 보장. >1 이면 warnings 로 표면화(발산 위험).
+                        **0 이 아닌 값**(음수 허용, 예: −2~2). 음수면 역방향(반대 부호)
+                        파급을 모델링하고 음수 rate 엣지도 유지된다. |곱|=|direction_weight|·
+                        damping 이 ≤1 이어야 수렴 보장, >1 이면 warnings 로 표면화
+                        (반복 엔진 발산 위험; SCC 엔진은 조건부 damping 으로 유한 처리).
       normalize: rate 분모 기준 (방향과 직교). ``source``(전파 source 기준, Σ_out≤W·α≤1
                  **절대수렴 보장**, 기본) | ``counterparty``(거래상대 기준 = 경제적
                  매출/매입 비중 라벨 충실, 단 Σ_out>1 가능 → **수렴 보장 약화**,
@@ -496,13 +498,13 @@ def assemble_propagation_input(
         raise ValueError(f"direction 은 downstream|upstream: {direction!r}")
     if normalize not in ("source", "counterparty", "none"):
         raise ValueError(f"normalize 는 source|counterparty|none: {normalize!r}")
-    if direction_weight <= 0:
-        raise ValueError(f"direction_weight 은 양수여야 함: {direction_weight}")
+    if direction_weight == 0:
+        raise ValueError(f"direction_weight 은 0 이 아니어야 함 (음수 허용): {direction_weight}")
     warnings: list[str] = []
-    if normalize != "none" and direction_weight * damping > 1.0:
+    if normalize != "none" and abs(direction_weight) * damping > 1.0:
         warnings.append(
-            f"direction_weight({direction_weight})·damping({damping})={direction_weight * damping:.3f}>1 "
-            "→ ρ(R) 가 1 을 넘어 발산할 수 있음 (수렴 보장 깨짐)"
+            f"|direction_weight|({abs(direction_weight)})·damping({damping})={abs(direction_weight) * damping:.3f}>1 "
+            "→ ρ(R) 가 1 을 넘어 발산 가능 (반복 엔진 미수렴; SCC 엔진은 조건부 damping 으로 처리)"
         )
     if normalize == "counterparty":
         warnings.append(
@@ -586,7 +588,7 @@ def assemble_propagation_input(
             rate = direction_weight * (float(amt) / denom) * g
         else:
             rate = direction_weight * damping * (float(amt) / denom) * g
-        if rate <= 0:
+        if rate == 0:  # g=0(엣지 차단) 등으로 0 인 엣지만 제외. 음수 rate(음수 가중치)는 유지.
             continue
         if direction == "downstream":
             src_id, dst_id = nid(from_b), nid(to_b)

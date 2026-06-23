@@ -149,8 +149,17 @@ def sidebar() -> dict:
                 help="선택 방향(매출=하류/매입=상류) 거래량 증감(m=1+증감율).",
             )
             preset_factor = round(1.0 + chg_pct / 100.0, 4)
-    weight_a = st.sidebar.slider("가중치 A — 매출/하류(매출처)", 0.05, 1.0, value=1.0, step=0.05)
-    weight_b = st.sidebar.slider("가중치 B — 매입/상류(매입처)", 0.05, 1.0, value=1.0, step=0.05)
+    weight_a = st.sidebar.slider(
+        "가중치 A — 매출/하류(매출처)", -2.0, 2.0, value=1.0, step=0.05,
+        help="rate 에 곱하는 방향 가중치. 음수=역방향 파급. 0 은 사용 불가.",
+    )
+    weight_b = st.sidebar.slider(
+        "가중치 B — 매입/상류(매입처)", -2.0, 2.0, value=1.0, step=0.05,
+        help="rate 에 곱하는 방향 가중치. 음수=역방향 파급. 0 은 사용 불가.",
+    )
+    if weight_a == 0.0 or weight_b == 0.0:
+        st.sidebar.error("가중치는 0 을 쓸 수 없습니다 — −2~2 범위에서 0 이 아닌 값을 선택하세요.")
+        st.stop()
     norm_label = st.sidebar.radio(
         "정규화 기준",
         ["거래비율·무감쇠 (none)", "전파소스 (수렴보장)", "거래상대 (매출·매입 비중)"],
