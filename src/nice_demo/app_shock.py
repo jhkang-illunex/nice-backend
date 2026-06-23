@@ -415,10 +415,15 @@ def _color_for(node_id: str, shock_val: float, hi: float, is_seed: bool) -> str:
     return _COLOR_COLD
 
 
-def _graph_payload(asm, shock_by_node: dict[str, float], top_n: int) -> tuple[list, list]:
-    """표시 대상(시드 ∪ |shock| 상위 top_n)의 vis.js 노드·엣지 dict 리스트."""
-    idx = asm.node_index()
-    hi = max((abs(v) for v in shock_by_node.values()), default=0.0)
+def _connected_show(asm, shock_by_node: dict[str, float], top_n: int):
+    """표시 노드 = (시드 ∪ |shock| 상위 top_n) 중 **표시 에지로 실제 연결된** 노드만.
+
+    top_n 에 들었어도 거래상대가 top_n 밖이라 표시 그래프에서 고립되는 노드는 제거한다
+    (시드는 전파 기점이라 항상 유지). 전파 결과는 정상이고, 단지 상위 N 컷으로 인한
+    '에지 없는 노드' 표시를 없애는 시각화 정리.
+
+    반환: (show set, kept_edges list).
+    """
     seed_ids = {n.node_id for n in asm.nodes if n.is_seed}
     ranked = sorted(shock_by_node.items(), key=lambda kv: abs(kv[1]), reverse=True)
     show: set[str] = set(seed_ids)
@@ -426,6 +431,19 @@ def _graph_payload(asm, shock_by_node: dict[str, float], top_n: int) -> tuple[li
         if len(show) >= top_n:
             break
         show.add(nid)
+    kept_edges = [
+        e for e in asm.edges if e["from_bizno"] in show and e["to_bizno"] in show
+    ]
+    connected = {e["from_bizno"] for e in kept_edges} | {e["to_bizno"] for e in kept_edges}
+    show = {nid for nid in show if nid in connected or nid in seed_ids}
+    return show, kept_edges
+
+
+def _graph_payload(asm, shock_by_node: dict[str, float], top_n: int) -> tuple[list, list]:
+    """표시 대상(시드 ∪ |shock| 상위 top_n, 고립 제거)의 vis.js 노드·엣지 dict 리스트."""
+    idx = asm.node_index()
+    hi = max((abs(v) for v in shock_by_node.values()), default=0.0)
+    show, kept_edges = _connected_show(asm, shock_by_node, top_n)
     nodes = []
     for nid in show:
         n = idx.get(nid)
@@ -442,8 +460,7 @@ def _graph_payload(asm, shock_by_node: dict[str, float], top_n: int) -> tuple[li
         })
     edges = [
         {"from": e["from_bizno"], "to": e["to_bizno"], "label": f"{e['rate']:.3f}", "arrows": "to"}
-        for e in asm.edges
-        if e["from_bizno"] in show and e["to_bizno"] in show
+        for e in kept_edges
     ]
     return nodes, edges
 
@@ -545,16 +562,10 @@ def _render_graph_directed(asm, shock_by_node: dict[str, float], *, top_n: int) 
     """
     idx = asm.node_index()
     hi = max((abs(v) for v in shock_by_node.values()), default=0.0)
-    seed_ids = {n.node_id for n in asm.nodes if n.is_seed}
-    ranked = sorted(shock_by_node.items(), key=lambda kv: abs(kv[1]), reverse=True)
-    show: set[str] = set(seed_ids)
-    for nid, _ in ranked:
-        if len(show) >= top_n:
-            break
-        show.add(nid)
+    show, kept_edges = _connected_show(asm, shock_by_node, top_n)
     if len(asm.nodes) > top_n:
         st.caption(
-            f"노드 {len(asm.nodes)}개 중 상위 {len(show)}개 표시. "
+            f"노드 {len(asm.nodes)}개 중 상위 {len(show)}개 표시(고립 노드 제외). "
             "화살표=전파 방향(매출=셀러→바이어 / 매입=바이어→셀러), 라벨=거래 비율(rate)."
         )
 
@@ -575,9 +586,8 @@ def _render_graph_directed(asm, shock_by_node: dict[str, float], *, top_n: int) 
         sv = shock_by_node.get(nid, 0.0)
         col = _color_for(nid, sv, hi, n.is_seed)
         dot.append(f'  "{nid}" [label="{esc(n.korentrnm or n.bizno)}\\n{sv:+.3f}", fillcolor="{col}"];')
-    for e in asm.edges:
-        if e["from_bizno"] in show and e["to_bizno"] in show:
-            dot.append(f'  "{e["from_bizno"]}" -> "{e["to_bizno"]}" [label="{e["rate"]:.3f}"];')
+    for e in kept_edges:
+        dot.append(f'  "{e["from_bizno"]}" -> "{e["to_bizno"]}" [label="{e["rate"]:.3f}"];')
     dot.append("}")
     st.graphviz_chart("\n".join(dot), use_container_width=True)
 
