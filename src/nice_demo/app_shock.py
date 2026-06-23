@@ -18,6 +18,7 @@ graph-analysis 서버 없이 PG 직결로 동작 (RAG 만 별도 서비스).
 
 from __future__ import annotations
 
+import json
 import logging
 
 import pandas as pd
@@ -384,6 +385,64 @@ def _color_for(node_id: str, shock_val: float, hi: float, is_seed: bool) -> str:
     return _COLOR_COLD
 
 
+def _graph_payload(asm, shock_by_node: dict[str, float], top_n: int) -> tuple[list, list]:
+    """표시 대상(시드 ∪ |shock| 상위 top_n)의 vis.js 노드·엣지 dict 리스트."""
+    idx = asm.node_index()
+    hi = max((abs(v) for v in shock_by_node.values()), default=0.0)
+    seed_ids = {n.node_id for n in asm.nodes if n.is_seed}
+    ranked = sorted(shock_by_node.items(), key=lambda kv: abs(kv[1]), reverse=True)
+    show: set[str] = set(seed_ids)
+    for nid, _ in ranked:
+        if len(show) >= top_n:
+            break
+        show.add(nid)
+    nodes = []
+    for nid in show:
+        n = idx.get(nid)
+        if n is None:
+            continue
+        sv = shock_by_node.get(nid, 0.0)
+        nodes.append({
+            "id": nid,
+            "label": f"{n.korentrnm or n.bizno}\n({n.bizno})",
+            "size": 24 if n.is_seed else 12 + 12 * (abs(sv) / hi if hi > 0 else 0),
+            "color": _color_for(nid, sv, hi, n.is_seed),
+            "title": f"{n.korentrnm or '-'} | bizno={n.bizno} | upchecd={n.upchecd} | "
+                     f"shock={sv:.4f}{' [SEED]' if n.is_seed else ''}",
+        })
+    edges = [
+        {"from": e["from_bizno"], "to": e["to_bizno"], "label": f"{e['rate']:.3f}", "arrows": "to"}
+        for e in asm.edges
+        if e["from_bizno"] in show and e["to_bizno"] in show
+    ]
+    return nodes, edges
+
+
+def _graph_html(asm, shock_by_node: dict[str, float], *, top_n: int, title: str) -> str:
+    """독립 실행형 vis.js 네트워크 HTML (CDN 로드, 노드·엣지 임베드). 다운로드용."""
+    nodes, edges = _graph_payload(asm, shock_by_node, top_n)
+    nodes_json = json.dumps(nodes, ensure_ascii=False)
+    edges_json = json.dumps(edges, ensure_ascii=False)
+    return f"""<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><title>{title}</title>
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<style>html,body{{margin:0;height:100%;font-family:sans-serif}}
+#net{{width:100%;height:92vh;border-top:1px solid #ddd}}
+#hd{{padding:8px 14px;font-size:14px;color:#2c5fa8}}</style></head>
+<body><div id="hd"><b>{title}</b> · 화살표=전파 방향 · 엣지 라벨=거래 비율(rate) · 빨강=시드</div>
+<div id="net"></div>
+<script>
+const nodes=new vis.DataSet({nodes_json});
+const edges=new vis.DataSet({edges_json});
+new vis.Network(document.getElementById('net'),{{nodes,edges}},{{
+  physics:{{stabilization:true,barnesHut:{{springLength:140}}}},
+  edges:{{font:{{size:9,color:'#c0392b'}},color:{{color:'#9bb0c9'}},smooth:{{type:'curvedCW',roundness:0.15}}}},
+  nodes:{{shape:'dot',font:{{size:12}}}},
+  interaction:{{hover:true,navigationButtons:true,keyboard:true}}
+}});
+</script></body></html>"""
+
+
 def _render_graph(asm, shock_by_node: dict[str, float], *, top_n: int) -> None:
     idx = asm.node_index()
     # Δ(거래변화)는 음수 가능 → 크기/순위는 절대값 기준으로 안정화.
@@ -432,6 +491,20 @@ def _render_graph(asm, shock_by_node: dict[str, float], *, top_n: int) -> None:
         n = idx.get(clicked)
         if n:
             st.caption(f"선택: {n.korentrnm} | bizno={n.bizno} | upchecd={n.upchecd} | shock={shock_by_node.get(clicked, 0.0):.4f}")
+
+    # 독립 실행형 HTML 덤프 (브라우저에서 열면 동일하게 인터랙티브)
+    html = _graph_html(
+        asm, shock_by_node, top_n=top_n,
+        title=f"외생충격 그래프 — {asm.direction}",
+    )
+    st.download_button(
+        "🌐 인터랙티브 그래프 HTML 다운로드",
+        html.encode("utf-8"),
+        file_name=f"shock_graph_{asm.direction}.html",
+        mime="text/html",
+        key=f"dl_html_{asm.direction}",
+        help="vis.js 임베드 self-contained HTML. 열면 드래그·줌·클릭 그대로 동작.",
+    )
 
 
 def _render_graph_directed(asm, shock_by_node: dict[str, float], *, top_n: int) -> None:
