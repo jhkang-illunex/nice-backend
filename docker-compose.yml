@@ -220,6 +220,8 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-local}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # 마운트된 소스(./src)를 site-packages 보다 우선시켜 호스트 수정이 즉시 반영되게.
+      PYTHONPATH: /app/src
       POSTGRES_HOST: ${POSTGRES_HOST:-172.30.1.101}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_USER: ${POSTGRES_USER:-nice}
@@ -231,6 +233,10 @@ services:
       LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b-instruct}
       LLM_API_KEY: ${LLM_API_KEY:-noop}
       LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-60}
+    # 소스 핫리로드 — 호스트 ./src 를 컨테이너 /app/src 에 바인드. PYTHONPATH 와 함께
+    # 이미지 재빌드 없이 코드 수정이 반영된다(streamlit 재시작/자동 rerun 시).
+    volumes:
+      - ./src:/app/src
     ports:
       - "${DEMO_API_PORT:-18003}:8000"
     restart: unless-stopped

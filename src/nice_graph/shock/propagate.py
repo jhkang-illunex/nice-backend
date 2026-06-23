@@ -69,12 +69,20 @@ class ShockRow(TypedDict):
     shock: float
 
 
+class DampedCycle(TypedDict):
+    members: list[str]      # 순환덩어리(SCC) 노드 id
+    rho: float              # 원래 spectral radius ρ(M_S) (≥1 이라 발산)
+    factor: float           # 적용한 조건부 damping (0.95^k, ρ<1 만들 때까지)
+    rho_after: float        # damping 후 ρ (<1)
+
+
 @dataclass
 class ShockResult:
     shock_list: list[ShockRow] = field(default_factory=list)
     total_shock: float = 0.0
     iterations: int = 0
     converged: bool = True
+    damped_cycles: list[DampedCycle] = field(default_factory=list)  # SCC 닫힌해 전용
 
 
 def propagate_shock(
@@ -152,3 +160,136 @@ def propagate_shock(
         iterations=iteration,
         converged=converged,
     )
+
+
+DEFAULT_CYCLE_DAMPING = 0.95
+
+
+def propagate_shock_scc(
+    *,
+    edges: Iterable[EdgePropagateRow | Mapping[str, object]],
+    init_sub_graph: Mapping[str, float],
+    cycle_damping: float = DEFAULT_CYCLE_DAMPING,
+) -> ShockResult:
+    """전역 반복 없이 total = (I−M)⁻¹·init 를 SCC 분해로 정확히 계산.
+
+    알고리즘 (= 반복 루프 안 돌리고 1회 위상순회 + 순환은 등비급수 닫힌해)
+      1. 그래프를 강결합성분(SCC)으로 분해 → 응축 DAG.
+      2. 위상순서(상류 SCC 먼저)로 1회 순회. 각 SCC S 의 외부 유입
+         e[j] = init[j] + Σ_{i∉S, i→j} rate·x[i] (상류는 이미 확정).
+      3. SCC 내부는 등비급수 닫힌해:  x_S = (I − M_S)⁻¹ · e_S
+         여기서 M_S[j,i] = rate(i→j) (i,j∈S).  비순환 단일노드는 x=e (즉시).
+
+    조건부 damping (이사님 컨펌)
+      순환 SCC 의 round-trip 배율 = spectral radius ρ(M_S). ρ≥1 이면 등비급수가
+      발산((I−M_S) 특이행렬)하므로, **ρ<1 이 될 때까지 M_S 에 cycle_damping(0.95)
+      을 곱한다**(보통 ρ=1 인 닫힌 사이클은 1회로 0.95). 적용 내역은
+      result.damped_cycles 로 표면화.  비반복이라 iterations=0, converged=True.
+    """
+    import networkx as nx  # noqa: PLC0415 — 무거운 의존, 이 경로에서만 로드
+    import numpy as np  # noqa: PLC0415
+
+    if not (0.0 < cycle_damping < 1.0):
+        raise ValueError(f"cycle_damping 은 (0,1) 범위여야 함: {cycle_damping}")
+
+    preds: dict[str, list[tuple[str, float]]] = defaultdict(list)
+    nodes: set[str] = {str(b) for b in init_sub_graph}
+    g = nx.DiGraph()
+    for e in edges:
+        src = str(e["from_bizno"])
+        tgt = str(e["to_bizno"])
+        rate = float(e["rate"])  # type: ignore[arg-type]
+        preds[tgt].append((src, rate))
+        g.add_edge(src, tgt)
+        nodes.update((src, tgt))
+    g.add_nodes_from(nodes)
+
+    init = {str(b): float(v) for b, v in init_sub_graph.items()}
+    x: dict[str, float] = dict.fromkeys(nodes, 0.0)
+    damped: list[DampedCycle] = []
+
+    cond = nx.condensation(g)
+    for scc_id in nx.topological_sort(cond):       # 상류(소스) SCC 먼저
+        members = list(cond.nodes[scc_id]["members"])
+        idx = {n: k for k, n in enumerate(members)}
+        n = len(members)
+        # 외부 유입 e
+        e_vec = np.zeros(n)
+        for j in members:
+            e_vec[idx[j]] = init.get(j, 0.0)
+            for i, rate in preds[j]:
+                if i not in idx:                    # 상류 SCC (이미 확정)
+                    e_vec[idx[j]] += rate * x[i]
+        # 내부 블록 M_S[j,i] = rate(i→j)
+        m = np.zeros((n, n))
+        self_loop = False
+        for j in members:
+            for i, rate in preds[j]:
+                if i in idx:
+                    m[idx[j], idx[i]] += rate
+                    if i == j:
+                        self_loop = True
+
+        if n == 1 and not self_loop:               # 비순환 단일노드 — 즉시
+            xs = e_vec
+        else:                                       # 순환덩어리 — 등비급수 닫힌해
+            rho = float(max(abs(np.linalg.eigvals(m))))
+            factor = 1.0
+            rho_eff = rho
+            while rho_eff >= 1.0 - 1e-12:           # 조건부 damping: ρ<1 까지 ×0.95
+                m = m * cycle_damping
+                factor *= cycle_damping
+                rho_eff *= cycle_damping
+            if factor < 1.0:
+                damped.append(
+                    DampedCycle(
+                        members=members,
+                        rho=round(rho, 6),
+                        factor=round(factor, 6),
+                        rho_after=round(rho_eff, 6),
+                    )
+                )
+            xs = np.linalg.solve(np.eye(n) - m, e_vec)
+        for j in members:
+            x[j] = float(xs[idx[j]])
+
+    shock_list: list[ShockRow] = [
+        ShockRow(bizno=b, shock=v) for b, v in x.items() if abs(v) > 0.0
+    ]
+    total = float(sum(v for v in x.values()))
+    log.info(
+        "propagate_shock_scc: nodes=%d edges=%d sccs=%d damped=%d total=%.6f",
+        len(nodes), g.number_of_edges(), cond.number_of_nodes(), len(damped), total,
+    )
+    return ShockResult(
+        shock_list=shock_list,
+        total_shock=total,
+        iterations=0,            # 전역 반복 없음
+        converged=True,          # 조건부 damping 으로 항상 유한
+        damped_cycles=damped,
+    )
+
+
+def propagate_dispatch(
+    *,
+    edges: Iterable[EdgePropagateRow | Mapping[str, object]],
+    init_sub_graph: Mapping[str, float],
+    method: str = "iterative",
+    epsilon: float = DEFAULT_EPSILON,
+    max_iter: int = DEFAULT_MAX_ITER,
+    cycle_damping: float = DEFAULT_CYCLE_DAMPING,
+) -> ShockResult:
+    """method 로 전파 엔진 선택 — iterative(반복 거듭제곱급수) | scc(닫힌해+조건부damping).
+
+    호출자(run_propagation·scenario)가 **propagate_kwargs 로 받은 method/엔진별 인자를
+    여기서 분기·필터한다. 엔진별 인자가 섞여 와도 해당 엔진 것만 전달.
+    """
+    if method == "scc":
+        return propagate_shock_scc(
+            edges=edges, init_sub_graph=init_sub_graph, cycle_damping=cycle_damping
+        )
+    if method == "iterative":
+        return propagate_shock(
+            edges=edges, init_sub_graph=init_sub_graph, epsilon=epsilon, max_iter=max_iter
+        )
+    raise ValueError(f"method 는 iterative|scc: {method!r}")

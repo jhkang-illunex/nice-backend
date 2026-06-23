@@ -44,7 +44,7 @@ from typing import Literal
 
 from sqlalchemy import text
 
-from nice_graph.shock.propagate import ShockResult, propagate_shock
+from nice_graph.shock.propagate import ShockResult, propagate_dispatch
 from nice_graph.shock.screen import PrimarySelectionResult
 from nice_poc.db import get_pg_engine
 
@@ -68,11 +68,16 @@ Direction = Literal["downstream", "upstream"]
 #                  에 충실. 단 Σ_out 이 1 을 넘을 수 있어 **수렴 보장 약화**(damping 의존,
 #                  발산 시 propagate_shock 이 converged=False 로 표면화). 경고 부여.
 #
+#   none         : 거래상대 비중(거래 비율)을 그대로 rate 로 쓰되 **damping 미적용**.
+#                  분모는 counterparty 와 동일(거래상대 총거래). Σ_out 강제 정규화(=1)도,
+#                  감쇠도 없는 "원시 거래비율" 모드 — Leontief/원시 Neumann 시연용.
+#                  ρ(R) 무제한 → 수렴 보장 없음(사이클에서 발산, converged=False 표면화).
+#
 #   분모 컬럼 (PARTITION) 매핑:
-#     direction \ normalize | source        | counterparty
+#     direction \ normalize | source        | counterparty / none
 #     downstream(셀러s→바이어t) | from(셀러 총매출) | to(바이어 총매입)
 #     upstream  (바이어t→셀러s) | to(바이어 총매입) | from(셀러 총매출)
-Normalize = Literal["source", "counterparty"]
+Normalize = Literal["source", "counterparty", "none"]
 
 
 # ── 복합키 헬퍼 ───────────────────────────────────────────────────────────────
@@ -474,8 +479,10 @@ def assemble_propagation_input(
       normalize: rate 분모 기준 (방향과 직교). ``source``(전파 source 기준, Σ_out≤W·α≤1
                  **절대수렴 보장**, 기본) | ``counterparty``(거래상대 기준 = 경제적
                  매출/매입 비중 라벨 충실, 단 Σ_out>1 가능 → **수렴 보장 약화**,
-                 발산 시 converged=False). 분모 컬럼 = source면 orientation 출발 노드,
-                 counterparty면 도착 노드.
+                 발산 시 converged=False) | ``none``(거래상대 비중=거래비율 그대로 +
+                 **damping 미적용**. 원시 거래비율/Leontief 시연용. Σ_out 무제한·감쇠 없음
+                 → **수렴 보장 없음**, 사이클에서 발산 가능). 분모 컬럼 = source면
+                 orientation 출발 노드, counterparty·none이면 도착 노드.
       edge_overrides: 거래 변화 시나리오용. {(from_bizno, to_bizno): g} — 저장 방향
                       (셀러→바이어) 기준 특정 엣지 비중에 0~1 인자 g 를 곱한다.
                       방향 무관하게 원 (from,to) 키로 매칭.
@@ -487,12 +494,12 @@ def assemble_propagation_input(
         raise ValueError(f"damping 은 (0,1] 범위여야 함: {damping}")
     if direction not in ("downstream", "upstream"):
         raise ValueError(f"direction 은 downstream|upstream: {direction!r}")
-    if normalize not in ("source", "counterparty"):
-        raise ValueError(f"normalize 는 source|counterparty: {normalize!r}")
+    if normalize not in ("source", "counterparty", "none"):
+        raise ValueError(f"normalize 는 source|counterparty|none: {normalize!r}")
     if direction_weight <= 0:
         raise ValueError(f"direction_weight 은 양수여야 함: {direction_weight}")
     warnings: list[str] = []
-    if direction_weight * damping > 1.0:
+    if normalize != "none" and direction_weight * damping > 1.0:
         warnings.append(
             f"direction_weight({direction_weight})·damping({damping})={direction_weight * damping:.3f}>1 "
             "→ ρ(R) 가 1 을 넘어 발산할 수 있음 (수렴 보장 깨짐)"
@@ -501,6 +508,11 @@ def assemble_propagation_input(
         warnings.append(
             "normalize=counterparty: 거래상대(매출/매입 비중) 기준 정규화 → Σ_out≤1 보장이 "
             "아니라 수렴이 보장되지 않음(damping 의존). 발산 시 converged=False 로 표면화."
+        )
+    if normalize == "none":
+        warnings.append(
+            "normalize=none: 거래상대 비중(거래비율) 그대로 사용·damping 미적용 → Σ_out 무제한, "
+            "수렴 보장 없음(사이클에서 발산 가능, converged=False 로 표면화). 원시 거래비율 시연용."
         )
     pairs, shock_by_bizno = _coerce_seeds(seeds, seed_shock)
     if not pairs:
@@ -521,7 +533,7 @@ def assemble_propagation_input(
     #   counterparty : orientation 도착(downstream→to, upstream→from)
     if normalize == "source":
         src_col = "from_bizno" if direction == "downstream" else "to_bizno"
-    else:  # counterparty — 거래상대(매출/매입 라벨) 기준
+    else:  # counterparty | none — 거래상대(매출/매입 라벨) 기준 분모
         src_col = "to_bizno" if direction == "downstream" else "from_bizno"
     # 산업 필터 → HS chapter 목록(None=전체). 노드(시드+확장)를 해당 산업 기업으로 한정.
     chapters = resolve_industry_chapters(industry_code)
@@ -570,7 +582,10 @@ def assemble_propagation_input(
         if denom <= 0:
             continue
         g = float(overrides.get((from_b, to_b), 1.0))
-        rate = direction_weight * damping * (float(amt) / denom) * g
+        if normalize == "none":  # 거래비율 그대로 — damping 미적용
+            rate = direction_weight * (float(amt) / denom) * g
+        else:
+            rate = direction_weight * damping * (float(amt) / denom) * g
         if rate <= 0:
             continue
         if direction == "downstream":
@@ -622,8 +637,11 @@ def assemble_propagation_input(
 
 
 def run_propagation(assembled: PropagationInput, **propagate_kwargs) -> ShockResult:
-    """조립된 입력으로 propagate_shock 호출 (편의 래퍼). 결과의 bizno 는 복합키."""
-    return propagate_shock(
+    """조립된 입력으로 전파 호출 (편의 래퍼). 결과의 bizno 는 복합키.
+
+    propagate_kwargs 의 method='iterative'|'scc' 로 엔진 선택 (기본 iterative).
+    """
+    return propagate_dispatch(
         edges=assembled.edges,
         init_sub_graph=assembled.init_sub_graph,
         **propagate_kwargs,

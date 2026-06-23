@@ -32,7 +32,7 @@ from nice_graph.shock.assemble import (
     edge_in_shares,
     run_propagation,
 )
-from nice_graph.shock.propagate import ShockResult, propagate_shock
+from nice_graph.shock.propagate import ShockResult, propagate_dispatch
 
 log = logging.getLogger(__name__)
 
@@ -221,7 +221,7 @@ def _volume_shock_result(asm, init_delta, pin_ids, **propagate_kwargs):
     prop_asm = replace(
         asm, edges=[e for e in asm.edges if e["to_bizno"] not in pin_ids]
     ) if pin_ids else asm
-    res = propagate_shock(
+    res = propagate_dispatch(
         edges=prop_asm.edges, init_sub_graph=init_delta, **propagate_kwargs
     )
     return ShockResult(
@@ -229,6 +229,7 @@ def _volume_shock_result(asm, init_delta, pin_ids, **propagate_kwargs):
         total_shock=res.total_shock,
         iterations=res.iterations,
         converged=res.converged,
+        damped_cycles=res.damped_cycles,
     )
 
 

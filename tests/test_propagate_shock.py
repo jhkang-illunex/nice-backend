@@ -13,7 +13,11 @@ import math
 
 import pytest
 
-from nice_graph.shock.propagate import ShockResult, propagate_shock
+from nice_graph.shock.propagate import (
+    ShockResult,
+    propagate_shock,
+    propagate_shock_scc,
+)
 
 # ── 헬퍼 ──────────────────────────────────────────────────────────────────
 
@@ -55,6 +59,78 @@ def test_isolated_node_with_no_outgoing_edge() -> None:
     sm = _shock_map(result)
     assert sm == pytest.approx({"A": 5.0})
     assert result.iterations == 0
+
+
+# ── 사이클 포함 원시 Neumann (Leontief) — 회귀 고정 ────────────────────────
+
+
+def test_raw_weight_neumann_with_cycle_matches_leontief() -> None:
+    """원시 가중치(비정규화·damping=1) Σ Rᵏ·init = Leontief 역행렬 해.
+
+    A↔B 사이클 + A→D→{B,E}, B→C 분기. 행 합 < 1(A:0.5,B:0.7,D:0.7)이라 ρ(R)<1
+    로 수렴. 기대값은 (I−Rᵀ)⁻¹ 직접해(검증된 값). normalize='none' 모드가 재현해야
+    할 기준 — assemble 의 거래비율을 rate 로 그대로 넣으면 이 거동이 된다.
+    """
+    edges = [
+        _edge("A", "B", 0.3), _edge("A", "D", 0.2),
+        _edge("D", "B", 0.3), _edge("D", "E", 0.4),
+        _edge("B", "C", 0.5), _edge("B", "A", 0.2),
+    ]
+    result = propagate_shock(edges=edges, init_sub_graph={"A": 100.0})
+    sm = _shock_map(result)
+    assert sm == pytest.approx(
+        {"A": 107.758621, "B": 38.793103, "C": 19.396552,
+         "D": 21.551724, "E": 8.620690},
+        rel=1e-5,
+    )
+    assert result.converged is True
+
+
+# ── SCC 닫힌해 엔진 (비반복 + 조건부 damping) ──────────────────────────────
+
+
+def test_scc_closed_form_matches_iterative_on_convergent_graph() -> None:
+    """ρ<1 그래프: SCC 닫힌해(반복 0회) = 반복 엔진 = Leontief 직접해."""
+    edges = [
+        _edge("A", "B", 0.3), _edge("A", "D", 0.2),
+        _edge("D", "B", 0.3), _edge("D", "E", 0.4),
+        _edge("B", "C", 0.5), _edge("B", "A", 0.2),
+    ]
+    res = propagate_shock_scc(edges=edges, init_sub_graph={"A": 100.0})
+    sm = {r["bizno"]: r["shock"] for r in res.shock_list}
+    assert sm == pytest.approx(
+        {"A": 107.758621, "B": 38.793103, "C": 19.396552,
+         "D": 21.551724, "E": 8.620690}, rel=1e-5,
+    )
+    assert res.iterations == 0          # 전역 반복 없음
+    assert res.converged is True
+    assert res.damped_cycles == []      # ρ<1 → damping 불필요
+
+
+def test_scc_conditional_damping_makes_unit_cycle_finite() -> None:
+    """닫힌 사이클 r=1 (Σ_out=1·완전복귀): 반복은 발산, SCC는 조건부 damping(0.95)로 유한.
+
+    a→b 0.1, b→c 0.4, b→d 0.6, c→b 1, d→b 1. 충격 7 at a.
+    b 주입 = 0.7, 사이클 왕복배율 r=1.0 → ρ(M_S)=1 → ×0.95 → ρ=0.95.
+    b 총충격 = 0.7/(1−0.95²) = 0.7/0.0975 ≈ 7.1795.
+    """
+    edges = [
+        _edge("a", "b", 0.1), _edge("b", "c", 0.4), _edge("b", "d", 0.6),
+        _edge("c", "b", 1.0), _edge("d", "b", 1.0),
+    ]
+    res = propagate_shock_scc(edges=edges, init_sub_graph={"a": 7.0})
+    sm = {r["bizno"]: r["shock"] for r in res.shock_list}
+    assert sm["b"] == pytest.approx(7.1795, rel=1e-3)
+    assert res.converged is True
+    assert len(res.damped_cycles) == 1
+    dc = res.damped_cycles[0]
+    assert set(dc["members"]) == {"b", "c", "d"}
+    assert dc["rho"] == pytest.approx(1.0)
+    assert dc["rho_after"] < 1.0
+
+    # 대조: 반복 엔진은 같은 그래프에서 발산(미수렴)
+    it = propagate_shock(edges=edges, init_sub_graph={"a": 7.0}, max_iter=200)
+    assert it.converged is False
 
 
 # ── 선형 체인 — 해석적 검증 ──────────────────────────────────────────────

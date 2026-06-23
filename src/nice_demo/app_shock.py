@@ -152,11 +152,35 @@ def sidebar() -> dict:
     weight_b = st.sidebar.slider("가중치 B — 매입/상류(매입처)", 0.05, 1.0, value=1.0, step=0.05)
     norm_label = st.sidebar.radio(
         "정규화 기준",
-        ["전파소스 (수렴보장)", "거래상대 (매출·매입 비중)"],
+        ["거래비율·무감쇠 (none)", "전파소스 (수렴보장)", "거래상대 (매출·매입 비중)"],
         index=0,
-        help="source=Σ_out≤1 절대수렴 / counterparty=경제적 매출/매입 비중(수렴 약화, 발산 시 미수렴 표시)",
+        help="none=거래상대 비중(거래비율) 그대로·damping 미적용(원시 Leontief, 수렴 보장 없음·발산 가능) / "
+        "source=Σ_out≤1 절대수렴 / counterparty=경제적 매출/매입 비중(수렴 약화, 발산 시 미수렴 표시)",
     )
-    normalize = "source" if norm_label.startswith("전파소스") else "counterparty"
+    if norm_label.startswith("거래비율"):
+        normalize = "none"
+    elif norm_label.startswith("전파소스"):
+        normalize = "source"
+    else:
+        normalize = "counterparty"
+    if normalize == "none":
+        st.sidebar.caption(
+            "⚠ none 모드: 거래비율 그대로·damping 무시. 사이클 있으면 발산(converged=False) 가능."
+        )
+    engine_label = st.sidebar.radio(
+        "전파 엔진",
+        ["SCC 닫힌해 (조건부 damping)", "반복 (거듭제곱급수)"],
+        index=0,
+        help="SCC=반복 없이 위상순회 1회 + 순환은 등비급수 닫힌해. 발산 순환(ρ≥1)엔 "
+        "조건부 damping 적용. / 반복=Σ_k Rᵏ 라운드별 누적(ρ≥1이면 미수렴).",
+    )
+    method = "scc" if engine_label.startswith("SCC") else "iterative"
+    cycle_damping = 0.95
+    if method == "scc":
+        cycle_damping = st.sidebar.slider(
+            "조건부 damping (ρ≥1 순환에만)", 0.50, 0.99, value=0.95, step=0.01,
+            help="round-trip 배율 r≥1(발산)인 순환덩어리에만 rate×이 값을 ρ<1 될 때까지 적용.",
+        )
 
     return {
         "query": query.strip(),
@@ -175,6 +199,8 @@ def sidebar() -> dict:
         "weight_a": float(weight_a),
         "weight_b": float(weight_b),
         "normalize": normalize,
+        "method": method,
+        "cycle_damping": float(cycle_damping),
         "preset_label": preset_label,
         "preset_side": preset_side,
         "preset_factor": preset_factor,
@@ -306,6 +332,8 @@ def step_scenario(cfg: dict) -> None:
         damping=cfg["damping"],
         normalize=cfg["normalize"],
         seed_shock=seed_shock,
+        method=cfg["method"],
+        cycle_damping=cfg["cycle_damping"],
     )
     st.caption(
         f"시나리오=**{cfg['scenario']}** · 방향={cfg['directions']} · "
@@ -558,16 +586,32 @@ def _render_direction(dr, scenario: str, cfg: dict) -> None:
     shock_by_node = {r["bizno"]: r["shock"] for r in dr.result.shock_list}
     val_label = "shock(1=무변화)" if scenario == "volume" else "shock"
 
+    damped = getattr(dr.result, "damped_cycles", None) or []
+    method = cfg.get("method", "iterative")
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("노드", len(asm.nodes))
     c2.metric("엣지", len(asm.edges))
-    c3.metric("반복(iter)", dr.result.iterations)
+    if method == "scc":
+        c3.metric("조건부 damping 순환", len(damped))
+    else:
+        c3.metric("반복(iter)", dr.result.iterations)
     c4.metric("수렴", "✅" if dr.result.converged else "❌ ρ≥α?")
     c5.metric(f"Σ {val_label}", f"{dr.result.total_shock:.3f}")
+    engine_kr = "SCC 닫힌해(반복0회)" if method == "scc" else "반복 거듭제곱급수"
     st.caption(
-        f"effect={dr.effect_label} · direction={asm.direction} · weight={dr.weight} · "
-        f"rate_kind={asm.rate_kind} · within_subgraph={asm.within_subgraph} · damping={asm.damping}"
+        f"engine={engine_kr} · effect={dr.effect_label} · direction={asm.direction} · "
+        f"weight={dr.weight} · rate_kind={asm.rate_kind} · "
+        f"within_subgraph={asm.within_subgraph} · damping={asm.damping}"
     )
+    if damped:
+        node_name = {n.node_id: (n.korentrnm or n.bizno) for n in asm.nodes}
+        with st.expander(f"조건부 damping 적용 순환덩어리 {len(damped)}개 (ρ≥1 → ×{cfg.get('cycle_damping', 0.95)})"):
+            for d in damped:
+                names = ", ".join(node_name.get(m, m) for m in d["members"][:6])
+                st.write(
+                    f"- {len(d['members'])}노드 (ρ={d['rho']} → {d['rho_after']}): {names}"
+                    + (" …" if len(d["members"]) > 6 else "")
+                )
     for w in asm.warnings:
         st.warning(w)
 
