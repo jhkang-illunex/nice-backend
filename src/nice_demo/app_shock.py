@@ -448,6 +448,35 @@ def _connected_show(asm, shock_by_node: dict[str, float], top_n: int):
     return show, kept_edges
 
 
+def _expand_show(asm, top_n: int):
+    """시드에서 전파 방향 에지를 따라 BFS 확장, 최대 top_n 노드(시드 포함).
+
+    방향성 그래프용 — depth-N 확장 부분그래프(asm)를 **시드 기점 BFS** 로 최대 top_n
+    노드까지 잘라 연결된 확장 구조로 보여준다(shock 상위 컷이 아니라 그래프 확장 순서).
+    반환: (show set, kept_edges list).
+    """
+    adj: dict[str, list[str]] = {}
+    for e in asm.edges:
+        adj.setdefault(e["from_bizno"], []).append(e["to_bizno"])
+    show = [n.node_id for n in asm.nodes if n.is_seed]
+    seen = set(show)
+    qi = 0
+    while qi < len(show) and len(show) < top_n:
+        cur = show[qi]
+        qi += 1
+        for nb in adj.get(cur, ()):
+            if nb not in seen:
+                seen.add(nb)
+                show.append(nb)
+                if len(show) >= top_n:
+                    break
+    show_set = set(show)
+    kept_edges = [
+        e for e in asm.edges if e["from_bizno"] in show_set and e["to_bizno"] in show_set
+    ]
+    return show_set, kept_edges
+
+
 def _graph_payload(asm, shock_by_node: dict[str, float], top_n: int) -> tuple[list, list]:
     """표시 대상(시드 ∪ |shock| 상위 top_n, 고립 제거)의 vis.js 노드·엣지 dict 리스트."""
     idx = asm.node_index()
@@ -571,11 +600,11 @@ def _render_graph_directed(asm, shock_by_node: dict[str, float], *, top_n: int) 
     """
     idx = asm.node_index()
     hi = max((abs(v) for v in shock_by_node.values()), default=0.0)
-    show, kept_edges = _connected_show(asm, shock_by_node, top_n)
+    show, kept_edges = _expand_show(asm, top_n)
     if len(asm.nodes) > top_n:
         st.caption(
-            f"노드 {len(asm.nodes)}개 중 상위 {len(show)}개 표시(고립 노드 제외). "
-            "화살표=전파 방향(매출=셀러→바이어 / 매입=바이어→셀러), 라벨=거래 비율(rate)."
+            f"시드에서 depth {asm.depth} 확장 그래프 — 노드 {len(asm.nodes)}개 중 시드 기점 BFS {len(show)}개 표시. "
+            "화살표=전파 방향(매출=셀러→바이어 / 매입=바이어→셀러), 엣지 라벨=거래 비율(rate), 노드=기업명+충격량."
         )
 
     def esc(s: str) -> str:
