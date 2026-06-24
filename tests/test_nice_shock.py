@@ -44,31 +44,44 @@ def test_tariff_pinned_convex_combination() -> None:
 
 
 def test_tariff_api_endpoint() -> None:
-    # pin_seeds/method/cycle_damping 은 입력 인자가 아니다(내부 고정).
+    # 입력: direction(import|export, 기본 import). 출력: direction·total_shock·data_list(node_id).
     body = {
         "triple_list": [{"from": x["from"], "to": x["to"], "rate": x["rate"]} for x in _TRIPLES],
         "seed_list": ["포스코", "현대모비스"],
         "shock_rate": -0.2,
-        "directions": [0],
+        "direction": "export",  # 매출(downstream) — 엣지 그대로
     }
     r = client.post("/api/shock/tariff", json=body)
     assert r.status_code == 200
-    rows = r.json()["directions"][0]["shock_list"]
-    sm = {x["bizno"]: x["shock"] for x in rows}
+    d = r.json()
+    assert d["direction"] == "export"  # 입력 echo
+    assert "iterations" not in d and "converged" not in d  # 간소화로 제거됨
+    rows = d["data_list"]
+    sm = {x["node_id"]: x["shock"] for x in rows}
     assert abs(sm["삼성"] + 0.2) < 1e-9
-    # depth: 시드=1, 홉당 +1.
-    dep = {x["bizno"]: x["depth"] for x in rows}
-    assert dep["포스코"] == 1 and dep["현대모비스"] == 1  # 시드
-    assert dep["삼성"] == 2  # 시드에서 1홉 (현대모비스→삼성)
-    assert dep["지오"] == 2  # 포스코→지오 1홉
+    dep = {x["node_id"]: x["depth"] for x in rows}  # depth: 시드=1, 홉당 +1
+    assert dep["포스코"] == 1 and dep["현대모비스"] == 1
+    assert dep["삼성"] == 2 and dep["지오"] == 2
 
 
-def test_tariff_input_drops_internal_params() -> None:
-    """pin_seeds/method/cycle_damping 은 TariffRequest 스키마에 없어야(내부 처리)."""
-    from nice_shock.api.main import TariffRequest
+def test_tariff_default_direction_is_import() -> None:
+    """direction 미입력 시 import(매입) 기본."""
+    body = {
+        "triple_list": [{"from": x["from"], "to": x["to"], "rate": x["rate"]} for x in _TRIPLES],
+        "seed_list": ["포스코"], "shock_rate": -0.2,
+    }
+    d = client.post("/api/shock/tariff", json=body).json()
+    assert d["direction"] == "import"
 
-    fields = set(TariffRequest.model_fields)
-    assert fields == {"triple_list", "seed_list", "shock_rate", "directions"}
+
+def test_tariff_input_schema() -> None:
+    """입력은 4개(direction 단수)만 — pin_seeds/method/cycle_damping/directions 없음."""
+    from nice_shock.api.main import TariffRequest, VolumeRequest
+
+    assert set(TariffRequest.model_fields) == {"triple_list", "seed_list", "shock_rate", "direction"}
+    assert set(VolumeRequest.model_fields) == {
+        "triple_list", "seed_list", "node_overrides", "direction",
+    }
 
 
 def test_volume_delta_is_one_plus_propagated() -> None:

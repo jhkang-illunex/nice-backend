@@ -9,6 +9,8 @@
 """
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
@@ -29,24 +31,23 @@ _EX_EDGES = [
     {"from": "b", "to": "c", "rate": 0.607},
 ]
 _EX_TARIFF_REQ = {
-    "triple_list": _EX_EDGES, "seed_list": ["b"], "shock_rate": 1.0, "directions": [0],
+    "triple_list": _EX_EDGES, "seed_list": ["b"], "shock_rate": 1.0, "direction": "export",
 }
 _EX_VOLUME_REQ = {
     "triple_list": [{"from": "a", "to": "b", "rate": 0.115}, {"from": "b", "to": "c", "rate": 0.607}],
-    "seed_list": ["b"], "edge_overrides": [{"p1": "b", "w1": 0.8}], "directions": [0],
+    "seed_list": ["b"], "node_overrides": [{"p1": "b", "w1": 0.8}], "direction": "export",
 }
 _EX_PROPAGATE_REQ = {"triple_list": [{"from": "a", "to": "b", "rate": 0.5}], "init": {"a": 1.0}}
-_EX_SCENARIO_RESP = {
-    "directions": [{
-        "direction": 0, "converged": True, "iterations": 0, "total_shock": 3.79281,
-        "shock_list": [
-            {"bizno": "b", "shock": 2.27523, "depth": 1},
-            {"bizno": "c", "shock": 1.38106, "depth": 2},
-            {"bizno": "a", "shock": 0.13651, "depth": 2},
-        ],
-        "damped_cycles": [],
-    }],
+# tariff·volume 응답 (외부) — 간소화: direction(import|export)·total_shock·data_list 만.
+_EX_DATA_RESP = {
+    "direction": "export", "total_shock": 3.79281,
+    "data_list": [
+        {"node_id": "b", "shock": 2.27523, "depth": 1},
+        {"node_id": "c", "shock": 1.38106, "depth": 2},
+        {"node_id": "a", "shock": 0.13651, "depth": 2},
+    ],
 }
+# /propagate 응답 (내부 저수준) — 진단값 포함 유지.
 _EX_DIRECTION_OUT = {
     "direction": -1, "converged": True, "iterations": 0, "total_shock": 1.5,
     "shock_list": [
@@ -90,36 +91,40 @@ class DirectionOut(BaseModel):
     model_config = {"json_schema_extra": {"example": _EX_DIRECTION_OUT}}
 
 
-class ScenarioResponse(BaseModel):
-    directions: list[DirectionOut]
-
-    model_config = {"json_schema_extra": {"example": _EX_SCENARIO_RESP}}
-
-
 _METHODS = ("scc", "iterative")
 
+# direction 입력/출력 — import=매입(upstream,1) / export=매출(downstream,0).
+Direction = Literal["import", "export"]
+_DIR_TO_INT = {"import": 1, "export": 0}
+_INT_TO_DIR = {1: "import", 0: "export"}
 
-def _to_out(results) -> ScenarioResponse:
-    dirs = []
-    for dr in results:
-        r = dr["result"]
-        depths = dr.get("depths", {})
-        dirs.append(
-            DirectionOut(
-                direction=dr["direction"],
-                converged=r.converged,
-                iterations=r.iterations,
-                total_shock=r.total_shock,
-                shock_list=[
-                    ShockRowOut(
-                        bizno=row["bizno"], shock=row["shock"], depth=depths.get(row["bizno"])
-                    )
-                    for row in r.shock_list
-                ],
-                damped_cycles=[DampedCycleOut(**d) for d in r.damped_cycles],
-            )
-        )
-    return ScenarioResponse(directions=dirs)
+
+# ── 외부 응답 (간소화) ───────────────────────────────────────────────────────
+class NodeOut(BaseModel):
+    node_id: str
+    shock: float
+    depth: int | None = Field(None, description="시드=1, 시드에서 홉당 +1 (도달 못하면 null)")
+
+
+class DataResponse(BaseModel):
+    direction: Direction = Field(..., description="import=매입 / export=매출 (입력 echo)")
+    total_shock: float
+    data_list: list[NodeOut]
+
+    model_config = {"json_schema_extra": {"example": _EX_DATA_RESP}}
+
+
+def _to_data_response(dr) -> DataResponse:
+    r = dr["result"]
+    depths = dr.get("depths", {})
+    return DataResponse(
+        direction=_INT_TO_DIR[dr["direction"]],
+        total_shock=r.total_shock,
+        data_list=[
+            NodeOut(node_id=row["bizno"], shock=row["shock"], depth=depths.get(row["bizno"]))
+            for row in r.shock_list
+        ],
+    )
 
 
 # ── 관세(외생) 충격 ────────────────────────────────────────────────────────
@@ -131,55 +136,55 @@ _DEFAULT_CYCLE_DAMPING = 0.95
 
 class TariffRequest(BaseModel):
     triple_list: list[TripleIn] = Field(..., description="거래쌍·거래비율 엣지 목록")
-    seed_list: list[str] = Field(..., description="외생충격 받는 1차 기업 bizno")
+    seed_list: list[str] = Field(..., description="외생충격 받는 1차 기업 node_id")
     shock_rate: float = Field(..., description="시드 주입 충격량 (음수 가능)")
-    directions: list[int] = Field([1], description="[0|1] — 0=매출, 1=매입 파급")
+    direction: Direction = Field("import", description="import=매입(기본) / export=매출")
 
     model_config = {"json_schema_extra": {"example": _EX_TARIFF_REQ}}
 
 
-@app.post("/api/shock/tariff", response_model=ScenarioResponse, summary="관세(외생) 충격")
-def tariff(req: TariffRequest) -> ScenarioResponse:
+@app.post("/api/shock/tariff", response_model=DataResponse, summary="관세(외생) 충격")
+def tariff(req: TariffRequest) -> DataResponse:
     results = run_tariff(
         [t.model_dump(by_alias=True) for t in req.triple_list],
         req.seed_list,
         req.shock_rate,
-        req.directions,
+        [_DIR_TO_INT[req.direction]],
         pin_seeds=_DEFAULT_PIN_SEEDS,
         method=_DEFAULT_METHOD,
         cycle_damping=_DEFAULT_CYCLE_DAMPING,
     )
-    return _to_out(results)
+    return _to_data_response(results[0])
 
 
 # ── 거래량 변동 ────────────────────────────────────────────────────────────
 class OverrideIn(BaseModel):
-    p1: str = Field(..., description="변동 대상 기업 bizno")
+    p1: str = Field(..., description="변동 대상 기업 node_id")
     w1: float = Field(..., description="factor = 1+증감율 (0.8=−20%)")
 
 
 class VolumeRequest(BaseModel):
     triple_list: list[TripleIn]
     seed_list: list[str]
-    edge_overrides: list[OverrideIn] = Field(..., description="[{p1,w1}] 노드별 거래량 factor")
-    directions: list[int] = Field([1], description="[0|1]")
+    node_overrides: list[OverrideIn] = Field(..., description="[{p1,w1}] 노드별 거래량 factor")
+    direction: Direction = Field("import", description="import=매입(기본) / export=매출")
 
     model_config = {"json_schema_extra": {"example": _EX_VOLUME_REQ}}
 
 
-@app.post("/api/shock/volume", response_model=ScenarioResponse, summary="거래량 변동")
-def volume(req: VolumeRequest) -> ScenarioResponse:
+@app.post("/api/shock/volume", response_model=DataResponse, summary="거래량 변동")
+def volume(req: VolumeRequest) -> DataResponse:
     # pin_seeds/method/cycle_damping 은 내부 고정 (tariff 와 동일 정책).
     results = run_volume(
         [t.model_dump(by_alias=True) for t in req.triple_list],
         req.seed_list,
-        [o.model_dump() for o in req.edge_overrides],
-        req.directions,
+        [o.model_dump() for o in req.node_overrides],
+        [_DIR_TO_INT[req.direction]],
         pin_seeds=_DEFAULT_PIN_SEEDS,
         method=_DEFAULT_METHOD,
         cycle_damping=_DEFAULT_CYCLE_DAMPING,
     )
-    return _to_out(results)
+    return _to_data_response(results[0])
 
 
 # ── 저수준 전파 (이미 조립·정향된 edges + 노드별 init 직접) ─────────────────
