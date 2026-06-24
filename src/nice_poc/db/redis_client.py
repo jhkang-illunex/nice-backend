@@ -1,11 +1,4 @@
-from functools import lru_cache
+"""shim — nice_common.db.redis_client 로 이전됨."""
+from nice_common.db.redis_client import get_redis
 
-from redis import Redis
-
-from nice_poc.config import get_settings
-
-
-@lru_cache
-def get_redis() -> Redis:
-    s = get_settings()
-    return Redis.from_url(s.redis_url, decode_responses=True)
+__all__ = ["get_redis"]

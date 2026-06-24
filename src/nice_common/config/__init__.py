@@ -1,4 +1,3 @@
-"""shim — nice_common.config.settings 로 이전됨. 하위호환용 re-export."""
 from nice_common.config.settings import Settings, get_settings
 
 __all__ = ["Settings", "get_settings"]

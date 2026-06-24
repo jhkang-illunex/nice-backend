@@ -15,7 +15,7 @@ from sqlalchemy import text
 
 from nice_graph import __version__
 from nice_graph.api.routers import network, shock
-from nice_poc.db import get_pg_engine
+from nice_common.db import get_pg_engine
 
 _DESCRIPTION = """
 **NICE PoC graph-analysis** — `public.node` / `public.edge` 기반 네트워크 분석 데모.

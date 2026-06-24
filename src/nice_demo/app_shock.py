@@ -33,7 +33,7 @@ from nice_graph.shock import (
     run_scenario,
     select_primary_firms,
 )
-from nice_poc.db import get_pg_engine
+from nice_common.db import get_pg_engine
 
 # 기업규모 코드(scaledivcd) → 라벨 (대략). 미상은 코드 그대로.
 _SCALE_LABEL = {"1": "대기업", "2": "중견기업", "3": "중소기업"}

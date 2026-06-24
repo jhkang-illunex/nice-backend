@@ -83,7 +83,7 @@ _SEMANTIC_MIN_COS = 0.5
 def learn(*, limit: int = 20, dry_run: bool = False) -> int:
     from sqlalchemy import text
 
-    from nice_poc.db import get_pg_engine
+    from nice_common.db import get_pg_engine
     from nice_rag.config import get_rag_settings
     from nice_rag.search.normalize import normalize_query
 

@@ -35,7 +35,7 @@ from dataclasses import dataclass
 
 from sqlalchemy import text
 
-from nice_poc.db import get_pg_engine
+from nice_common.db import get_pg_engine
 
 # fmt: off
 _HYBRID_SQL = text("""

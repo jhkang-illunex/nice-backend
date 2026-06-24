@@ -67,7 +67,7 @@ def _load_db_synonyms() -> dict[str, str]:
     try:
         from sqlalchemy import text
 
-        from nice_poc.db import get_pg_engine
+        from nice_common.db import get_pg_engine
 
         with get_pg_engine().connect() as c:
             rows = c.execute(

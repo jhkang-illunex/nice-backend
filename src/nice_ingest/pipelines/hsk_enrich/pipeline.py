@@ -232,7 +232,7 @@ _VERIFY_SQL = """
 def enrich(*, dry_run: bool = False, skip_detail: bool = False) -> int:
     from sqlalchemy import text
 
-    from nice_poc.db import get_pg_engine
+    from nice_common.db import get_pg_engine
 
     engine = get_pg_engine()
     steps = [(label, sql) for group, label, sql in STEPS if not (skip_detail and group == "detail")]

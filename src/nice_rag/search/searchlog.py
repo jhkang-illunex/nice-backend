@@ -9,7 +9,7 @@ import logging
 
 from sqlalchemy import text
 
-from nice_poc.db import get_pg_engine
+from nice_common.db import get_pg_engine
 from nice_rag.config import get_rag_settings
 from nice_rag.search.hsk_index import HybridHit
 

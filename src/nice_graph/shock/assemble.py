@@ -46,7 +46,7 @@ from sqlalchemy import text
 
 from nice_graph.shock.propagate import ShockResult, propagate_dispatch
 from nice_graph.shock.screen import PrimarySelectionResult
-from nice_poc.db import get_pg_engine
+from nice_common.db import get_pg_engine
 
 log = logging.getLogger(__name__)
 

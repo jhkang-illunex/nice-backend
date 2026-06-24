@@ -59,7 +59,7 @@ import logging
 from sqlalchemy import text
 
 from nice_llm import get_llm_json_client
-from nice_poc.db import get_pg_engine
+from nice_common.db import get_pg_engine
 
 log = logging.getLogger(__name__)
 

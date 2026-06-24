@@ -89,7 +89,7 @@ def ingest(path: Path, *, dry_run: bool = False) -> int:
 
     import psycopg
 
-    from nice_poc.config import get_settings
+    from nice_common.config import get_settings
 
     s = get_settings()
     dsn = (

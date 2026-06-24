@@ -258,7 +258,7 @@ def _executemany_upsert(rows: list[dict[str, Any]]) -> int:
     """psycopg3 로 일괄 upsert. 반환값 = 적재 시도 row 수."""
     import psycopg
 
-    from nice_poc.config import get_settings
+    from nice_common.config import get_settings
 
     dsn = get_settings().postgres_dsn
     # SQLAlchemy DSN(`postgresql+psycopg://...`) 을 psycopg 가 이해하는 형태로 정규화

@@ -30,7 +30,7 @@ from typing import Literal, TypedDict
 
 from sqlalchemy import text
 
-from nice_poc.db import get_pg_engine
+from nice_common.db import get_pg_engine
 
 log = logging.getLogger(__name__)
 

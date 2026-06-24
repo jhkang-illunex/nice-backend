@@ -39,7 +39,7 @@ from enum import StrEnum
 
 from sqlalchemy import text
 
-from nice_poc.db import get_pg_engine
+from nice_common.db import get_pg_engine
 
 _SRC_TABLE = "public.origin_itg_vat_dat"
 

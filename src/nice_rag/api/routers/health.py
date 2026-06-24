@@ -7,7 +7,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
-from nice_poc.db import get_pg_engine, get_redis
+from nice_common.db import get_pg_engine, get_redis
 from nice_rag.config import get_rag_settings
 
 router = APIRouter(tags=["health"])
