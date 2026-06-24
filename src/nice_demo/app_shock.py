@@ -59,6 +59,10 @@ def _http_propagate(edges, init_sub_graph, *, method="scc", cycle_damping=0.95, 
     r = httpx.post(f"{SHOCK_API_URL}/api/shock/propagate", json=payload, timeout=60.0)
     r.raise_for_status()
     d = r.json()
+    # 결과 화면에 '원본 API 출력 일부'를 보여주기 위해 stash (요청 노드수 + 응답).
+    st.session_state.setdefault("_shock_raw", []).append(
+        {"req_edges": len(payload["triple_list"]), "req_init": len(payload["init"]), "resp": d}
+    )
     return ShockResult(
         shock_list=[{"bizno": x["bizno"], "shock": x["shock"]} for x in d["shock_list"]],
         total_shock=d["total_shock"],
@@ -426,6 +430,7 @@ def step_scenario(cfg: dict) -> None:
         )
 
     if st.button("시나리오 전파 실행", type="primary"):
+        st.session_state["_shock_raw"] = []  # 이번 실행의 shock 서버 원본 응답 stash 초기화
         try:
             kw = dict(common)
             if cfg["scenario"] == "volume":
@@ -446,6 +451,29 @@ def step_scenario(cfg: dict) -> None:
         return
     for w in sres.warnings:
         st.warning(w)
+
+    # shock 서버(HTTP) 원본 응답 일부 — API 출력 점검용
+    raw = st.session_state.get("_shock_raw") or []
+    if raw:
+        with st.expander(f"🛰 shock 서버 응답 (원본 JSON 일부) · 방향 {len(raw)}건"):
+            for i, item in enumerate(raw):
+                resp = item["resp"]
+                head = {
+                    "converged": resp["converged"],
+                    "iterations": resp["iterations"],
+                    "total_shock": round(resp["total_shock"], 4),
+                    "노드수": len(resp["shock_list"]),
+                    "damped_cycles": len(resp.get("damped_cycles", [])),
+                }
+                st.caption(
+                    f"[{i}] POST {SHOCK_API_URL}/api/shock/propagate "
+                    f"(요청 엣지 {item['req_edges']}·init {item['req_init']})"
+                )
+                st.json(head)
+                # shock_list 는 |shock| 상위 5개만 (일부 표시)
+                top = sorted(resp["shock_list"], key=lambda x: -abs(x["shock"]))[:5]
+                st.json({"shock_list (|shock| 상위 5)": top})
+
     if not sres.directions:
         st.info("선택된 방향이 없습니다.")
         return
