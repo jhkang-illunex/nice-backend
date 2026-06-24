@@ -101,16 +101,63 @@ psycopg, sqlalchemy, alembic, redis, httpx, numpy, scipy, pandas, networkx, neo4
 | `[demo]` | streamlit, streamlit-agraph | demo |
 | `[dev]` | pytest(-asyncio), ruff, mypy | (개발) |
 
-> ⚠️ **패키징 보강 필요**: `[tool.hatch.build.targets.wheel].packages` 에 신규 패키지
-> `nice_shock`·`nice_dbtool`·`nice_common`·`nice_migrate` 가 아직 누락. shock-server 는
-> `src/nice_shock` 직접 복사 + `PYTHONPATH=/app/src`, demo 는 `./src` 볼륨마운트 +
-> `PYTHONPATH=/app/src` 라 현재 동작엔 무관하나, `pip install "."` 로 이 모듈들을 install 해야
-> 하는 경로(예: graph-analysis 가 신규 모듈 import 시)에선 packages 목록 보강 권장.
+> ✅ **패키징**: `[tool.hatch.build.targets.wheel].packages` 에 src 의 10개 패키지가 모두
+> 등록됨(`nice_poc`·`nice_common`·`nice_graph`·`nice_rag`·`nice_ingest`·`nice_demo`·`nice_llm`·
+> `nice_shock`·`nice_dbtool`·`nice_migrate`). 따라서 `pip install "."` 로 신규 모듈까지 정상
+> install 된다(graph-analysis 등 전체설치 경로 포함).
 
 ### D. 외부 노출(제품) vs 내부
 
 - **외부**: rag-server `/api/hsk/search` · shock-server `/api/shock/{tariff,volume}`
 - **내부/선택**: graph-analysis(레거시) · demo(시연) · ingestion(배치) · redis/llm/embed(서드파티)
+
+### E. 에어갭(인터넷 차단) 온프레미스 배포 체크리스트
+
+이미지를 **그대로** 반입해 인터넷 없이 구동하는 환경 기준. 핵심 원칙: **빌드는 연결된
+구간에서, 런타임엔 외부 참조 0**.
+
+**런타임 외부 참조 — 코드 점검 결과(✅ 해소)**
+- 서비스 간 통신은 전부 compose 내부 DNS(`rag-server`/`shock-server`/`llm`/`embed` 등) — 인터넷 불필요.
+- 데모 그래프 HTML 다운로드의 vis.js 는 **CDN 제거 후 리포에 동봉**(`src/nice_demo/static/vis-network.min.js`, 9.1.9)하여 HTML 에 인라인 — 에어갭 브라우저에서도 열림.
+- streamlit-agraph 인앱 그래프는 프런트엔드 번들 로컬 서빙(외부 fetch 없음), shock-server 는 런타임 의존 0.
+
+**반입 절차 (연결 구간에서 1회 준비 → 매체로 이동 → 에어갭에서 load)**
+
+1. **이미지 8종 save/load** — 에어갭은 레지스트리 pull 불가. 빌드(연결 구간)는 `pip/apt/base`
+   가 이미지 레이어에 구워지므로 OK.
+   ```bash
+   # (연결 구간) 빌드 후 저장
+   docker compose --profile rag --profile shock --profile network --profile demo \
+                  --profile llm-local --profile embed-local build
+   docker save -o nice-images.tar \
+     nice/rag-server:dev nice/shock-server:dev nice/graph-analysis:dev \
+     nice/demo:dev nice/ingestion:dev \
+     redis:7-alpine ollama/ollama:latest \
+     ghcr.io/huggingface/text-embeddings-inference:cpu-1.6
+   # (에어갭) 적재
+   docker load -i nice-images.tar
+   ```
+2. **ollama LLM 모델 사전 적재** — ollama 는 첫 실행 시 인터넷에서 모델을 받는다.
+   ```bash
+   # (연결 구간) llm-models 볼륨에 모델을 미리 pull
+   docker compose --profile llm-local up -d llm
+   docker exec nice-llm ollama pull qwen2.5:7b-instruct
+   # llm-models 볼륨을 통째로 매체에 담아 이동(또는 docker run -v 로 export)
+   ```
+3. **TEI 임베딩 모델 사전 캐시** — TEI 는 첫 실행 시 HuggingFace 에서 `BAAI/bge-m3` 다운로드.
+   ```bash
+   # (연결 구간) embed-models 볼륨에 캐시 적재 후 이동.
+   # (에어갭) embed 서비스에 오프라인 강제 — docker-compose 의 embed.environment 에 추가:
+   #   HF_HUB_OFFLINE: "1"
+   #   TRANSFORMERS_OFFLINE: "1"
+   ```
+4. **PostgreSQL** — 외부 NICE 운영 PG(`172.30.1.101`) 가 에어갭 내부망에서 도달 가능해야 함
+   (`POSTGRES_*` 가 내부망 주소를 가리키도록 `.env` 설정). 인터넷 경유 아님.
+5. **자체 LLM/임베딩을 안 쓰면** `llm`/`embed` 컨테이너를 빼고 `LLM_BASE_URL`·`EMBED_BASE_URL`
+   을 **내부망의 추론 엔드포인트**로 교체(인터넷 외부 API 금지).
+
+> 검증 팁: 에어갭 반입 전, 컨테이너를 **네트워크 격리**로 한 번 띄워 본다 —
+> `docker run --network none nice/shock-server:dev` 가 헬스까지 뜨면 그 이미지는 외부 의존 0.
 
 ## 설계 문서
 

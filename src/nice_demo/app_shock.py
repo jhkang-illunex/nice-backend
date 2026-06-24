@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import os
@@ -584,14 +585,42 @@ def _graph_payload(asm, shock_by_node: dict[str, float], top_n: int) -> tuple[li
     return nodes, edges
 
 
+# 동봉 vis-network UMD 번들 경로 (에어갭: CDN 미사용 — 리포에 vendoring).
+_VIS_JS_PATH = os.path.join(os.path.dirname(__file__), "static", "vis-network.min.js")
+
+
+@functools.lru_cache(maxsize=1)
+def _vis_network_js() -> str:
+    """동봉된 vis-network.min.js 를 1회 읽어 캐시. 인라인 임베드용(인터넷 차단 환경 대응).
+
+    HTML <script> 안에 그대로 넣으므로, 문자열 리터럴에 들어있을 수 있는 '</script>' 만
+    '<\\/script>' 로 무력화(파서 조기 종료 방지). 파일 부재 시 빈 문자열(다운로드 HTML 만 영향).
+    """
+    import re
+
+    try:
+        with open(_VIS_JS_PATH, encoding="utf-8") as f:
+            js = f.read()
+    except OSError:
+        log.warning("vendored vis-network.min.js 누락: %s", _VIS_JS_PATH)
+        return ""
+    # sourceMappingURL 주석 제거(상대 .map — 미동봉, DevTools 콘솔 경고 방지) + </script> 무력화.
+    js = re.sub(r"//#\s*sourceMappingURL=\S+", "", js)
+    return js.replace("</script>", "<\\/script>")
+
+
 def _graph_html(asm, shock_by_node: dict[str, float], *, top_n: int, title: str) -> str:
-    """독립 실행형 vis.js 네트워크 HTML (CDN 로드, 노드·엣지 임베드). 다운로드용."""
+    """독립 실행형 vis.js 네트워크 HTML (동봉 vis.js 인라인, 노드·엣지 임베드). 다운로드용.
+
+    에어갭 환경에서도 열리도록 vis-network 번들을 외부 CDN 대신 HTML 안에 인라인한다.
+    """
     nodes, edges = _graph_payload(asm, shock_by_node, top_n)
     nodes_json = json.dumps(nodes, ensure_ascii=False)
     edges_json = json.dumps(edges, ensure_ascii=False)
+    vis_js = _vis_network_js()
     return f"""<!DOCTYPE html>
 <html lang="ko"><head><meta charset="utf-8"><title>{title}</title>
-<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<script>{vis_js}</script>
 <style>html,body{{margin:0;height:100%;font-family:sans-serif}}
 #net{{width:100%;height:92vh;border-top:1px solid #ddd}}
 #hd{{padding:8px 14px;font-size:14px;color:#2c5fa8}}</style></head>
