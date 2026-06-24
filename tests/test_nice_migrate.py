@@ -1,6 +1,7 @@
 """nice_migrate — CLI DB 연결 빌더·.env 파서 단위 테스트 (DB 연결 없이)."""
 from __future__ import annotations
 
+import subprocess
 import sys
 
 from nice_migrate.rate import build_engine, load_env_file
@@ -35,8 +36,12 @@ def test_load_env_file(tmp_path, monkeypatch) -> None:
 
 
 def test_migrate_is_db_driver_only() -> None:
-    """마이그레이션은 sqlalchemy 만 의존 — nice_poc 등 프로젝트 패키지 미의존."""
-    import nice_migrate.rate  # noqa: F401
-
-    leaked = [m for m in sys.modules if m.startswith("nice_poc") or m.startswith("nice_graph")]
-    assert leaked == [], f"마이그레이션이 프로젝트 패키지를 끌어옴: {leaked}"
+    """마이그레이션은 sqlalchemy 만 의존 — nice_poc 등 프로젝트 패키지 미의존(깨끗한 서브프로세스)."""
+    code = (
+        "import sys, nice_migrate.rate, nice_migrate.__main__;"
+        "leaked=[m for m in sys.modules if m.startswith('nice_poc') or m.startswith('nice_graph') "
+        "or m.startswith('nice_shock') or m.startswith('nice_rag')];"
+        "print(leaked); sys.exit(1 if leaked else 0)"
+    )
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert r.returncode == 0, f"마이그레이션이 프로젝트 패키지를 끌어옴: {r.stdout.strip()}"
