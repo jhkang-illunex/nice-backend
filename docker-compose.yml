@@ -121,6 +121,26 @@ services:
     networks: [nice-net]
 
   # ─────────────────────────────────────────────────────────────────────────────
+  # shock-server — 순수 쇼크 전파 API (triple_list 입력, DB·LLM·Redis 의존 없음).
+  #   외부 노출 엔드포인트: POST /api/shock/tariff, POST /api/shock/volume, GET /health.
+  #   stateless — depends_on 없음, 수평확장 자유. RAG 와 독립 배포.
+  # ─────────────────────────────────────────────────────────────────────────────
+  shock-server:
+    profiles: ["shock"]
+    build:
+      context: .
+      dockerfile: deploy/shock-server/Dockerfile
+    image: nice/shock-server:${APP_TAG:-dev}
+    container_name: nice-shock-server
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${SHOCK_API_PORT:-18004}:8000"
+    restart: unless-stopped
+    networks: [nice-net]
+
+  # ─────────────────────────────────────────────────────────────────────────────
   # Neo4j — 현재 미사용(비활성). 보존용 주석 (나중에 필요 시 해제).
   #
   # 현역 shock 파이프라인(nice_graph)·데모(app_shock)·RAG 는 그래프 노드/엣지를
