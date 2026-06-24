@@ -249,6 +249,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-nice_innovation}
       RAG_API_URL: ${RAG_API_URL_INTERNAL:-http://rag-server:8000}
       GRAPH_API_URL: ${GRAPH_API_URL_INTERNAL:-http://graph-analysis:8000}
+      # 전파를 shock 서버(HTTP)에 위임 — compose 내부 DNS
+      SHOCK_API_URL: ${SHOCK_API_URL_INTERNAL:-http://shock-server:8000}
       LLM_BASE_URL: ${LLM_BASE_URL:-http://llm:11434/v1}
       LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b-instruct}
       LLM_API_KEY: ${LLM_API_KEY:-noop}

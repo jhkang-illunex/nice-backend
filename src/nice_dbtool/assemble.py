@@ -636,11 +636,18 @@ def assemble_propagation_input(
     )
 
 
-def run_propagation(assembled: PropagationInput, **propagate_kwargs) -> ShockResult:
+def run_propagation(
+    assembled: PropagationInput, *, propagate_fn=None, **propagate_kwargs
+) -> ShockResult:
     """조립된 입력으로 전파 호출 (편의 래퍼). 결과의 bizno 는 복합키.
 
+    propagate_fn: 전파 실행 주입점 — (edges, init_sub_graph, **kwargs) → ShockResult.
+                  None 이면 in-process propagate_dispatch. 데모는 shock 서버 HTTP 호출을
+                  주입해 "조립=nice_dbtool / 전파=nice_shock 서버" 분리를 실현한다.
     propagate_kwargs 의 method='iterative'|'scc' 로 엔진 선택 (기본 iterative).
     """
+    if propagate_fn is not None:
+        return propagate_fn(assembled.edges, assembled.init_sub_graph, **propagate_kwargs)
     return propagate_dispatch(
         edges=assembled.edges,
         init_sub_graph=assembled.init_sub_graph,

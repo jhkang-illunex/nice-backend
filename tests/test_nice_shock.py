@@ -70,5 +70,17 @@ def test_volume_delta_is_one_plus_propagated() -> None:
     assert abs(sm["지오"] - 0.8) < 1e-9
 
 
+def test_propagate_endpoint_edges_init() -> None:
+    """저수준 /api/shock/propagate — 이미 정향된 edges + 노드별 init 직접 전파."""
+    r = client.post(
+        "/api/shock/propagate",
+        json={"triple_list": [{"from": "A", "to": "B", "rate": 0.5}], "init": {"A": 1.0}},
+    )
+    assert r.status_code == 200
+    d = r.json()
+    sm = {x["bizno"]: x["shock"] for x in d["shock_list"]}
+    assert sm["A"] == 1.0 and abs(sm["B"] - 0.5) < 1e-9  # B = A×0.5
+
+
 def test_health() -> None:
     assert client.get("/health").json()["status"] == "ok"

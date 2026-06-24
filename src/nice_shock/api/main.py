@@ -12,6 +12,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
+from nice_shock.engine import propagate_dispatch
 from nice_shock.scenario import run_tariff, run_volume
 
 app = FastAPI(
@@ -128,6 +129,35 @@ def volume(req: VolumeRequest) -> ScenarioResponse:
         cycle_damping=req.cycle_damping,
     )
     return _to_out(results)
+
+
+# ── 저수준 전파 (이미 조립·정향된 edges + 노드별 init 직접) ─────────────────
+class PropagateRequest(BaseModel):
+    """edges 와 init 을 그대로 받는 저수준 전파.
+
+    triple_list 는 이미 전파 방향으로 정향·정규화된 엣지(클라이언트가 조립).
+    init 은 노드별 초기값({node: shock/δ}). pin·방향·δ 산출은 호출자(nice_dbtool) 책임.
+    """
+    triple_list: list[TripleIn]
+    init: dict[str, float] = Field(..., description="노드별 초기값 {bizno: shock 또는 δ}")
+    method: str = "scc"
+    cycle_damping: float = Field(0.95, gt=0.0, lt=1.0)
+
+
+@app.post("/api/shock/propagate", response_model=DirectionOut, summary="저수준 전파(edges+init)")
+def propagate(req: PropagateRequest) -> DirectionOut:
+    edges = [{"from_bizno": t.from_, "to_bizno": t.to, "rate": t.rate} for t in req.triple_list]
+    res = propagate_dispatch(
+        edges=edges, init_sub_graph=req.init,
+        method=req.method if req.method in _METHODS else "scc",
+        cycle_damping=req.cycle_damping,
+    )
+    return DirectionOut(
+        direction=-1, converged=res.converged, iterations=res.iterations,
+        total_shock=res.total_shock,
+        shock_list=[ShockRowOut(**row) for row in res.shock_list],
+        damped_cycles=[DampedCycleOut(**d) for d in res.damped_cycles],
+    )
 
 
 @app.get("/health", summary="헬스체크")

@@ -20,20 +20,52 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 
+import httpx
 import pandas as pd
 import streamlit as st
 from sqlalchemy import text
 from streamlit_agraph import Config, Edge, Node, agraph
 
-from nice_demo.clients import get_rag_client
+from nice_common.db import get_pg_engine
 from nice_dbtool import (
     VolumeSpec,
     parse_node_id,
     run_scenario,
     select_primary_firms,
 )
-from nice_common.db import get_pg_engine
+from nice_demo.clients import get_rag_client
+from nice_shock.engine import ShockResult
+
+# 쇼크 전파 서버(HTTP) — 데모는 nice_dbtool 로 그래프 조립 후 전파만 이 서버에 위임.
+#   compose 내부: http://shock-server:8000, 로컬: http://localhost:18004
+SHOCK_API_URL = os.getenv("SHOCK_API_URL", "http://localhost:18004")
+
+
+def _http_propagate(edges, init_sub_graph, *, method="scc", cycle_damping=0.95, **_ignore):
+    """nice_shock 서버 /api/shock/propagate 호출 → ShockResult (전파 주입점).
+
+    nice_dbtool 이 조립·정향·pin·δ 산출을 마친 (edges, init) 을 그대로 전파 위임한다.
+    """
+    payload = {
+        "triple_list": [
+            {"from": e["from_bizno"], "to": e["to_bizno"], "rate": e["rate"]} for e in edges
+        ],
+        "init": {str(k): float(v) for k, v in init_sub_graph.items()},
+        "method": method if method in ("scc", "iterative") else "scc",
+        "cycle_damping": float(cycle_damping),
+    }
+    r = httpx.post(f"{SHOCK_API_URL}/api/shock/propagate", json=payload, timeout=60.0)
+    r.raise_for_status()
+    d = r.json()
+    return ShockResult(
+        shock_list=[{"bizno": x["bizno"], "shock": x["shock"]} for x in d["shock_list"]],
+        total_shock=d["total_shock"],
+        iterations=d["iterations"],
+        converged=d["converged"],
+        damped_cycles=d.get("damped_cycles", []),
+    )
 
 # 기업규모 코드(scaledivcd) → 라벨 (대략). 미상은 코드 그대로.
 _SCALE_LABEL = {"1": "대기업", "2": "중견기업", "3": "중소기업"}
@@ -110,6 +142,11 @@ def sidebar() -> dict:
         "시드 고정 (pin — 자기 되먹임 차단)", value=True,
         help="시드로 들어오는 엣지를 끊어 시드를 주입 충격량에 고정. 시드가 자기 순환을 돌아 "
         "증폭되는 것을 막고, 충격은 거래처로만 전파(시드=1차 외생원). 끄면 시드도 순환 등비급수에 포함.",
+    )
+    use_shock_server = st.sidebar.checkbox(
+        "전파를 shock 서버(HTTP)로 실행", value=True,
+        help=f"체크: nice_dbtool 로 그래프 조립 후 전파를 shock 서버({SHOCK_API_URL})에 위임"
+        "(실제 엔드포인트 테스트). 해제: in-process 전파.",
     )
     viz_top = st.sidebar.slider("그래프 표시 상위 N 노드 (shock)", 20, 400, value=80, step=20)
 
@@ -207,6 +244,7 @@ def sidebar() -> dict:
         "within": bool(within),
         "shock_amount": float(shock_amount),
         "pin_seeds": bool(pin_seeds),
+        "use_shock_server": bool(use_shock_server),
         "viz_top": int(viz_top),
         "scenario": scenario,
         "directions": directions,
@@ -392,7 +430,12 @@ def step_scenario(cfg: dict) -> None:
             kw = dict(common)
             if cfg["scenario"] == "volume":
                 kw["firm_specs"] = firm_specs
+            if cfg["use_shock_server"]:  # 전파를 nice_shock 서버에 HTTP 위임
+                kw["propagate_fn"] = _http_propagate
             sres = run_scenario(cfg["scenario"], seed_pairs, **kw)
+        except httpx.HTTPError as exc:
+            st.error(f"shock 서버({SHOCK_API_URL}) 호출 실패: {exc.__class__.__name__} — {exc}")
+            return
         except Exception as exc:  # noqa: BLE001
             st.error(f"시나리오 전파 실패: {exc.__class__.__name__} — {exc}")
             return

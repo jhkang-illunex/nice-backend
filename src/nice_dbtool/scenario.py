@@ -227,14 +227,20 @@ def _firm_specs_delta(
     return delta
 
 
-def _volume_shock_result(asm, init_delta, pin_ids, **propagate_kwargs):
-    """init_delta(편차) 로 1회 전파 → shock=1+propagated. pin_ids 노드는 incoming 차단."""
+def _volume_shock_result(asm, init_delta, pin_ids, *, propagate_fn=None, **propagate_kwargs):
+    """init_delta(편차) 로 1회 전파 → shock=1+propagated. pin_ids 노드는 incoming 차단.
+
+    propagate_fn: 전파 주입점(데모의 shock 서버 HTTP). None 이면 in-process.
+    """
     prop_asm = replace(
         asm, edges=[e for e in asm.edges if e["to_bizno"] not in pin_ids]
     ) if pin_ids else asm
-    res = propagate_dispatch(
-        edges=prop_asm.edges, init_sub_graph=init_delta, **propagate_kwargs
-    )
+    if propagate_fn is not None:
+        res = propagate_fn(prop_asm.edges, init_delta, **propagate_kwargs)
+    else:
+        res = propagate_dispatch(
+            edges=prop_asm.edges, init_sub_graph=init_delta, **propagate_kwargs
+        )
     return ShockResult(
         shock_list=[{"bizno": r["bizno"], "shock": 1.0 + r["shock"]} for r in res.shock_list],
         total_shock=res.total_shock,
