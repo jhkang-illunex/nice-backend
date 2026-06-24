@@ -21,6 +21,41 @@ app = FastAPI(
     description="triple_list 입력 순수 쇼크 전파 — 관세충격 / 거래량변동.",
 )
 
+# ── Swagger 예제 (a·b·c 그래프, b에 충격 1 → 등비급수 수렴) ───────────────────
+_EX_EDGES = [
+    {"from": "a", "to": "b", "rate": 0.115},
+    {"from": "b", "to": "a", "rate": 0.060},
+    {"from": "c", "to": "b", "rate": 0.912},
+    {"from": "b", "to": "c", "rate": 0.607},
+]
+_EX_TARIFF_REQ = {
+    "triple_list": _EX_EDGES, "seed_list": ["b"], "shock_rate": 1.0, "directions": [0],
+}
+_EX_VOLUME_REQ = {
+    "triple_list": [{"from": "a", "to": "b", "rate": 0.115}, {"from": "b", "to": "c", "rate": 0.607}],
+    "seed_list": ["b"], "edge_overrides": [{"p1": "b", "w1": 0.8}], "directions": [0],
+}
+_EX_PROPAGATE_REQ = {"triple_list": [{"from": "a", "to": "b", "rate": 0.5}], "init": {"a": 1.0}}
+_EX_SCENARIO_RESP = {
+    "directions": [{
+        "direction": 0, "converged": True, "iterations": 0, "total_shock": 3.79281,
+        "shock_list": [
+            {"bizno": "b", "shock": 2.27523, "depth": 1},
+            {"bizno": "c", "shock": 1.38106, "depth": 2},
+            {"bizno": "a", "shock": 0.13651, "depth": 2},
+        ],
+        "damped_cycles": [],
+    }],
+}
+_EX_DIRECTION_OUT = {
+    "direction": -1, "converged": True, "iterations": 0, "total_shock": 1.5,
+    "shock_list": [
+        {"bizno": "a", "shock": 1.0, "depth": None},
+        {"bizno": "b", "shock": 0.5, "depth": None},
+    ],
+    "damped_cycles": [],
+}
+
 
 # ── 공통 스키마 ────────────────────────────────────────────────────────────
 class TripleIn(BaseModel):
@@ -52,9 +87,13 @@ class DirectionOut(BaseModel):
     shock_list: list[ShockRowOut]
     damped_cycles: list[DampedCycleOut] = []
 
+    model_config = {"json_schema_extra": {"example": _EX_DIRECTION_OUT}}
+
 
 class ScenarioResponse(BaseModel):
     directions: list[DirectionOut]
+
+    model_config = {"json_schema_extra": {"example": _EX_SCENARIO_RESP}}
 
 
 _METHODS = ("scc", "iterative")
@@ -96,6 +135,8 @@ class TariffRequest(BaseModel):
     shock_rate: float = Field(..., description="시드 주입 충격량 (음수 가능)")
     directions: list[int] = Field([1], description="[0|1] — 0=매출, 1=매입 파급")
 
+    model_config = {"json_schema_extra": {"example": _EX_TARIFF_REQ}}
+
 
 @app.post("/api/shock/tariff", response_model=ScenarioResponse, summary="관세(외생) 충격")
 def tariff(req: TariffRequest) -> ScenarioResponse:
@@ -122,6 +163,8 @@ class VolumeRequest(BaseModel):
     seed_list: list[str]
     edge_overrides: list[OverrideIn] = Field(..., description="[{p1,w1}] 노드별 거래량 factor")
     directions: list[int] = Field([1], description="[0|1]")
+
+    model_config = {"json_schema_extra": {"example": _EX_VOLUME_REQ}}
 
 
 @app.post("/api/shock/volume", response_model=ScenarioResponse, summary="거래량 변동")
@@ -150,6 +193,8 @@ class PropagateRequest(BaseModel):
     init: dict[str, float] = Field(..., description="노드별 초기값 {bizno: shock 또는 δ}")
     method: str = "scc"
     cycle_damping: float = Field(0.95, gt=0.0, lt=1.0)
+
+    model_config = {"json_schema_extra": {"example": _EX_PROPAGATE_REQ}}
 
 
 @app.post("/api/shock/propagate", response_model=DirectionOut, summary="저수준 전파(edges+init)")
