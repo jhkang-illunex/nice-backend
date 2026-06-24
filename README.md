@@ -24,6 +24,94 @@ NICE Open Innovation PoC — 공급망/수요망 충격 시뮬레이션 백엔�
 **실 데이터가 도착하면** → [docs/DATA_INTAKE.md](docs/DATA_INTAKE.md) 의 6단계
 체크리스트 그대로 실행.
 
+---
+
+## 현행 배포 — 이미지·전처리(rate 갱신)·의존성
+
+> 이 절은 **쇼크 전파 리팩토링 이후 현재 구조**를 정리한다. 아래의 "서버 토폴로지(RAG +
+> Network)" 절은 RAG 중심의 이전 상태 설명이며, shock-server·demo(app_shock)·nice_migrate
+> 는 이 절을 기준으로 본다. 계산 기준(전파 엔진 단일 출처 등)은 [`CLAUDE.md`](./CLAUDE.md).
+
+### A. company_edge.trade_rate 갱신 모듈 — `nice_migrate`
+
+쇼크 전파의 입력 가중치(거래비율)를 만드는 **데이터 전처리 CLI**. docker compose 서비스가
+**아니라** 일회성/배치 CLI 다(상시 가동 불필요).
+
+| 항목 | 내용 |
+|---|---|
+| 위치 | `src/nice_migrate/` (`__main__.py`=CLI, `rate.py`=계산·갱신) |
+| 대상 | `public.company_edge.trade_rate` 컬럼 |
+| 계산 | `trade_rate(from→to, year) = sly_amt(from→to, year) / Σ_out(from, year)` — 년단위 **source(전파소스) 정규화** → 같은 from 의 outgoing 합 `Σ_out=1` → 전파행렬 ρ(R)≤1 **수렴 보장** |
+| 컬럼 보정 | 비율(0~1)을 못 담는 타입이면 자동 `ALTER … double precision` (`--no-alter` 로 끔) |
+| 의존 | `sqlalchemy`, `psycopg` (base 의존성). 실행 시 `src` 가 import 경로에 있어야 함 |
+
+```bash
+# 환경변수(POSTGRES_*) 접속, 특정 연도만
+PYTHONPATH=src python -m nice_migrate --year 2026
+# 접속 인자 직접 / 전체 DSN
+PYTHONPATH=src python -m nice_migrate --host db --user nice --password nice --dbname nice_innovation
+PYTHONPATH=src python -m nice_migrate --dsn postgresql+psycopg://nice:nice@db:5432/nice_innovation
+# .env 주입 + 미리보기(갱신 없이 대상 행수만) / 전 연도 / 상세로그
+PYTHONPATH=src python -m nice_migrate --env-file .env --dry-run
+PYTHONPATH=src python -m nice_migrate            # 전 연도
+```
+
+출력은 JSON 통계(`target_rows`, `updated`, source정규화 검산 Σ_out min/max/avg≈1).
+**언제**: `company_edge`(거래 원천)가 갱신된 뒤 — shock-server/데모가 `trade_rate` 를 전파
+가중치로 읽으므로 원천이 바뀌면 이 CLI 로 재정규화해야 한다.
+
+> 참고: RAG용 HS코드 적재는 `nice_ingest`(ingestion 이미지)로 **대상·소비처가 다른 별도 모듈**.
+> rate 갱신=`nice_migrate`(shock), HS 적재=`nice_ingest`(RAG). 이름이 비슷하니 혼동 주의.
+
+### B. Docker 이미지별 내용·의존성
+
+우리가 빌드하는 이미지 **5개**(`nice/*`) + 서드파티 pull **3개**. 모든 서비스는 `profiles:` 로
+게이팅 — 해당 `--profile` 을 줄 때만 기동(아무 프로파일 없이 `up` → 0개).
+
+| 이미지 | 서비스 / profile | 설치 | 실행(CMD) | host포트 | 역할 · 런타임 의존 |
+|---|---|---|---|---|---|
+| `nice/rag-server` | rag-server / **rag** | `.[rag]` | `uvicorn nice_rag.api.main:app` | 18002 | HS 자연어 검색 API · **PG(pgvector)+redis+임베딩** |
+| `nice/shock-server` | shock-server / **shock** | 최소(fastapi·uvicorn·pydantic·numpy·networkx), `src/nice_shock` 만 복사 | `uvicorn nice_shock.api.main:app` | 18004 | 순수 쇼크 전파(`/tariff`·`/volume`·`/propagate`) · **의존 없음**(triple_list 입력, stateless) |
+| `nice/graph-analysis` | graph-analysis / **network** | `.`(전체) | `uvicorn nice_graph.api.main:app` | 18001 | `public.node/edge` networkx 분석 + `/api/shock/*` · **PG(read-only)+LLM**. 레거시/선택 |
+| `nice/demo` | demo / **demo** | `.[demo]` | `streamlit run src/nice_demo/app_shock.py` | 18003 | Streamlit 시연 UI · **PG(read-only) + rag·shock·graph HTTP** (소스 `./src` 볼륨마운트) |
+| `nice/ingestion` | ingestion / **ingest** | `.[ingest]` | `python -m nice_ingest …` (1회성) | — | RAG용 HS코드 적재(xlsx→임베딩→pgvector) · **PG+임베딩** · `restart:"no"` |
+
+서드파티(pull): `redis:7-alpine`(redis/**rag**, 16379) · `ollama/ollama`(llm/**llm-local**,
+11434) · `text-embeddings-inference`(embed/**embed-local**, 18080). `neo4j` 는 **주석 비활성**.
+
+**런타임 의존 요약**
+```
+브라우저 → demo(18003) ─HTTP→ rag-server(18002) / shock-server(18004) / graph-analysis(18001)
+              └─ read-only SELECT → PostgreSQL(운영, 172.30.1.101:5432)
+rag-server / ingestion → PostgreSQL(pgvector) + 임베딩(embed:18080 또는 외부 EMBED_BASE_URL)
+graph-analysis        → PostgreSQL(read-only) + LLM(llm:11434 또는 외부)
+shock-server          → (무의존 — 입력 그래프를 클라이언트가 제공, 수평확장 자유)
+nice_migrate (CLI)    → PostgreSQL (company_edge UPDATE)
+```
+
+### C. 파이썬 의존성(extras)
+
+`pyproject.toml` base + 이미지별 extra. base: fastapi, uvicorn, pydantic(-settings),
+psycopg, sqlalchemy, alembic, redis, httpx, numpy, scipy, pandas, networkx, neo4j.
+
+| extra | 추가 패키지 | 쓰는 이미지 |
+|---|---|---|
+| `[rag]` | (없음 — 임베딩은 원격 base_url) | rag-server |
+| `[ingest]` | openpyxl | ingestion |
+| `[demo]` | streamlit, streamlit-agraph | demo |
+| `[dev]` | pytest(-asyncio), ruff, mypy | (개발) |
+
+> ⚠️ **패키징 보강 필요**: `[tool.hatch.build.targets.wheel].packages` 에 신규 패키지
+> `nice_shock`·`nice_dbtool`·`nice_common`·`nice_migrate` 가 아직 누락. shock-server 는
+> `src/nice_shock` 직접 복사 + `PYTHONPATH=/app/src`, demo 는 `./src` 볼륨마운트 +
+> `PYTHONPATH=/app/src` 라 현재 동작엔 무관하나, `pip install "."` 로 이 모듈들을 install 해야
+> 하는 경로(예: graph-analysis 가 신규 모듈 import 시)에선 packages 목록 보강 권장.
+
+### D. 외부 노출(제품) vs 내부
+
+- **외부**: rag-server `/api/hsk/search` · shock-server `/api/shock/{tariff,volume}`
+- **내부/선택**: graph-analysis(레거시) · demo(시연) · ingestion(배치) · redis/llm/embed(서드파티)
+
 ## 설계 문서
 
 `docs/` 디렉토리 참조.
