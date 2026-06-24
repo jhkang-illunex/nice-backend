@@ -8,12 +8,12 @@
 담당 신규 파이프라인을 그대로 in-process 로 호출한다:
 
   1. RAG       : rag-server /api/hsk/search  (HTTP) → HS 후보
-  2. 1차 시드  : nice_graph.shock.select_primary_firms  (ra603 거래구성 기반)
-  3. 그래프    : nice_graph.shock.assemble_propagation_input  (company_edge 3depth, 복합키)
-  4. 시나리오  : nice_graph.shock.run_scenario (tariff 외생충격 / volume 거래량 변동)
+  2. 1차 시드  : nice_dbtool.select_primary_firms  (ra603 거래구성 기반)
+  3. 그래프    : nice_dbtool.assemble_propagation_input  (company_edge N-depth, 복합키, 방향별 정향)
+  4. 전파      : **공개 API** /api/shock/tariff·/volume  (HTTP) — pin·init·전파·depth·volume(1+δ) 내부
   5. 결과 표시 : 방향별 노드·에지(rate)·값(shock 또는 Δ) 그리드 + 네트워크 그래프
 
-graph-analysis 서버 없이 PG 직결로 동작 (RAG 만 별도 서비스).
+그래프 조립은 PG 직결(nice_dbtool), 전파는 공개 shock API 에 위임 (RAG 도 별도 서비스).
 """
 
 from __future__ import annotations
@@ -30,45 +30,52 @@ from streamlit_agraph import Config, Edge, Node, agraph
 
 from nice_common.db import get_pg_engine
 from nice_dbtool import (
-    VolumeSpec,
+    DirectionResult,
+    ScenarioResult,
+    assemble_propagation_input,
     parse_node_id,
-    run_scenario,
     select_primary_firms,
 )
+from nice_dbtool.assemble import firm_partner_shares
+from nice_dbtool.scenario import EFFECT_LABEL
 from nice_demo.clients import get_rag_client
 from nice_shock.engine import ShockResult
 
-# 쇼크 전파 서버(HTTP) — 데모는 nice_dbtool 로 그래프 조립 후 전파만 이 서버에 위임.
+# 쇼크 전파 서버(HTTP) — 데모는 **공개 엔드포인트**(/api/shock/tariff·/volume)를 호출한다.
+#   데모가 nice_dbtool 로 그래프를 조립·정향(triple_list)하고, pin·init·전파·depth 는
+#   공개 API 가 내부 처리. 외부 클라이언트와 동일한 계약을 실제로 태우는 쇼케이스/통합테스트.
 #   compose 내부: http://shock-server:8000, 로컬: http://localhost:18004
 SHOCK_API_URL = os.getenv("SHOCK_API_URL", "http://localhost:18004")
 
 
-def _http_propagate(edges, init_sub_graph, *, method="scc", cycle_damping=0.95, **_ignore):
-    """nice_shock 서버 /api/shock/propagate 호출 → ShockResult (전파 주입점).
-
-    nice_dbtool 이 조립·정향·pin·δ 산출을 마친 (edges, init) 을 그대로 전파 위임한다.
-    """
-    payload = {
-        "triple_list": [
-            {"from": e["from_bizno"], "to": e["to_bizno"], "rate": e["rate"]} for e in edges
-        ],
-        "init": {str(k): float(v) for k, v in init_sub_graph.items()},
-        "method": method if method in ("scc", "iterative") else "scc",
-        "cycle_damping": float(cycle_damping),
-    }
-    r = httpx.post(f"{SHOCK_API_URL}/api/shock/propagate", json=payload, timeout=60.0)
+def _post_shock(path: str, payload: dict) -> dict:
+    """공개 shock API(path) 호출 → DataResponse(dict). 원본 응답은 화면 점검용으로 stash."""
+    r = httpx.post(f"{SHOCK_API_URL}{path}", json=payload, timeout=60.0)
     r.raise_for_status()
     d = r.json()
-    # 결과 화면에 '원본 API 출력 일부'를 보여주기 위해 stash (요청 노드수 + 응답).
     st.session_state.setdefault("_shock_raw", []).append(
-        {"req_edges": len(payload["triple_list"]), "req_init": len(payload["init"]), "resp": d}
+        {"path": path, "req_edges": len(payload["triple_list"]),
+         "req_seeds": len(payload["seed_list"]), "resp": d}
     )
+    return d
+
+
+def _data_to_result(d: dict) -> ShockResult:
+    """공개 API DataResponse(data_list) → 데모 표시용 ShockResult.
+
+    공개 API 는 converged/iterations/damped_cycles 를 숨기므로(간소화), 표시용으로는
+    converged=True·iterations=0·damped_cycles=[] 로 채운다(서버가 조건부 damping 으로
+    발산 순환을 이미 처리). depth 는 shock_list 항목에 실어 결과 그리드에서 surface.
+    """
     return ShockResult(
-        shock_list=[{"bizno": x["bizno"], "shock": x["shock"]} for x in d["shock_list"]],
+        shock_list=[
+            {"bizno": x["node_id"], "shock": x["shock"], "depth": x.get("depth")}
+            for x in d["data_list"]
+        ],
         total_shock=d["total_shock"],
-        iterations=d["iterations"],
-        converged=d["converged"],
-        damped_cycles=d.get("damped_cycles", []),
+        iterations=0,
+        converged=True,
+        damped_cycles=[],
     )
 
 # 기업규모 코드(scaledivcd) → 라벨 (대략). 미상은 코드 그대로.
@@ -132,9 +139,6 @@ def sidebar() -> dict:
         help="company_edge.trade_year 기준. '전체'=전 연도 합산. 데이터: 2024·2026.",
     )
     depth = st.sidebar.slider("확장 depth", 1, 6, value=3)
-    # 전역 감쇠율(damping α) 제거 — 감쇠는 SCC 엔진의 '조건부 damping'(ρ≥1 순환에만)으로만 적용.
-    # assemble 에는 damping=1.0(무감쇠) 고정 전달.
-    within = st.sidebar.checkbox("서브그래프 내 정규화 (Σ_out=1)", value=True)
     shock_amount = st.sidebar.slider(
         "충격량 (시드 초기충격)", -2.0, 2.0, value=1.0, step=0.05,
         help="시드에 주입하는 외생충격. 음수=감소/역방향 충격. 0 은 사용 불가.",
@@ -142,15 +146,9 @@ def sidebar() -> dict:
     if shock_amount == 0.0:
         st.sidebar.error("충격량은 0 을 쓸 수 없습니다 — −2~2 범위에서 0 이 아닌 값을 선택하세요.")
         st.stop()
-    pin_seeds = st.sidebar.checkbox(
-        "시드 고정 (pin — 자기 되먹임 차단)", value=True,
-        help="시드로 들어오는 엣지를 끊어 시드를 주입 충격량에 고정. 시드가 자기 순환을 돌아 "
-        "증폭되는 것을 막고, 충격은 거래처로만 전파(시드=1차 외생원). 끄면 시드도 순환 등비급수에 포함.",
-    )
-    use_shock_server = st.sidebar.checkbox(
-        "전파를 shock 서버(HTTP)로 실행", value=True,
-        help=f"체크: nice_dbtool 로 그래프 조립 후 전파를 shock 서버({SHOCK_API_URL})에 위임"
-        "(실제 엔드포인트 테스트). 해제: in-process 전파.",
+    st.sidebar.caption(
+        f"전파는 공개 API({SHOCK_API_URL})에 위임 — 정규화=전파소스(Σ_out=1)·시드 고정(pin)·"
+        "조건부 damping(ρ≥1 순환)·depth 산출 모두 서버 내부 고정."
     )
     viz_top = st.sidebar.slider("그래프 표시 상위 N 노드 (shock)", 20, 400, value=80, step=20)
 
@@ -201,41 +199,8 @@ def sidebar() -> dict:
                 help="선택 방향(매출=하류/매입=상류) 거래량 증감(m=1+증감율).",
             )
             preset_factor = round(1.0 + chg_pct / 100.0, 4)
-    # 가중치 A/B 는 1.0 고정(UI 제거) — 방향 비중은 미사용. 충격 크기는 위 '충격량' 으로 조절.
-    weight_a = 1.0
-    weight_b = 1.0
-    norm_label = st.sidebar.radio(
-        "정규화 기준",
-        ["거래비율·무감쇠 (none)", "전파소스 (수렴보장)", "거래상대 (매출·매입 비중)"],
-        index=0,
-        help="none=거래상대 비중(거래비율) 그대로·damping 미적용(원시 Leontief, 수렴 보장 없음·발산 가능) / "
-        "source=Σ_out≤1 절대수렴 / counterparty=경제적 매출/매입 비중(수렴 약화, 발산 시 미수렴 표시)",
-    )
-    if norm_label.startswith("거래비율"):
-        normalize = "none"
-    elif norm_label.startswith("전파소스"):
-        normalize = "source"
-    else:
-        normalize = "counterparty"
-    if normalize == "none":
-        st.sidebar.caption(
-            "⚠ none 모드: 거래비율 그대로·damping 무시. 사이클 있으면 발산(converged=False) 가능."
-        )
-    engine_label = st.sidebar.radio(
-        "전파 엔진",
-        ["SCC 닫힌해 (조건부 damping)", "반복 (거듭제곱급수)"],
-        index=0,
-        help="SCC=반복 없이 위상순회 1회 + 순환은 등비급수 닫힌해. 발산 순환(ρ≥1)엔 "
-        "조건부 damping 적용. / 반복=Σ_k Rᵏ 라운드별 누적(ρ≥1이면 미수렴).",
-    )
-    method = "scc" if engine_label.startswith("SCC") else "iterative"
-    cycle_damping = 0.95
-    if method == "scc":
-        cycle_damping = st.sidebar.slider(
-            "조건부 damping (ρ≥1 순환에만)", 0.50, 0.99, value=0.95, step=0.01,
-            help="round-trip 배율 r≥1(발산)인 순환덩어리에만 rate×이 값을 ρ<1 될 때까지 적용.",
-        )
-
+    # 정규화/엔진/조건부 damping/pin 은 공개 API 내부 고정(전파소스·SCC·0.95·pin=True) —
+    # UI 제거. 데모는 거래소스 정규화(Σ_out=1)로 조립해 triple_list 만 넘긴다.
     return {
         "query": query.strip(),
         "year": None if year_label == "전체" else year_label,
@@ -244,19 +209,10 @@ def sidebar() -> dict:
         "top_k": int(top_k),
         "min_ratio": float(min_ratio),
         "depth": int(depth),
-        "damping": 1.0,  # 전역 무감쇠 — 감쇠는 조건부 damping(SCC)으로만
-        "within": bool(within),
         "shock_amount": float(shock_amount),
-        "pin_seeds": bool(pin_seeds),
-        "use_shock_server": bool(use_shock_server),
         "viz_top": int(viz_top),
         "scenario": scenario,
         "directions": directions,
-        "weight_a": float(weight_a),
-        "weight_b": float(weight_b),
-        "normalize": normalize,
-        "method": method,
-        "cycle_damping": float(cycle_damping),
         "preset_label": preset_label,
         "preset_side": preset_side,
         "preset_factor": preset_factor,
@@ -360,12 +316,90 @@ def step_seeds(cfg: dict) -> None:
     st.dataframe(df, height=320, use_container_width=True)
 
 
-# ── Step 3·4 — 시나리오 래퍼 (관세 충격 / 거래 변화) ──────────────────────────
+# ── Step 3·4 — 시나리오 래퍼 (관세 충격 / 거래 변화) — 공개 API(/tariff·/volume) 위임 ──
+#
+# 데모는 nice_dbtool 로 **방향별 정향·정규화(전파소스, Σ_out=1, 무감쇠)** 서브그래프를 조립한
+# 뒤, 그 (이미 정향된) 엣지를 공개 엔드포인트에 direction="export"(=뒤집기 안 함)로 보낸다.
+# pin·init 주입·전파·depth·volume(1+δ)는 모두 공개 API 내부 처리 → 외부 계약을 실제로 태움.
+_DIR_TO_API = {"downstream": "export", "upstream": "import"}  # (참고용 — 실제 전송은 export 고정)
+
+
+def _assemble_oriented(seed_pairs, direction: str, cfg: dict, seed_shock):
+    """방향 d 로 정향·전파소스 정규화된 서브그래프 조립 (표시 + triple_list 추출용)."""
+    return assemble_propagation_input(
+        seed_pairs,
+        depth=cfg["depth"],
+        trade_year=cfg["trade_year"],
+        within_subgraph=True,   # Σ_out=1 (공개 API 가정과 합치)
+        damping=1.0,            # 무감쇠 — 조건부 damping 은 서버 내부
+        seed_shock=seed_shock,
+        direction=direction,
+        direction_weight=1.0,
+        normalize="source",
+    )
+
+
+def _volume_overrides(asm, target_biznos, side: str, factor: float, trade_year):
+    """1차 target 의 side 거래처별 δ=share·(factor−1) → node_overrides [{p1,w1}].
+
+    firm_partner_shares 로 상대(2차) 거래 비중 가중. asm 안에 있는 노드만 대상.
+    w1 = 1+δ 로 보내면 공개 /volume 이 δ=w1−1 을 주입해 1회 전파 후 1+δ전파.
+    """
+    biz2nid = {n.bizno: n.node_id for n in asm.nodes}
+    delta: dict[str, float] = {}
+    for b in target_biznos:
+        for partner_b, share in firm_partner_shares(b, side, trade_year).items():
+            nid = biz2nid.get(partner_b)
+            if nid is None:
+                continue
+            delta[nid] = delta.get(nid, 0.0) + share * (float(factor) - 1.0)
+    return [{"p1": nid, "w1": 1.0 + dv} for nid, dv in delta.items()]
+
+
+def _run_public_scenario(cfg, seed_pairs, seed_biznos, factor, firm_targets) -> ScenarioResult:
+    """방향별로 조립→공개 API 호출→DirectionResult 구성. ScenarioResult 반환."""
+    scenario = cfg["scenario"]
+    out: list[DirectionResult] = []
+    warnings: list[str] = []
+    if scenario == "volume":
+        warnings.append(
+            "거래량 변동(volume): shock=1+전파(δ=share·(m−1)), 변동율=shock−1, 조정액=shock×기준액."
+        )
+    for d in cfg["directions"]:
+        seed_shock = cfg["shock_amount"] if scenario == "tariff" else 0.0
+        asm = _assemble_oriented(seed_pairs, d, cfg, seed_shock)
+        warnings.extend(f"[{d}] {m}" for m in asm.warnings)
+        triple_list = [
+            {"from": e["from_bizno"], "to": e["to_bizno"], "rate": e["rate"]} for e in asm.edges
+        ]
+        seed_list = [n.node_id for n in asm.nodes if n.is_seed]
+        if not triple_list:
+            warnings.append(f"[{d}] 조립된 엣지가 없어 전파 생략(서브그래프 비었음).")
+            base = cfg["shock_amount"] if scenario == "tariff" else 1.0
+            stub = {"direction": _DIR_TO_API[d], "total_shock": base * len(seed_list),
+                    "data_list": [{"node_id": s, "shock": base, "depth": 1} for s in seed_list]}
+            out.append(DirectionResult(d, EFFECT_LABEL[d], 1.0, asm, _data_to_result(stub)))
+            continue
+        if scenario == "tariff":
+            d_resp = _post_shock("/api/shock/tariff", {
+                "triple_list": triple_list, "seed_list": seed_list,
+                "shock_rate": cfg["shock_amount"], "direction": "export",
+            })
+        else:
+            side = "sales" if d == "downstream" else "purchase"
+            targets = firm_targets or sorted(seed_biznos)
+            node_overrides = _volume_overrides(asm, targets, side, factor, cfg["trade_year"])
+            d_resp = _post_shock("/api/shock/volume", {
+                "triple_list": triple_list, "seed_list": seed_list,
+                "node_overrides": node_overrides, "direction": "export",
+            })
+        out.append(DirectionResult(d, EFFECT_LABEL[d], 1.0, asm, _data_to_result(d_resp)))
+    return ScenarioResult(scenario, out, warnings)
 
 
 def step_scenario(cfg: dict) -> None:
     res = st.session_state.get("select_result")
-    st.subheader("Step 3·4 — 시나리오 래퍼 (외생충격 / 거래량 변동)")
+    st.subheader("Step 3·4 — 시나리오 (외생충격 / 거래량 변동) · 공개 API 위임")
     if res is None or not getattr(res, "firms", None):
         st.info("Step 2 에서 시드를 먼저 추출하세요.")
         return
@@ -375,33 +409,18 @@ def step_scenario(cfg: dict) -> None:
         return
 
     seed_pairs = [(b, u) for b, u, _ in seeds]
-    seed_shock = {b: cfg["shock_amount"] for b, _, _ in seeds}  # 시드 균등 충격량(−2~2, 0 제외)
     seed_biznos = {b for b, _, _ in seeds}
 
-    common = dict(
-        weight_a=cfg["weight_a"],
-        weight_b=cfg["weight_b"],
-        directions=cfg["directions"],
-        depth=cfg["depth"],
-        trade_year=cfg["trade_year"],
-        within_subgraph=cfg["within"],
-        damping=cfg["damping"],
-        normalize=cfg["normalize"],
-        seed_shock=seed_shock,
-        method=cfg["method"],
-        cycle_damping=cfg["cycle_damping"],
-        pin_seeds=cfg["pin_seeds"],
-    )
     st.caption(
         f"시나리오=**{cfg['scenario']}** · 방향={cfg['directions']} · "
-        f"충격량={cfg['shock_amount']} · 시드고정(pin)={'ON' if cfg['pin_seeds'] else 'OFF'} · "
-        f"depth={cfg['depth']} · 정규화={cfg['normalize']} · "
-        + (f"조건부 damping={cfg['cycle_damping']}(ρ≥1 순환) · " if cfg['method'] == "scc" else "전역 무감쇠 · ")
-        + f"거래연도={cfg['trade_year'] or '전체'}"
+        f"충격량={cfg['shock_amount']} · depth={cfg['depth']} · "
+        f"거래연도={cfg['trade_year'] or '전체'} · 전파=공개 API({SHOCK_API_URL}) "
+        "[pin·정규화·조건부 damping·depth 내부 고정]"
     )
 
-    # 거래량 변동(volume): 적용 대상 시드 선택 → 그 1차의 (방향별 side) 거래에 증감율
-    firm_specs: list[VolumeSpec] = []
+    # 거래량 변동(volume): 적용 대상 시드 선택 → 그 1차의 (방향별 side) 거래처에 증감율
+    factor = 1.0
+    firm_targets: list[str] | None = None
     if cfg["scenario"] == "volume":
         factor = cfg.get("preset_factor") or 1.0
         name_by_bizno = {f.bizno: (f.korentrnm or f.bizno) for f in res.firms if f.bizno}
@@ -412,34 +431,24 @@ def step_scenario(cfg: dict) -> None:
             default=[],
             help="선택한 시드 기업의 매출/매입만 변동시킨다. 비우면 추출된 1차 전체.",
         )
-        target_biznos = (
-            [label_to_bizno[x] for x in picked_labels] if picked_labels else sorted(seed_biznos)
+        firm_targets = (
+            [label_to_bizno[x] for x in picked_labels] if picked_labels else None
         )
-        for d in cfg["directions"]:
-            side = "sales" if d == "downstream" else "purchase"
-            firm_specs += [VolumeSpec(bizno=b, side=side, factor=factor) for b in target_biznos]
         side_kr = "·".join(
             ("매출" if d == "downstream" else "매입") for d in cfg["directions"]
         )
-        tgt_kr = (
-            f"{len(target_biznos)}곳" if picked_labels else f"전체 {len(target_biznos)}곳"
-        )
+        tgt_kr = f"{len(firm_targets)}곳" if firm_targets else f"전체 {len(seed_biznos)}곳"
         st.caption(
-            f"거래량 변동 — 1차 {tgt_kr}의 {side_kr} 거래에 m={factor} "
+            f"거래량 변동 — 1차 {tgt_kr}의 {side_kr} 거래처에 m={factor} "
             f"(상대에 거래 비중 가중 전파). 1차 자신은 입력값 고정."
         )
 
     if st.button("시나리오 전파 실행", type="primary"):
-        st.session_state["_shock_raw"] = []  # 이번 실행의 shock 서버 원본 응답 stash 초기화
+        st.session_state["_shock_raw"] = []  # 이번 실행의 공개 API 원본 응답 stash 초기화
         try:
-            kw = dict(common)
-            if cfg["scenario"] == "volume":
-                kw["firm_specs"] = firm_specs
-            if cfg["use_shock_server"]:  # 전파를 nice_shock 서버에 HTTP 위임
-                kw["propagate_fn"] = _http_propagate
-            sres = run_scenario(cfg["scenario"], seed_pairs, **kw)
+            sres = _run_public_scenario(cfg, seed_pairs, seed_biznos, factor, firm_targets)
         except httpx.HTTPError as exc:
-            st.error(f"shock 서버({SHOCK_API_URL}) 호출 실패: {exc.__class__.__name__} — {exc}")
+            st.error(f"공개 shock API({SHOCK_API_URL}) 호출 실패: {exc.__class__.__name__} — {exc}")
             return
         except Exception as exc:  # noqa: BLE001
             st.error(f"시나리오 전파 실패: {exc.__class__.__name__} — {exc}")
@@ -452,27 +461,23 @@ def step_scenario(cfg: dict) -> None:
     for w in sres.warnings:
         st.warning(w)
 
-    # shock 서버(HTTP) 원본 응답 일부 — API 출력 점검용
+    # 공개 API 원본 응답 일부 — 출력 점검용 (DataResponse: direction·total_shock·data_list)
     raw = st.session_state.get("_shock_raw") or []
     if raw:
-        with st.expander(f"🛰 shock 서버 응답 (원본 JSON 일부) · 방향 {len(raw)}건"):
+        with st.expander(f"🛰 공개 API 응답 (원본 JSON 일부) · {len(raw)}건"):
             for i, item in enumerate(raw):
                 resp = item["resp"]
-                head = {
-                    "converged": resp["converged"],
-                    "iterations": resp["iterations"],
-                    "total_shock": round(resp["total_shock"], 4),
-                    "노드수": len(resp["shock_list"]),
-                    "damped_cycles": len(resp.get("damped_cycles", [])),
-                }
                 st.caption(
-                    f"[{i}] POST {SHOCK_API_URL}/api/shock/propagate "
-                    f"(요청 엣지 {item['req_edges']}·init {item['req_init']})"
+                    f"[{i}] POST {SHOCK_API_URL}{item['path']} "
+                    f"(요청 엣지 {item['req_edges']}·시드 {item['req_seeds']})"
                 )
-                st.json(head)
-                # shock_list 는 |shock| 상위 5개만 (일부 표시)
-                top = sorted(resp["shock_list"], key=lambda x: -abs(x["shock"]))[:5]
-                st.json({"shock_list (|shock| 상위 5)": top})
+                st.json({
+                    "direction": resp["direction"],
+                    "total_shock": round(resp["total_shock"], 4),
+                    "노드수": len(resp["data_list"]),
+                })
+                top = sorted(resp["data_list"], key=lambda x: -abs(x["shock"]))[:5]
+                st.json({"data_list (|shock| 상위 5)": top})
 
     if not sres.directions:
         st.info("선택된 방향이 없습니다.")
@@ -712,33 +717,19 @@ def _render_direction(dr, scenario: str, cfg: dict) -> None:
     shock_by_node = {r["bizno"]: r["shock"] for r in dr.result.shock_list}
     val_label = "shock(1=무변화)" if scenario == "volume" else "shock"
 
-    damped = getattr(dr.result, "damped_cycles", None) or []
-    method = cfg.get("method", "iterative")
-    c1, c2, c3, c4, c5 = st.columns(5)
+    # 공개 API 는 수렴/반복/damped 진단을 숨김(간소화) — 표시용 메트릭은 그래프 규모·depth 중심.
+    depths = [r.get("depth") for r in dr.result.shock_list if r.get("depth") is not None]
+    max_depth = max(depths) if depths else 0
+    c1, c2, c3, c4 = st.columns(4)
     c1.metric("노드", len(asm.nodes))
     c2.metric("엣지", len(asm.edges))
-    if method == "scc":
-        c3.metric("조건부 damping 순환", len(damped))
-    else:
-        c3.metric("반복(iter)", dr.result.iterations)
-    c4.metric("수렴", "✅" if dr.result.converged else "❌ 발산")
-    c5.metric(f"Σ {val_label}", f"{dr.result.total_shock:.3f}")
-    engine_kr = "SCC 닫힌해(반복0회)" if method == "scc" else "반복 거듭제곱급수"
-    cond = f"조건부 damping={cfg.get('cycle_damping', 0.95)}(ρ≥1)" if method == "scc" else "전역 무감쇠"
+    c3.metric("최대 depth", max_depth)
+    c4.metric(f"Σ {val_label}", f"{dr.result.total_shock:.3f}")
     st.caption(
-        f"engine={engine_kr} · effect={dr.effect_label} · direction={asm.direction} · "
-        f"weight={dr.weight} · rate_kind={asm.rate_kind} · "
-        f"within_subgraph={asm.within_subgraph} · {cond}"
+        f"effect={dr.effect_label} · direction={asm.direction}(전송 export·서버 정향) · "
+        f"rate_kind={asm.rate_kind} · normalize=source(Σ_out=1) · "
+        "전파/pin/depth=공개 API 내부(조건부 damping 으로 발산 순환 처리)"
     )
-    if damped:
-        node_name = {n.node_id: (n.korentrnm or n.bizno) for n in asm.nodes}
-        with st.expander(f"조건부 damping 적용 순환덩어리 {len(damped)}개 (ρ≥1 → ×{cfg.get('cycle_damping', 0.95)})"):
-            for d in damped:
-                names = ", ".join(node_name.get(m, m) for m in d["members"][:6])
-                st.write(
-                    f"- {len(d['members'])}노드 (ρ={d['rho']} → {d['rho_after']}): {names}"
-                    + (" …" if len(d["members"]) > 6 else "")
-                )
     for w in asm.warnings:
         st.warning(w)
 

@@ -39,6 +39,7 @@ _EX_VOLUME_REQ = {
 }
 _EX_PROPAGATE_REQ = {"triple_list": [{"from": "a", "to": "b", "rate": 0.5}], "init": {"a": 1.0}}
 # tariff·volume 응답 (외부) — 간소화: direction(import|export)·total_shock·data_list 만.
+# (pin_seeds=False 기준: 시드 b 의 자기순환 되먹임 포함 전파 → b 가 1.0 이상으로 증폭.)
 _EX_DATA_RESP = {
     "direction": "export", "total_shock": 3.79281,
     "data_list": [
@@ -129,6 +130,9 @@ def _to_data_response(dr) -> DataResponse:
 
 # ── 관세(외생) 충격 ────────────────────────────────────────────────────────
 # 내부 고정값(tariff·volume 공통) — pin_seeds/method/cycle_damping 은 외부 노출 안 함.
+# pin_seeds=False (NICE 이사님 확정, 2026-06-24): 시드도 incoming 엣지를 그대로 두어 자기
+#   순환 되먹임을 포함한 전파를 계산한다(시드를 주입값에 고정하지 않음). 발산 순환은
+#   cycle_damping(조건부)으로 처리.
 _DEFAULT_PIN_SEEDS = False
 _DEFAULT_METHOD = "scc"
 _DEFAULT_CYCLE_DAMPING = 0.95
