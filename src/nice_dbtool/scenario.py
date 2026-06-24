@@ -24,7 +24,7 @@ import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 
-from nice_graph.shock.assemble import (
+from nice_dbtool.assemble import (
     Direction,
     Normalize,
     PropagationInput,
@@ -32,7 +32,7 @@ from nice_graph.shock.assemble import (
     edge_in_shares,
     run_propagation,
 )
-from nice_graph.shock.propagate import ShockResult, propagate_dispatch
+from nice_shock.engine import ShockResult, propagate_dispatch
 
 log = logging.getLogger(__name__)
 
@@ -212,7 +212,7 @@ def _firm_specs_delta(
     specs: Sequence[VolumeSpec], side: str, trade_year, biz2nid: dict[str, str]
 ) -> dict[str, float]:
     """해당 side 의 VolumeSpec 들을 상대(2차) 노드 δ 로 환산 (거래 비중 가중)."""
-    from nice_graph.shock.assemble import firm_partner_shares
+    from nice_dbtool.assemble import firm_partner_shares
 
     delta: dict[str, float] = {}
     for sp in specs:

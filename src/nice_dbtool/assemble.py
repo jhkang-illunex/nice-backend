@@ -44,9 +44,9 @@ from typing import Literal
 
 from sqlalchemy import text
 
-from nice_graph.shock.propagate import ShockResult, propagate_dispatch
-from nice_graph.shock.screen import PrimarySelectionResult
 from nice_common.db import get_pg_engine
+from nice_dbtool.screen import PrimarySelectionResult
+from nice_shock.engine import ShockResult, propagate_dispatch
 
 log = logging.getLogger(__name__)
 

@@ -27,7 +27,7 @@ from sqlalchemy import text
 from streamlit_agraph import Config, Edge, Node, agraph
 
 from nice_demo.clients import get_rag_client
-from nice_graph.shock import (
+from nice_dbtool import (
     VolumeSpec,
     parse_node_id,
     run_scenario,

@@ -1,49 +1,34 @@
-"""쇼크 파급 모듈 — 그래프 조회 + 전파 + 1차 대상 선정.
+"""쇼크 파급 모듈 — **이전됨**: DB 핸들링 계층은 ``nice_dbtool`` 로 옮겼다.
 
-  fetch_subgraph(hscode, n_of_child, mode)
-      HS → 시드 (s_em001 ⋈ s_ra603) → BFS/DFS n 차 확장 → nodes + edges
-      edges 의 ``all_rate`` = source bizno 의 outgoing 행 정규화 (Σ=1)
-      edges 의 ``years_rate[yr]`` = source bizno 의 연도별 outgoing 중 비중
-
-  propagate_shock(edges, init_sub_graph)
-      [MOCK — 다음 세션에서 수렴 루프 구현]
-      초기 충격을 그대로 반환.
-
-  extract_first_target(node_list)
-      LLM (nice_llm.LlmJsonClient.classify_choice) 으로 HIGH+MEDIUM 분류.
+이 패키지는 하위호환 re-export shim 이다 (graph-analysis API·기존 import 유지).
+신규 코드는 ``nice_dbtool`` (DB 조립) 과 ``nice_shock`` (순수 전파) 를 직접 쓸 것.
 """
-
-from nice_graph.shock.assemble import (
+from nice_dbtool import (  # noqa: F401
     AssembledNode,
     Direction,
+    DirectionResult,
+    EdgeRow,
+    ExposedFirm,
+    NodeRow,
     Normalize,
+    PrimarySelectionResult,
     PropagationInput,
+    ScenarioResult,
+    ShockResult,
+    SubgraphResult,
+    VolumeSpec,
     assemble_propagation_input,
+    extract_first_target,
+    fetch_subgraph,
     make_node_id,
     parse_node_id,
+    propagate_shock,
     run_propagation,
-)
-from nice_graph.shock.fetch import (
-    EdgeRow,
-    NodeRow,
-    SubgraphResult,
-    fetch_subgraph,
-)
-from nice_graph.shock.propagate import ShockResult, propagate_shock
-from nice_graph.shock.scenario import (
-    DirectionResult,
-    ScenarioResult,
-    VolumeSpec,
     run_scenario,
     run_tariff_shock,
     run_volume_shock,
-)
-from nice_graph.shock.screen import (
-    ExposedFirm,
-    PrimarySelectionResult,
     select_primary_firms,
 )
-from nice_graph.shock.target import extract_first_target
 
 __all__ = [
     "AssembledNode",
@@ -56,9 +41,9 @@ __all__ = [
     "PrimarySelectionResult",
     "PropagationInput",
     "ScenarioResult",
-    "VolumeSpec",
     "ShockResult",
     "SubgraphResult",
+    "VolumeSpec",
     "assemble_propagation_input",
     "extract_first_target",
     "fetch_subgraph",

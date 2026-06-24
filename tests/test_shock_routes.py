@@ -16,8 +16,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 
 from nice_graph.api.main import app
-from nice_graph.shock.assemble import AssembledNode, PropagationInput
-from nice_graph.shock.screen import ExposedFirm, PrimarySelectionResult
+from nice_dbtool.assemble import AssembledNode, PropagationInput
+from nice_dbtool.screen import ExposedFirm, PrimarySelectionResult
 
 client = TestClient(app)
 

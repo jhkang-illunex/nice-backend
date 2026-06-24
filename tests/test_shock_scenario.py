@@ -13,12 +13,12 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-import nice_graph.shock.assemble as asm_mod
-import nice_graph.shock.scenario as scen_mod
+import nice_dbtool.assemble as asm_mod
+import nice_dbtool.scenario as scen_mod
 from nice_graph.api.main import app
-from nice_graph.shock.assemble import PropagationInput, assemble_propagation_input
+from nice_dbtool.assemble import PropagationInput, assemble_propagation_input
 from nice_graph.shock.propagate import ShockResult, ShockRow
-from nice_graph.shock.scenario import (
+from nice_dbtool.scenario import (
     DirectionResult,
     ScenarioResult,
     VolumeSpec,
@@ -316,7 +316,7 @@ def test_scenario_rejects_empty_directions() -> None:
 
 
 def test_resolve_industry_chapters_mapping() -> None:
-    from nice_graph.shock.assemble import resolve_industry_chapters as r
+    from nice_dbtool.assemble import resolve_industry_chapters as r
 
     assert r(None) is None
     assert r(["전체"]) is None            # 전체 포함 → 필터 없음
@@ -425,7 +425,7 @@ def test_volume_edge_multipliers_share_weighted(monkeypatch) -> None:
         {"from_bizno": "A|1", "to_bizno": "C|3", "rate": 0.5},
     ]
     def fake(seeds, *, seed_shock, edge_overrides=None, **kw):
-        from nice_graph.shock.assemble import AssembledNode
+        from nice_dbtool.assemble import AssembledNode
         init = {f"{b}|1": float(seed_shock[b]) for b in seed_shock}
         def _n(nid, b, up, nm):
             return AssembledNode(node_id=nid, bizno=b, upchecd=up, korentrnm=nm,
@@ -446,7 +446,7 @@ def test_volume_edge_multipliers_share_weighted(monkeypatch) -> None:
 
 def test_volume_firm_specs_sales_auto_direction(monkeypatch) -> None:
     """firm_specs 매출 spec → 방향 downstream 자동, 상대 B 에 share·(g−1) 주입."""
-    from nice_graph.shock.assemble import AssembledNode
+    from nice_dbtool.assemble import AssembledNode
 
     def fake(seeds, *, seed_shock, edge_overrides=None, **kw):
         init = {f"{b}|1": float(seed_shock[b]) for b in seed_shock}
