@@ -44,19 +44,31 @@ def test_tariff_pinned_convex_combination() -> None:
 
 
 def test_tariff_api_endpoint() -> None:
+    # pin_seeds/method/cycle_damping 은 입력 인자가 아니다(내부 고정).
     body = {
-        "triple_list": [{"from": f, "to": t, "rate": r} for f, t, r in
-                        [(x["from"], x["to"], x["rate"]) for x in _TRIPLES]],
+        "triple_list": [{"from": x["from"], "to": x["to"], "rate": x["rate"]} for x in _TRIPLES],
         "seed_list": ["포스코", "현대모비스"],
         "shock_rate": -0.2,
         "directions": [0],
-        "pin_seeds": True,
     }
     r = client.post("/api/shock/tariff", json=body)
     assert r.status_code == 200
-    d = r.json()["directions"][0]
-    sm = {x["bizno"]: x["shock"] for x in d["shock_list"]}
+    rows = r.json()["directions"][0]["shock_list"]
+    sm = {x["bizno"]: x["shock"] for x in rows}
     assert abs(sm["삼성"] + 0.2) < 1e-9
+    # depth: 시드=1, 홉당 +1.
+    dep = {x["bizno"]: x["depth"] for x in rows}
+    assert dep["포스코"] == 1 and dep["현대모비스"] == 1  # 시드
+    assert dep["삼성"] == 2  # 시드에서 1홉 (현대모비스→삼성)
+    assert dep["지오"] == 2  # 포스코→지오 1홉
+
+
+def test_tariff_input_drops_internal_params() -> None:
+    """pin_seeds/method/cycle_damping 은 TariffRequest 스키마에 없어야(내부 처리)."""
+    from nice_shock.api.main import TariffRequest
+
+    fields = set(TariffRequest.model_fields)
+    assert fields == {"triple_list", "seed_list", "shock_rate", "directions"}
 
 
 def test_volume_delta_is_one_plus_propagated() -> None:

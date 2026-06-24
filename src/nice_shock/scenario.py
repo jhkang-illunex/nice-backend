@@ -37,6 +37,7 @@ class Triple(TypedDict):
 class DirectionResult(TypedDict):
     direction: int
     result: ShockResult
+    depths: dict[str, int]  # 노드별 depth (시드=1, 시드에서 홉당 +1)
 
 
 def _norm_triples(triple_list: Sequence[Mapping]) -> list[tuple[str, str, float]]:
@@ -59,6 +60,24 @@ def _oriented_edges(triples: list[tuple[str, str, float]], direction: int) -> li
         src, dst = (to, f) if direction == UPSTREAM else (f, to)
         edges.append({"from_bizno": src, "to_bizno": dst, "rate": r})
     return edges
+
+
+def _bfs_depth(edges: list[dict], seeds: Sequence[str]) -> dict[str, int]:
+    """시드에서 전파 방향(edges)으로 BFS 한 노드별 depth. 시드=1, 홉당 +1."""
+    from collections import deque
+
+    adj: dict[str, list[str]] = {}
+    for e in edges:
+        adj.setdefault(e["from_bizno"], []).append(e["to_bizno"])
+    depth = {str(s): 1 for s in seeds}
+    q = deque((str(s), 1) for s in seeds)
+    while q:
+        node, d = q.popleft()
+        for nb in adj.get(node, ()):
+            if nb not in depth:
+                depth[nb] = d + 1
+                q.append((nb, d + 1))
+    return depth
 
 
 def _propagate_one(
@@ -98,7 +117,9 @@ def run_tariff(
         res = _propagate_one(
             edges, init, seed_set, pin_seeds=pin_seeds, method=method, cycle_damping=cycle_damping
         )
-        out.append(DirectionResult(direction=int(d), result=res))
+        out.append(
+            DirectionResult(direction=int(d), result=res, depths=_bfs_depth(edges, seeds))
+        )
     return out
 
 
@@ -143,5 +164,7 @@ def run_volume(
             converged=res.converged,
             damped_cycles=res.damped_cycles,
         )
-        out.append(DirectionResult(direction=int(d), result=shifted))
+        out.append(
+            DirectionResult(direction=int(d), result=shifted, depths=_bfs_depth(edges, seeds))
+        )
     return out

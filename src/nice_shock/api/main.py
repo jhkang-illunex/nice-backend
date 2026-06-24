@@ -34,6 +34,7 @@ class TripleIn(BaseModel):
 class ShockRowOut(BaseModel):
     bizno: str
     shock: float
+    depth: int | None = Field(None, description="시드=1, 시드에서 홉당 +1 (도달 못하면 null)")
 
 
 class DampedCycleOut(BaseModel):
@@ -63,13 +64,19 @@ def _to_out(results) -> ScenarioResponse:
     dirs = []
     for dr in results:
         r = dr["result"]
+        depths = dr.get("depths", {})
         dirs.append(
             DirectionOut(
                 direction=dr["direction"],
                 converged=r.converged,
                 iterations=r.iterations,
                 total_shock=r.total_shock,
-                shock_list=[ShockRowOut(**row) for row in r.shock_list],
+                shock_list=[
+                    ShockRowOut(
+                        bizno=row["bizno"], shock=row["shock"], depth=depths.get(row["bizno"])
+                    )
+                    for row in r.shock_list
+                ],
                 damped_cycles=[DampedCycleOut(**d) for d in r.damped_cycles],
             )
         )
@@ -77,14 +84,17 @@ def _to_out(results) -> ScenarioResponse:
 
 
 # ── 관세(외생) 충격 ────────────────────────────────────────────────────────
+# 내부 고정값 — pin_seeds/method/cycle_damping 은 외부 인자로 노출하지 않는다.
+_TARIFF_PIN_SEEDS = False
+_TARIFF_METHOD = "scc"
+_TARIFF_CYCLE_DAMPING = 0.95
+
+
 class TariffRequest(BaseModel):
     triple_list: list[TripleIn] = Field(..., description="거래쌍·거래비율 엣지 목록")
     seed_list: list[str] = Field(..., description="외생충격 받는 1차 기업 bizno")
     shock_rate: float = Field(..., description="시드 주입 충격량 (음수 가능)")
     directions: list[int] = Field([1], description="[0|1] — 0=매출, 1=매입 파급")
-    pin_seeds: bool = Field(True, description="시드 incoming 차단(주입값 고정·자기증폭 방지)")
-    method: str = Field("scc", description="scc(닫힌해) | iterative(반복)")
-    cycle_damping: float = Field(0.95, gt=0.0, lt=1.0, description="ρ≥1 순환 조건부 damping")
 
 
 @app.post("/api/shock/tariff", response_model=ScenarioResponse, summary="관세(외생) 충격")
@@ -94,9 +104,9 @@ def tariff(req: TariffRequest) -> ScenarioResponse:
         req.seed_list,
         req.shock_rate,
         req.directions,
-        pin_seeds=req.pin_seeds,
-        method=req.method if req.method in _METHODS else "scc",
-        cycle_damping=req.cycle_damping,
+        pin_seeds=_TARIFF_PIN_SEEDS,
+        method=_TARIFF_METHOD,
+        cycle_damping=_TARIFF_CYCLE_DAMPING,
     )
     return _to_out(results)
 
