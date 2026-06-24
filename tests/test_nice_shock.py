@@ -1,6 +1,7 @@
 """nice_shock — 순수 전파 API/시나리오 테스트 (DB 의존 없음)."""
 from __future__ import annotations
 
+import subprocess
 import sys
 
 from fastapi.testclient import TestClient
@@ -20,12 +21,17 @@ _TRIPLES = [
 
 
 def test_nice_shock_is_db_free() -> None:
-    """nice_shock import 가 DB 스택(nice_poc/sqlalchemy)을 끌어오지 않아야 한다."""
-    import nice_shock.api.main  # noqa: F401
-    import nice_shock.scenario  # noqa: F401
+    """nice_shock import 가 DB 스택(nice_poc/sqlalchemy)을 끌어오지 않아야 한다.
 
-    leaked = [m for m in sys.modules if m.startswith("nice_poc") or m == "sqlalchemy"]
-    assert leaked == [], f"shock 서버가 DB 의존을 끌어옴: {leaked}"
+    전역 sys.modules 는 다른 테스트가 오염시키므로, **깨끗한 서브프로세스**에서 검사.
+    """
+    code = (
+        "import sys, nice_shock.api.main, nice_shock.scenario;"
+        "leaked=[m for m in sys.modules if m.startswith('nice_poc') or m=='sqlalchemy'];"
+        "print(leaked); sys.exit(1 if leaked else 0)"
+    )
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert r.returncode == 0, f"shock 서버가 DB 의존을 끌어옴: {r.stdout.strip()}"
 
 
 def test_tariff_pinned_convex_combination() -> None:
