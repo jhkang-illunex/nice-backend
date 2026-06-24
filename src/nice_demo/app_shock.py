@@ -331,7 +331,8 @@ def _assemble_oriented(seed_pairs, direction: str, cfg: dict, seed_shock):
         seed_pairs,
         depth=cfg["depth"],
         trade_year=cfg["trade_year"],
-        within_subgraph=True,   # Σ_out=1 (공개 API 가정과 합치)
+        within_subgraph=False,  # 전체 Σ_out 기준 = canonical trade_rate(company_edge.trade_rate
+                                # 와 동일). True 면 서브그래프 내부 재정규화로 100% 아티팩트 발생.
         damping=1.0,            # 무감쇠 — 조건부 damping 은 서버 내부
         seed_shock=seed_shock,
         direction=direction,
