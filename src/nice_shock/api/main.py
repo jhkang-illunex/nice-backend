@@ -84,10 +84,10 @@ def _to_out(results) -> ScenarioResponse:
 
 
 # ── 관세(외생) 충격 ────────────────────────────────────────────────────────
-# 내부 고정값 — pin_seeds/method/cycle_damping 은 외부 인자로 노출하지 않는다.
-_TARIFF_PIN_SEEDS = False
-_TARIFF_METHOD = "scc"
-_TARIFF_CYCLE_DAMPING = 0.95
+# 내부 고정값(tariff·volume 공통) — pin_seeds/method/cycle_damping 은 외부 노출 안 함.
+_DEFAULT_PIN_SEEDS = False
+_DEFAULT_METHOD = "scc"
+_DEFAULT_CYCLE_DAMPING = 0.95
 
 
 class TariffRequest(BaseModel):
@@ -104,9 +104,9 @@ def tariff(req: TariffRequest) -> ScenarioResponse:
         req.seed_list,
         req.shock_rate,
         req.directions,
-        pin_seeds=_TARIFF_PIN_SEEDS,
-        method=_TARIFF_METHOD,
-        cycle_damping=_TARIFF_CYCLE_DAMPING,
+        pin_seeds=_DEFAULT_PIN_SEEDS,
+        method=_DEFAULT_METHOD,
+        cycle_damping=_DEFAULT_CYCLE_DAMPING,
     )
     return _to_out(results)
 
@@ -122,21 +122,19 @@ class VolumeRequest(BaseModel):
     seed_list: list[str]
     edge_overrides: list[OverrideIn] = Field(..., description="[{p1,w1}] 노드별 거래량 factor")
     directions: list[int] = Field([1], description="[0|1]")
-    pin_seeds: bool = True
-    method: str = "scc"
-    cycle_damping: float = Field(0.95, gt=0.0, lt=1.0)
 
 
 @app.post("/api/shock/volume", response_model=ScenarioResponse, summary="거래량 변동")
 def volume(req: VolumeRequest) -> ScenarioResponse:
+    # pin_seeds/method/cycle_damping 은 내부 고정 (tariff 와 동일 정책).
     results = run_volume(
         [t.model_dump(by_alias=True) for t in req.triple_list],
         req.seed_list,
         [o.model_dump() for o in req.edge_overrides],
         req.directions,
-        pin_seeds=req.pin_seeds,
-        method=req.method if req.method in _METHODS else "scc",
-        cycle_damping=req.cycle_damping,
+        pin_seeds=_DEFAULT_PIN_SEEDS,
+        method=_DEFAULT_METHOD,
+        cycle_damping=_DEFAULT_CYCLE_DAMPING,
     )
     return _to_out(results)
 
