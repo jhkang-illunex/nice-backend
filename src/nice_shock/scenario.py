@@ -10,8 +10,8 @@
 
 시나리오
   tariff : 시드에 shock_rate 외생 주입 → 전파.
-  volume : edge_overrides 의 노드에 δ=factor−1 주입 → 전파 → shock=1+propagated
-           (δ=0 노드는 정확히 1=무변화). 변동율 = shock−1.
+  volume : node_overrides 의 노드에 delta(0-기준 변동율) 주입 → 전파 → 결과=변동율
+           (δ=0 노드는 정확히 0=무변화). 조정액 = 기준액×(1+변동율). tariff 와 0-기준 통일.
 
 pin_seeds(기본 True): 시드로 들어오는 엣지를 끊어 시드를 주입값에 고정(자기 순환 증폭 차단).
 """
@@ -133,38 +133,32 @@ def run_volume(
     method: Method = "scc",
     cycle_damping: float = 0.95,
 ) -> list[DirectionResult]:
-    """거래량 변동 — edge_overrides 노드에 δ=factor−1 주입 → shock=1+Σ전파.
+    """거래량 변동 — node_overrides 의 delta(0-기준 변동율) 를 그 노드에 주입 → 전파.
 
-    edge_overrides: [{"p1": node, "w1": factor}, ...] 또는 {"node":..,"factor":..}.
-                    factor = 1+증감율 (0.8=−20%). δ = factor−1 을 그 노드 init 에 주입.
-    결과 shock_list 의 각 값은 1+전파편차(=조정계수). 변동율 = shock−1.
+    node_overrides: [{"p1": node, "delta": d}, ...]. d = 변동율(0=무변화, +0.1=+10%, 음수=감소).
+                    tariff 의 shock_rate 와 동일한 0-기준 편차를 그 노드 init 에 그대로 주입.
+    결과 shock_list 의 각 값은 **변동율**(0=무변화). 조정액 = 기준액 × (1+변동율).
+    (입·출력 모두 0-기준 — tariff 와 통일. 과거 1-기준 factor(w1)·shock=1+δ 폐기.)
     """
     triples = _norm_triples(triple_list)
     seeds = [str(s) for s in seed_list]
     seed_set = set(seeds)
-    # δ 주입 노드
+    # δ(변동율) 주입 노드 — 0-기준 그대로
     delta: dict[str, float] = {}
     for ov in edge_overrides:
         node = ov.get("p1") or ov.get("node") or ov.get("bizno")
-        factor = ov.get("w1", ov.get("factor", ov.get("w")))
-        if node is None or factor is None:
-            raise ValueError(f"edge_override 형식 오류 (p1/w1 필요): {dict(ov)}")
-        delta[str(node)] = delta.get(str(node), 0.0) + (float(factor) - 1.0)
+        dv = ov.get("delta", ov.get("d"))
+        if node is None or dv is None:
+            raise ValueError(f"node_override 형식 오류 (p1/delta 필요): {dict(ov)}")
+        delta[str(node)] = delta.get(str(node), 0.0) + float(dv)
     out: list[DirectionResult] = []
     for d in directions:
         edges = _oriented_edges(triples, int(d))
         res = _propagate_one(
             edges, dict(delta), seed_set, pin_seeds=pin_seeds, method=method, cycle_damping=cycle_damping
         )
-        # shock = 1 + 전파편차 (δ=0 노드 = 1=무변화)
-        shifted = ShockResult(
-            shock_list=[{"bizno": r["bizno"], "shock": 1.0 + r["shock"]} for r in res.shock_list],
-            total_shock=res.total_shock,
-            iterations=res.iterations,
-            converged=res.converged,
-            damped_cycles=res.damped_cycles,
-        )
+        # 출력 = 전파된 변동율 그대로 (0-기준, δ=0 노드 = 0=무변화)
         out.append(
-            DirectionResult(direction=int(d), result=shifted, depths=_bfs_depth(edges, seeds))
+            DirectionResult(direction=int(d), result=res, depths=_bfs_depth(edges, seeds))
         )
     return out

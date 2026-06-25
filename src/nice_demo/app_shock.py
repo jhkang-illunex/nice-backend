@@ -342,10 +342,10 @@ def _assemble_oriented(seed_pairs, direction: str, cfg: dict, seed_shock):
 
 
 def _volume_overrides(asm, target_biznos, side: str, factor: float, trade_year):
-    """1차 target 의 side 거래처별 δ=share·(factor−1) → node_overrides [{p1,w1}].
+    """1차 target 의 side 거래처별 변동율 δ=share·(factor−1) → node_overrides [{p1, delta}].
 
     firm_partner_shares 로 상대(2차) 거래 비중 가중. asm 안에 있는 노드만 대상.
-    w1 = 1+δ 로 보내면 공개 /volume 이 δ=w1−1 을 주입해 1회 전파 후 1+δ전파.
+    delta 는 0-기준 변동율(0=무변화) — 공개 /volume 이 그대로 주입해 전파(tariff 와 통일).
     """
     biz2nid = {n.bizno: n.node_id for n in asm.nodes}
     delta: dict[str, float] = {}
@@ -355,7 +355,7 @@ def _volume_overrides(asm, target_biznos, side: str, factor: float, trade_year):
             if nid is None:
                 continue
             delta[nid] = delta.get(nid, 0.0) + share * (float(factor) - 1.0)
-    return [{"p1": nid, "w1": 1.0 + dv} for nid, dv in delta.items()]
+    return [{"p1": nid, "delta": dv} for nid, dv in delta.items()]
 
 
 def _run_public_scenario(cfg, seed_pairs, seed_biznos, factor, firm_targets) -> ScenarioResult:
@@ -365,7 +365,8 @@ def _run_public_scenario(cfg, seed_pairs, seed_biznos, factor, firm_targets) -> 
     warnings: list[str] = []
     if scenario == "volume":
         warnings.append(
-            "거래량 변동(volume): shock=1+전파(δ=share·(m−1)), 변동율=shock−1, 조정액=shock×기준액."
+            "거래량 변동(volume): 결과=변동율(0=무변화). 거래처에 δ=share·(m−1) 주입·전파, "
+            "조정액=기준액×(1+변동율). (tariff 와 0-기준 통일)"
         )
     for d in cfg["directions"]:
         seed_shock = cfg["shock_amount"] if scenario == "tariff" else 0.0
@@ -377,7 +378,7 @@ def _run_public_scenario(cfg, seed_pairs, seed_biznos, factor, firm_targets) -> 
         seed_list = [n.node_id for n in asm.nodes if n.is_seed]
         if not triple_list:
             warnings.append(f"[{d}] 조립된 엣지가 없어 전파 생략(서브그래프 비었음).")
-            base = cfg["shock_amount"] if scenario == "tariff" else 1.0
+            base = cfg["shock_amount"] if scenario == "tariff" else 0.0  # volume 0-기준(무변화=0)
             stub = {"direction": _DIR_TO_API[d], "total_shock": base * len(seed_list),
                     "data_list": [{"node_id": s, "shock": base, "depth": 1} for s in seed_list]}
             out.append(DirectionResult(d, EFFECT_LABEL[d], 1.0, asm, _data_to_result(stub)))
@@ -745,7 +746,7 @@ def _render_direction(dr, scenario: str, cfg: dict) -> None:
     """한 방향(매출/매입)의 노드·에지·값 그리드 + 네트워크 그래프."""
     asm = dr.assembled
     shock_by_node = {r["bizno"]: r["shock"] for r in dr.result.shock_list}
-    val_label = "shock(1=무변화)" if scenario == "volume" else "shock"
+    val_label = "변동율(0=무변화)" if scenario == "volume" else "shock"
 
     # 공개 API 는 수렴/반복/damped 진단을 숨김(간소화) — 표시용 메트릭은 그래프 규모·depth 중심.
     depths = [r.get("depth") for r in dr.result.shock_list if r.get("depth") is not None]

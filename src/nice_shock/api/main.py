@@ -35,7 +35,7 @@ _EX_TARIFF_REQ = {
 }
 _EX_VOLUME_REQ = {
     "triple_list": [{"from": "a", "to": "b", "rate": 0.115}, {"from": "b", "to": "c", "rate": 0.607}],
-    "seed_list": ["b"], "node_overrides": [{"p1": "b", "w1": 0.8}], "direction": "export",
+    "seed_list": ["b"], "node_overrides": [{"p1": "b", "delta": -0.2}], "direction": "export",
 }
 _EX_PROPAGATE_REQ = {"triple_list": [{"from": "a", "to": "b", "rate": 0.5}], "init": {"a": 1.0}}
 # tariff·volume 응답 (외부) — 간소화: direction(import|export)·total_shock·data_list 만.
@@ -164,13 +164,19 @@ def tariff(req: TariffRequest) -> DataResponse:
 # ── 거래량 변동 ────────────────────────────────────────────────────────────
 class OverrideIn(BaseModel):
     p1: str = Field(..., description="변동 대상 기업 node_id")
-    w1: float = Field(..., description="factor = 1+증감율 (0.8=−20%)")
+    delta: float = Field(
+        ...,
+        description="거래량 변동율 (0=무변화, +0.1=+10%, −0.2=−20%). "
+        "tariff 의 shock_rate 와 동일한 0-기준 편차.",
+    )
 
 
 class VolumeRequest(BaseModel):
     triple_list: list[TripleIn]
     seed_list: list[str]
-    node_overrides: list[OverrideIn] = Field(..., description="[{p1,w1}] 노드별 거래량 factor")
+    node_overrides: list[OverrideIn] = Field(
+        ..., description="[{p1, delta}] 노드별 거래량 변동율(0=무변화, 음수=감소)"
+    )
     direction: Direction = Field("import", description="import=매입(기본) / export=매출")
 
     model_config = {"json_schema_extra": {"example": _EX_VOLUME_REQ}}

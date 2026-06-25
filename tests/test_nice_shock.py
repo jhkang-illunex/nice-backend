@@ -76,23 +76,42 @@ def test_tariff_default_direction_is_import() -> None:
 
 def test_tariff_input_schema() -> None:
     """입력은 4개(direction 단수)만 — pin_seeds/method/cycle_damping/directions 없음."""
-    from nice_shock.api.main import TariffRequest, VolumeRequest
+    from nice_shock.api.main import OverrideIn, TariffRequest, VolumeRequest
 
     assert set(TariffRequest.model_fields) == {"triple_list", "seed_list", "shock_rate", "direction"}
     assert set(VolumeRequest.model_fields) == {
         "triple_list", "seed_list", "node_overrides", "direction",
     }
+    # node_overrides 항목은 0-기준 delta (과거 1-기준 w1 폐기)
+    assert set(OverrideIn.model_fields) == {"p1", "delta"}
 
 
-def test_volume_delta_is_one_plus_propagated() -> None:
-    """거래량 변동 — δ 노드 factor=0.8(−20%) → shock=1+전파편차(무변동 노드는 1)."""
+def test_volume_delta_zero_based() -> None:
+    """거래량 변동 — node delta=−0.2(0-기준 변동율) → 결과=변동율 −0.2(무변동 노드는 0).
+
+    입·출력 모두 0-기준 (tariff shock_rate 와 통일). 과거 w1(1-기준 factor)·shock=1+δ 폐기.
+    """
     res = run_volume(
-        _TRIPLES, ["포스코"], [{"p1": "포스코", "w1": 0.8}], [0], pin_seeds=False
+        _TRIPLES, ["포스코"], [{"p1": "포스코", "delta": -0.2}], [0], pin_seeds=False
     )
     sm = {r["bizno"]: r["shock"] for r in res[0]["result"].shock_list}
-    # 포스코 δ=-0.2 → shock=0.8. 지오는 포스코×1.0 전파 → 1+(-0.2)=0.8.
-    assert abs(sm["포스코"] - 0.8) < 1e-9
-    assert abs(sm["지오"] - 0.8) < 1e-9
+    # 포스코 δ=−0.2 → 변동율 −0.2. 지오는 포스코×1.0 전파 → −0.2.
+    assert abs(sm["포스코"] - (-0.2)) < 1e-9
+    assert abs(sm["지오"] - (-0.2)) < 1e-9
+
+
+def test_volume_api_zero_based() -> None:
+    """공개 /api/shock/volume — node_overrides[{p1,delta}] 0-기준, 출력도 변동율(0=무변화)."""
+    body = {
+        "triple_list": [{"from": x["from"], "to": x["to"], "rate": x["rate"]} for x in _TRIPLES],
+        "seed_list": ["포스코"],
+        "node_overrides": [{"p1": "포스코", "delta": -0.2}],
+        "direction": "export",
+    }
+    d = client.post("/api/shock/volume", json=body).json()
+    sm = {x["node_id"]: x["shock"] for x in d["data_list"]}
+    assert abs(sm["포스코"] - (-0.2)) < 1e-9  # 0-기준: 무변화=0, −20%=−0.2
+    assert abs(sm["지오"] - (-0.2)) < 1e-9
 
 
 def test_propagate_endpoint_edges_init() -> None:
