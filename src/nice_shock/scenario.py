@@ -13,7 +13,8 @@
   volume : node_overrides 의 노드에 delta(0-기준 변동율) 주입 → 전파 → 결과=변동율
            (δ=0 노드는 정확히 0=무변화). 조정액 = 기준액×(1+변동율). tariff 와 0-기준 통일.
 
-pin_seeds(기본 True): 시드로 들어오는 엣지를 끊어 시드를 주입값에 고정(자기 순환 증폭 차단).
+pin_seeds(기본 False): 시드 incoming 엣지를 끊지 않고 순환 되먹임 포함(일반균형). 기본 동작이며
+임펄스(True, 시드 고정)는 사용하지 않음 — 결과는 항상 일반균형. (NICE 확정 2026-06-25)
 """
 from __future__ import annotations
 
@@ -102,7 +103,7 @@ def run_tariff(
     shock_rate: float,
     directions: Sequence[int],
     *,
-    pin_seeds: bool = True,
+    pin_seeds: bool = False,
     method: Method = "scc",
     cycle_damping: float = 0.95,
 ) -> list[DirectionResult]:
@@ -129,7 +130,7 @@ def run_volume(
     edge_overrides: Sequence[Mapping],
     directions: Sequence[int],
     *,
-    pin_seeds: bool = True,
+    pin_seeds: bool = False,
     method: Method = "scc",
     cycle_damping: float = 0.95,
 ) -> list[DirectionResult]:
