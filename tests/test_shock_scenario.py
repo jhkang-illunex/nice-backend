@@ -15,9 +15,7 @@ from fastapi.testclient import TestClient
 
 import nice_dbtool.assemble as asm_mod
 import nice_dbtool.scenario as scen_mod
-from nice_graph.api.main import app
 from nice_dbtool.assemble import PropagationInput, assemble_propagation_input
-from nice_graph.shock.propagate import ShockResult, ShockRow
 from nice_dbtool.scenario import (
     DirectionResult,
     ScenarioResult,
@@ -26,6 +24,8 @@ from nice_dbtool.scenario import (
     run_tariff_shock,
     run_volume_shock,
 )
+from nice_graph.api.main import app
+from nice_graph.shock.propagate import ShockResult, ShockRow
 
 client = TestClient(app)
 ROUTER = "nice_graph.api.routers.shock"
