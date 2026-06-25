@@ -37,7 +37,6 @@ from nice_dbtool import (
     parse_node_id,
     select_primary_firms,
 )
-from nice_dbtool.assemble import firm_partner_shares
 from nice_dbtool.scenario import EFFECT_LABEL
 from nice_demo.clients import get_rag_client
 from nice_shock.engine import ShockResult
@@ -163,43 +162,31 @@ def sidebar() -> dict:
     )
     preset = _SCENARIO_PRESETS[preset_label]
     preset_side: str | None = None
-    preset_factor: float | None = None
     if preset is not None:
         scenario = preset["scenario"]
         directions = preset["directions"]
         preset_side = preset.get("side")
-        if preset_side is not None:  # 거래량 변동 프리셋 — 증감율 m=1+증감율
-            chg_pct = st.sidebar.slider(
-                "매출/매입 증감율 (%)", -50, 200, value=-20, step=5,
-                help="1차 기업의 그 side 거래량 증감(m=1+증감율). 예: −20%→m=0.8(감소) / "
-                "+10%→m=1.1(증가). 상대(2차)에 거래 비중 가중으로 전파.",
-            )
-            preset_factor = round(1.0 + chg_pct / 100.0, 4)
         st.sidebar.caption(
             f"→ `{scenario}` · 방향={directions}"
-            + (f" · {preset_side} ×{preset_factor}" if preset_side else "")
+            + (" · 변동율은 본문에서 시드별 입력" if scenario == "volume" else "")
         )
     else:  # 사용자 정의 — tariff / volume 직접 구성
         scenario_label = st.sidebar.radio(
             "시나리오 유형",
             ["외생충격 (tariff)", "거래량 변동 (volume)"],
             index=0,
-            help="tariff=W불변·시드 외생주입 / volume=거래량 변동(δ=m−1 편차 전파·매출/매입 반영)",
+            help="tariff=W불변·시드 외생주입 / volume=거래량 변동(시드별 변동율 δ 주입·전파)",
         )
         scenario = "tariff" if scenario_label.startswith("외생충격") else "volume"
         dir_labels = st.sidebar.multiselect(
             "방향 (파급)",
             list(_DIR_MAP),
             default=list(_DIR_MAP),
-            help="upstream=상류/매입(가중치 B), downstream=하류/매출(가중치 A)",
+            help="upstream=상류/매입, downstream=하류/매출",
         )
         directions = [_DIR_MAP[d] for d in dir_labels] or ["upstream", "downstream"]
         if scenario == "volume":
-            chg_pct = st.sidebar.slider(
-                "매출/매입 증감율 (%)", -50, 200, value=-20, step=5,
-                help="선택 방향(매출=하류/매입=상류) 거래량 증감(m=1+증감율).",
-            )
-            preset_factor = round(1.0 + chg_pct / 100.0, 4)
+            st.sidebar.caption("거래량 변동율은 본문에서 시드 회사별로 입력합니다 (−1~1).")
     # 정규화/엔진/조건부 damping/pin 은 공개 API 내부 고정(전파소스·SCC·0.95·pin=True) —
     # UI 제거. 데모는 거래소스 정규화(Σ_out=1)로 조립해 triple_list 만 넘긴다.
     return {
@@ -216,7 +203,6 @@ def sidebar() -> dict:
         "directions": directions,
         "preset_label": preset_label,
         "preset_side": preset_side,
-        "preset_factor": preset_factor,
     }
 
 
@@ -341,32 +327,19 @@ def _assemble_oriented(seed_pairs, direction: str, cfg: dict, seed_shock):
     )
 
 
-def _volume_overrides(asm, target_biznos, side: str, factor: float, trade_year):
-    """1차 target 의 side 거래처별 변동율 δ=share·(factor−1) → node_overrides [{p1, delta}].
+def _run_public_scenario(cfg, seed_pairs, seed_biznos, seed_deltas) -> ScenarioResult:
+    """방향별로 조립→공개 API 호출→DirectionResult 구성. ScenarioResult 반환.
 
-    firm_partner_shares 로 상대(2차) 거래 비중 가중. asm 안에 있는 노드만 대상.
-    delta 는 0-기준 변동율(0=무변화) — 공개 /volume 이 그대로 주입해 전파(tariff 와 통일).
+    volume: seed_deltas({bizno: 변동율}) 를 그 시드 노드의 node_overrides 로 **직접** 주입한다
+            (firm_partner_shares 분배 없이 사용자가 시드별 슬라이더로 입력한 값 그대로).
     """
-    biz2nid = {n.bizno: n.node_id for n in asm.nodes}
-    delta: dict[str, float] = {}
-    for b in target_biznos:
-        for partner_b, share in firm_partner_shares(b, side, trade_year).items():
-            nid = biz2nid.get(partner_b)
-            if nid is None:
-                continue
-            delta[nid] = delta.get(nid, 0.0) + share * (float(factor) - 1.0)
-    return [{"p1": nid, "delta": dv} for nid, dv in delta.items()]
-
-
-def _run_public_scenario(cfg, seed_pairs, seed_biznos, factor, firm_targets) -> ScenarioResult:
-    """방향별로 조립→공개 API 호출→DirectionResult 구성. ScenarioResult 반환."""
     scenario = cfg["scenario"]
     out: list[DirectionResult] = []
     warnings: list[str] = []
     if scenario == "volume":
         warnings.append(
-            "거래량 변동(volume): 결과=변동율(0=무변화). 거래처에 δ=share·(m−1) 주입·전파, "
-            "조정액=기준액×(1+변동율). (tariff 와 0-기준 통일)"
+            "거래량 변동(volume): 시드별 변동율(delta, 0=무변화)을 node_overrides 로 직접 주입·전파. "
+            "결과=변동율, 조정액=기준액×(1+변동율). (tariff 와 0-기준 통일)"
         )
     for d in cfg["directions"]:
         seed_shock = cfg["shock_amount"] if scenario == "tariff" else 0.0
@@ -389,9 +362,13 @@ def _run_public_scenario(cfg, seed_pairs, seed_biznos, factor, firm_targets) -> 
                 "shock_rate": cfg["shock_amount"], "direction": "export",
             })
         else:
-            side = "sales" if d == "downstream" else "purchase"
-            targets = firm_targets or sorted(seed_biznos)
-            node_overrides = _volume_overrides(asm, targets, side, factor, cfg["trade_year"])
+            # 시드 슬라이더 값(변동율)을 그 시드 노드에 그대로 node_overrides 로 주입
+            biz2nid = {n.bizno: n.node_id for n in asm.nodes}
+            node_overrides = [
+                {"p1": biz2nid[b], "delta": float(v)}
+                for b, v in seed_deltas.items()
+                if b in biz2nid and abs(float(v)) > 1e-12
+            ]
             d_resp = _post_shock("/api/shock/volume", {
                 "triple_list": triple_list, "seed_list": seed_list,
                 "node_overrides": node_overrides, "direction": "export",
@@ -421,35 +398,41 @@ def step_scenario(cfg: dict) -> None:
         "[pin·정규화·조건부 damping·depth 내부 고정]"
     )
 
-    # 거래량 변동(volume): 적용 대상 시드 선택 → 그 1차의 (방향별 side) 거래처에 증감율
-    factor = 1.0
-    firm_targets: list[str] | None = None
+    # 거래량 변동(volume): 시드 회사별 변동율(−1~1) 슬라이더 → 그 값을 node_overrides 로 직접 주입
+    seed_deltas: dict[str, float] = {}
     if cfg["scenario"] == "volume":
-        factor = cfg.get("preset_factor") or 1.0
         name_by_bizno = {f.bizno: (f.korentrnm or f.bizno) for f in res.firms if f.bizno}
-        label_to_bizno = {f"{name_by_bizno[b]} ({b})": b for b in seed_biznos}
-        picked_labels = st.multiselect(
-            "변동 적용 대상 1차 기업 (비우면 전체)",
-            list(label_to_bizno),
-            default=[],
-            help="선택한 시드 기업의 매출/매입만 변동시킨다. 비우면 추출된 1차 전체.",
-        )
-        firm_targets = (
-            [label_to_bizno[x] for x in picked_labels] if picked_labels else None
-        )
         side_kr = "·".join(
             ("매출" if d == "downstream" else "매입") for d in cfg["directions"]
         )
-        tgt_kr = f"{len(firm_targets)}곳" if firm_targets else f"전체 {len(seed_biznos)}곳"
+        st.markdown(f"**시드 회사별 거래량 변동율 입력 ({side_kr}) — −1 ~ 1, 0=무변화**")
         st.caption(
-            f"거래량 변동 — 1차 {tgt_kr}의 {side_kr} 거래처에 m={factor} "
-            f"(상대에 거래 비중 가중 전파). 1차 자신은 입력값 고정."
+            "각 시드 회사의 거래량 변동율을 직접 입력합니다. 입력값이 그대로 node_overrides 로 "
+            "전달돼 그 시드 노드에 주입·전파됩니다. (시나리오를 바꾸면 입력이 초기화됩니다.)"
+        )
+        ordered = sorted(seed_biznos)
+        ncol = min(3, len(ordered)) or 1
+        cols = st.columns(ncol)
+        for i, b in enumerate(ordered):
+            with cols[i % ncol]:
+                # 키에 preset_label 포함 → 시나리오 선택 시 슬라이더 전체 초기화(전체 갱신)
+                seed_deltas[b] = st.slider(
+                    f"{name_by_bizno.get(b, b)}",
+                    -1.0, 1.0, value=0.0, step=0.05,
+                    key=f"voldelta_{cfg['preset_label']}_{b}",
+                    help=f"bizno={b} · +0.1=+10%, 음수=감소, 0=무변화.",
+                )
+        nz = {b: v for b, v in seed_deltas.items() if abs(v) > 1e-12}
+        st.caption(
+            f"입력된 변동 {len(nz)}/{len(ordered)}개 시드: "
+            + (", ".join(f"{name_by_bizno.get(b, b)}={v:+.2f}" for b, v in nz.items())
+               or "(모두 0 — 변동 없음)")
         )
 
     if st.button("시나리오 전파 실행", type="primary"):
         st.session_state["_shock_raw"] = []  # 이번 실행의 공개 API 원본 응답 stash 초기화
         try:
-            sres = _run_public_scenario(cfg, seed_pairs, seed_biznos, factor, firm_targets)
+            sres = _run_public_scenario(cfg, seed_pairs, seed_biznos, seed_deltas)
         except httpx.HTTPError as exc:
             st.error(f"공개 shock API({SHOCK_API_URL}) 호출 실패: {exc.__class__.__name__} — {exc}")
             return
