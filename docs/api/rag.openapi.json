@@ -1,0 +1,471 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "NICE rag-server",
+    "description": "\n**NICE PoC rag-server** — 관세청 HSCode 검색 + 자연어 질의 에이전트.\n\n* **/api/hsk/search** — 키워드/의미 hybrid 검색 (임베딩 + trigram + tsvector RRF)\n* **/api/hsk/agent**  — 자연어 질의 → 검색 → LLM 한국어 답변\n\n### 백엔드 추상화\nLLM / 임베딩 백엔드는 OpenAI-호환 base_url 만 바라봅니다. 자체 호스팅\n(ollama / vLLM / TEI) ↔ 외부 API (OpenAI / Anthropic proxy) 전환은\n`.env` 의 `LLM_BASE_URL` / `EMBED_BASE_URL` 1줄 변경.\n\n### 데이터\nPostgreSQL `rag.hsk` 테이블에 12,469 row + 1024-d 임베딩(BAAI/bge-m3)\n적재. NICE 운영 인스턴스의 기존 31 public 테이블과 schema 격리.\n\n### 명세서\n[`docs/RAG_API.md`](https://github.com/jhkang-illunex/nice-backend/blob/main/docs/RAG_API.md)\n",
+    "contact": {
+      "name": "NICE PoC team (illunex)",
+      "email": "jhkang@illunex.com"
+    },
+    "license": {
+      "name": "Proprietary"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "라이브니스",
+        "description": "프로세스가 응답 가능한지 확인. 외부 의존성 점검 없음.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LivenessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/deep": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "의존성 도달성",
+        "description": "PG/Redis/LLM/Embed 네 가지 의존성을 한 번에 점검. 각 필드는 'ok' 또는 'fail: {ExceptionClass}'. 운영 디버깅용 — 503 으로 인한 사용자 측 에러가 어느 의존성에서 발생했는지 즉시 분간 가능.",
+        "operationId": "health_deep_health_deep_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeepHealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hsk/search": {
+      "get": {
+        "tags": [
+          "hsk"
+        ],
+        "summary": "HSCode 키워드/의미 검색 (RRF hybrid)",
+        "description": "한국어 또는 영문 키워드를 받아 임베딩 + trigram + tsvector 3 시그널의 Reciprocal Rank Fusion 으로 결합 검색. 정확 매칭 시 score ≈ 0.0492 (이론적 최대). top1 이 저신뢰(< 0.033)면 CRAG 평가기가 1회 보정 — 품목 조회와 무관한 질의로 판정되면 빈 리스트(추천 불가)를 반환.",
+        "operationId": "search_api_hsk_search_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "검색 키워드 (한국어/영문 자유).",
+              "examples": [
+                "농가 사육용 말"
+              ],
+              "title": "Q"
+            },
+            "description": "검색 키워드 (한국어/영문 자유)."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "description": "반환할 후보 개수. 운영 권장 5~10.",
+              "default": 10,
+              "title": "Limit"
+            },
+            "description": "반환할 후보 개수. 운영 권장 5~10."
+          },
+          {
+            "name": "hs_prefix",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{2,8}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리). 예: 85 (전기기기), 8703 (승용차).",
+              "examples": [
+                "85"
+              ],
+              "title": "Hs Prefix"
+            },
+            "description": "HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리). 예: 85 (전기기기), 8703 (승용차)."
+          },
+          {
+            "name": "active_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "true 면 현재 유효한(valid_to >= 오늘) 코드만 검색.",
+              "default": false,
+              "title": "Active Only"
+            },
+            "description": "true 면 현재 유효한(valid_to >= 오늘) 코드만 검색."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HskHit"
+                  },
+                  "title": "Response Search Api Hsk Search Get"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "임베딩 백엔드 또는 PostgreSQL 도달 불가.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "요청 파라미터 검증 실패 (q 길이 등).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hsk/agent": {
+      "get": {
+        "tags": [
+          "hsk"
+        ],
+        "summary": "자연어 질의 → 검색 → LLM 한국어 답변",
+        "description": "자연어 질문을 받아 hybrid 검색으로 후보 k 건을 추리고, LLM 이 후보 내에서만 인용해 한국어로 답변. citations 가 항상 ground truth — LLM 답변이 부실해도 citations[0] 이 정답일 확률 높음.",
+        "operationId": "agent_api_hsk_agent_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "description": "자연어 질의 (한국어 권장).",
+              "examples": [
+                "경주마를 수입할 때 어떤 HS 코드를 사용하나요?"
+              ],
+              "title": "Q"
+            },
+            "description": "자연어 질의 (한국어 권장)."
+          },
+          {
+            "name": "k",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 20,
+              "minimum": 1,
+              "description": "LLM 에 컨텍스트로 제공할 검색 후보 수. 4~8 권장.",
+              "default": 5,
+              "title": "K"
+            },
+            "description": "LLM 에 컨텍스트로 제공할 검색 후보 수. 4~8 권장."
+          },
+          {
+            "name": "hs_prefix",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{2,8}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리).",
+              "title": "Hs Prefix"
+            },
+            "description": "HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리)."
+          },
+          {
+            "name": "active_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "true 면 현재 유효한(valid_to >= 오늘) 코드만 검색.",
+              "default": false,
+              "title": "Active Only"
+            },
+            "description": "true 면 현재 유효한(valid_to >= 오늘) 코드만 검색."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HskAnswer"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "임베딩/LLM 백엔드 또는 PostgreSQL 도달 불가.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "요청 파라미터 검증 실패.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DeepHealthResponse": {
+        "properties": {
+          "postgres": {
+            "type": "string",
+            "title": "Postgres",
+            "description": "원격 PostgreSQL 도달 + SELECT 1 성공 여부.",
+            "examples": [
+              "ok"
+            ]
+          },
+          "redis": {
+            "type": "string",
+            "title": "Redis",
+            "description": "Redis PING 응답 여부.",
+            "examples": [
+              "ok"
+            ]
+          },
+          "llm": {
+            "type": "string",
+            "title": "Llm",
+            "description": "LLM 백엔드 도달 여부. `{base_url}/models` 호출 — 200/404 모두 도달 OK. 모델 호출은 안 함(health 비용 낮춤).",
+            "examples": [
+              "ok"
+            ]
+          },
+          "embed": {
+            "type": "string",
+            "title": "Embed",
+            "description": "임베딩 백엔드 도달 여부. 같은 패턴.",
+            "examples": [
+              "ok"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "postgres",
+          "redis",
+          "llm",
+          "embed"
+        ],
+        "title": "DeepHealthResponse",
+        "description": "의존성 4종(postgres/redis/llm/embed) 도달성 점검 결과."
+      },
+      "ErrorResponse": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "description": "에러 메시지. 503 은 의존성 도달성 실패, 422 는 요청 검증 실패.",
+            "examples": [
+              "embed backend unreachable (http://embed:8080/v1): ConnectError"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorResponse",
+        "description": "RFC 7807 의 단순화 형태 — FastAPI 의 기본 detail 필드만."
+      },
+      "HskAnswer": {
+        "properties": {
+          "answer": {
+            "type": "string",
+            "title": "Answer",
+            "description": "LLM 이 생성한 한국어 답변. 후보가 없을 때는 '해당 질의에 매칭되는 HS 부호 후보를 찾지 못했습니다.' 고정 메시지.",
+            "examples": [
+              "경주말은 HS 0101291000 을 사용합니다."
+            ]
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/HskHit"
+            },
+            "type": "array",
+            "title": "Citations",
+            "description": "LLM 컨텍스트로 제공된 RRF 검색 결과 (k 개). 환각 검증용 ground truth."
+          }
+        },
+        "type": "object",
+        "required": [
+          "answer"
+        ],
+        "title": "HskAnswer",
+        "description": "자연어 답변 + 근거 인용."
+      },
+      "HskHit": {
+        "properties": {
+          "hs_code": {
+            "type": "string",
+            "title": "Hs Code",
+            "description": "관세청 HS 부호 10자리 (앞 0 포함).",
+            "examples": [
+              "0101211000"
+            ]
+          },
+          "name_ko": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name Ko",
+            "description": "한글 품목명. 원본 데이터 없을 시 null.",
+            "examples": [
+              "농가 사육용"
+            ]
+          },
+          "name_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name En",
+            "description": "영문 품목명.",
+            "examples": [
+              "For farm breeding"
+            ]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "검색용으로 결합된 텍스트(name_ko | name_en | detail_ko | detail_en | heading_ko | standard_trade_name | nature_integrated_name | hs_content). 괄호는 공백 치환됨. 빈 슬롯은 ' | | ' 형태.",
+            "examples": [
+              "농가 사육용 | For farm breeding | 살아 있는 말ㆍ당나귀ㆍ노새ㆍ버새 > 번식용 > 농가 사육용 | Live horses > ... | | 말 | "
+            ]
+          },
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "description": "RRF 결합 점수. 3 시그널(임베딩/trigram/tsvector) 모두 rank=1 일 때 이론적 최대 ≈ 0.0492 (= 3/(60+1)).",
+            "examples": [
+              0.0492
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "hs_code",
+          "score"
+        ],
+        "title": "HskHit",
+        "description": "검색 후보 1건."
+      },
+      "LivenessResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "항상 'ok'.",
+            "examples": [
+              "ok"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "LivenessResponse",
+        "description": "K8s liveness probe 호환 — 프로세스가 살아있는지만 확인."
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "health",
+      "description": "라이브니스 + 의존성 도달성 점검 (postgres/redis/llm/embed)."
+    },
+    {
+      "name": "hsk",
+      "description": "관세청 HSCode 검색 + 자연어 에이전트 (RRF hybrid + LLM)."
+    }
+  ]
+}

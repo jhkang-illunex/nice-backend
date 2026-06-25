@@ -1,0 +1,136 @@
+{
+  "info": {
+    "_postman_id": "nice-rag-server-0001",
+    "name": "NICE rag-server 0.1.0",
+    "description": "\n**NICE PoC rag-server** — 관세청 HSCode 검색 + 자연어 질의 에이전트.\n\n* **/api/hsk/search** — 키워드/의미 hybrid 검색 (임베딩 + trigram + tsvector RRF)\n* **/api/hsk/agent**  — 자연어 질의 → 검색 → LLM 한국어 답변\n\n### 백엔드 추상화\nLLM / 임베딩 백엔드는 OpenAI-호환 base_url 만 바라봅니다. 자체 호스팅\n(ollama / vLLM / TEI) ↔ 외부 API (OpenAI / Anthropic proxy) 전환은\n`.env` 의 `LLM_BASE_URL` / `EMBED_BASE_URL` 1줄 변경.\n\n### 데이터\nPostgreSQL `rag.hsk` 테이블에 12,469 row + 1024-d 임베딩(BAAI/bge-m3)\n적재. NICE 운영 인스턴스의 기존 31 public 테이블과 schema 격리.\n\n### 명세서\n[`docs/RAG_API.md`](https://github.com/jhkang-illunex/nice-backend/blob/main/docs/RAG_API.md)\n",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "라이브니스",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "의존성 도달성",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health/deep",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health",
+            "deep"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "HSCode 키워드/의미 검색 (RRF hybrid)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/hsk/search?q=%EB%B0%B8%EB%B8%8C&limit=10&active_only=false",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "hsk",
+            "search"
+          ],
+          "query": [
+            {
+              "key": "q",
+              "value": "밸브",
+              "description": "검색 키워드 (한국어/영문 자유)."
+            },
+            {
+              "key": "limit",
+              "value": "10",
+              "description": "반환할 후보 개수. 운영 권장 5~10."
+            },
+            {
+              "key": "hs_prefix",
+              "value": "",
+              "disabled": true,
+              "description": "HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리). 예: 85 (전기기기), 8703 (승용차)."
+            },
+            {
+              "key": "active_only",
+              "value": "false",
+              "description": "true 면 현재 유효한(valid_to >= 오늘) 코드만 검색."
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "자연어 질의 → 검색 → LLM 한국어 답변",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/hsk/agent?q=%EA%B2%BD%EC%A3%BC%EB%A7%88%EB%A5%BC%20%EC%88%98%EC%9E%85%ED%95%A0%20%EB%95%8C%20%EC%A0%81%EC%9A%A9%EB%90%98%EB%8A%94%20HS%EC%BD%94%EB%93%9C%EB%8A%94%3F&k=5&active_only=false",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "hsk",
+            "agent"
+          ],
+          "query": [
+            {
+              "key": "q",
+              "value": "경주마를 수입할 때 적용되는 HS코드는?",
+              "description": "자연어 질의 (한국어 권장)."
+            },
+            {
+              "key": "k",
+              "value": "5",
+              "description": "LLM 에 컨텍스트로 제공할 검색 후보 수. 4~8 권장."
+            },
+            {
+              "key": "hs_prefix",
+              "value": "",
+              "disabled": true,
+              "description": "HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리)."
+            },
+            {
+              "key": "active_only",
+              "value": "false",
+              "description": "true 면 현재 유효한(valid_to >= 오늘) 코드만 검색."
+            }
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:18002",
+      "type": "string"
+    }
+  ]
+}
