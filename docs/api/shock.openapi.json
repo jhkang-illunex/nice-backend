@@ -1,0 +1,640 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "NICE shock-propagate",
+    "description": "triple_list 입력 순수 쇼크 전파 — 관세충격 / 거래량변동.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/shock/tariff": {
+      "post": {
+        "summary": "관세(외생) 충격",
+        "operationId": "tariff_api_shock_tariff_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TariffRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/shock/volume": {
+      "post": {
+        "summary": "거래량 변동",
+        "operationId": "volume_api_shock_volume_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VolumeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/shock/propagate": {
+      "post": {
+        "summary": "저수준 전파(edges+init)",
+        "operationId": "propagate_api_shock_propagate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropagateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "헬스체크",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DampedCycleOut": {
+        "properties": {
+          "members": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Members"
+          },
+          "rho": {
+            "type": "number",
+            "title": "Rho"
+          },
+          "factor": {
+            "type": "number",
+            "title": "Factor"
+          },
+          "rho_after": {
+            "type": "number",
+            "title": "Rho After"
+          }
+        },
+        "type": "object",
+        "required": [
+          "members",
+          "rho",
+          "factor",
+          "rho_after"
+        ],
+        "title": "DampedCycleOut"
+      },
+      "DataResponse": {
+        "properties": {
+          "direction": {
+            "type": "string",
+            "enum": [
+              "import",
+              "export"
+            ],
+            "title": "Direction",
+            "description": "import=매입 / export=매출 (입력 echo)"
+          },
+          "total_shock": {
+            "type": "number",
+            "title": "Total Shock"
+          },
+          "data_list": {
+            "items": {
+              "$ref": "#/components/schemas/NodeOut"
+            },
+            "type": "array",
+            "title": "Data List"
+          }
+        },
+        "type": "object",
+        "required": [
+          "direction",
+          "total_shock",
+          "data_list"
+        ],
+        "title": "DataResponse",
+        "example": {
+          "data_list": [
+            {
+              "depth": 1,
+              "node_id": "b",
+              "shock": 2.27523
+            },
+            {
+              "depth": 2,
+              "node_id": "c",
+              "shock": 1.38106
+            },
+            {
+              "depth": 2,
+              "node_id": "a",
+              "shock": 0.13651
+            }
+          ],
+          "direction": "export",
+          "total_shock": 3.79281
+        }
+      },
+      "DirectionOut": {
+        "properties": {
+          "direction": {
+            "type": "integer",
+            "title": "Direction",
+            "description": "0=매출 파급(downstream) / 1=매입 파급(upstream)"
+          },
+          "converged": {
+            "type": "boolean",
+            "title": "Converged"
+          },
+          "iterations": {
+            "type": "integer",
+            "title": "Iterations"
+          },
+          "total_shock": {
+            "type": "number",
+            "title": "Total Shock"
+          },
+          "shock_list": {
+            "items": {
+              "$ref": "#/components/schemas/ShockRowOut"
+            },
+            "type": "array",
+            "title": "Shock List"
+          },
+          "damped_cycles": {
+            "items": {
+              "$ref": "#/components/schemas/DampedCycleOut"
+            },
+            "type": "array",
+            "title": "Damped Cycles",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "direction",
+          "converged",
+          "iterations",
+          "total_shock",
+          "shock_list"
+        ],
+        "title": "DirectionOut",
+        "example": {
+          "converged": true,
+          "damped_cycles": [],
+          "direction": -1,
+          "iterations": 0,
+          "shock_list": [
+            {
+              "bizno": "a",
+              "shock": 1.0
+            },
+            {
+              "bizno": "b",
+              "shock": 0.5
+            }
+          ],
+          "total_shock": 1.5
+        }
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "NodeOut": {
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "shock": {
+            "type": "number",
+            "title": "Shock"
+          },
+          "depth": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth",
+            "description": "시드=1, 시드에서 홉당 +1 (도달 못하면 null)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "node_id",
+          "shock"
+        ],
+        "title": "NodeOut"
+      },
+      "OverrideIn": {
+        "properties": {
+          "p1": {
+            "type": "string",
+            "title": "P1",
+            "description": "변동 대상 기업 node_id"
+          },
+          "delta": {
+            "type": "number",
+            "title": "Delta",
+            "description": "거래량 변동율 (0=무변화, +0.1=+10%, −0.2=−20%). tariff 의 shock_rate 와 동일한 0-기준 편차."
+          }
+        },
+        "type": "object",
+        "required": [
+          "p1",
+          "delta"
+        ],
+        "title": "OverrideIn"
+      },
+      "PropagateRequest": {
+        "properties": {
+          "triple_list": {
+            "items": {
+              "$ref": "#/components/schemas/TripleIn"
+            },
+            "type": "array",
+            "title": "Triple List"
+          },
+          "init": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Init",
+            "description": "노드별 초기값 {bizno: shock 또는 δ}"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "default": "scc"
+          },
+          "cycle_damping": {
+            "type": "number",
+            "exclusiveMaximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Cycle Damping",
+            "default": 0.95
+          }
+        },
+        "type": "object",
+        "required": [
+          "triple_list",
+          "init"
+        ],
+        "title": "PropagateRequest",
+        "description": "edges 와 init 을 그대로 받는 저수준 전파.\n\ntriple_list 는 이미 전파 방향으로 정향·정규화된 엣지(클라이언트가 조립).\ninit 은 노드별 초기값({node: shock/δ}). pin·방향·δ 산출은 호출자(nice_dbtool) 책임.",
+        "example": {
+          "init": {
+            "a": 1.0
+          },
+          "triple_list": [
+            {
+              "from": "a",
+              "rate": 0.5,
+              "to": "b"
+            }
+          ]
+        }
+      },
+      "ShockRowOut": {
+        "properties": {
+          "bizno": {
+            "type": "string",
+            "title": "Bizno"
+          },
+          "shock": {
+            "type": "number",
+            "title": "Shock"
+          },
+          "depth": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depth",
+            "description": "시드=1, 시드에서 홉당 +1 (도달 못하면 null)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bizno",
+          "shock"
+        ],
+        "title": "ShockRowOut"
+      },
+      "TariffRequest": {
+        "properties": {
+          "triple_list": {
+            "items": {
+              "$ref": "#/components/schemas/TripleIn"
+            },
+            "type": "array",
+            "title": "Triple List",
+            "description": "거래쌍·거래비율 엣지 목록"
+          },
+          "seed_list": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Seed List",
+            "description": "외생충격 받는 1차 기업 node_id"
+          },
+          "shock_rate": {
+            "type": "number",
+            "title": "Shock Rate",
+            "description": "시드 주입 충격량 (음수 가능)"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "import",
+              "export"
+            ],
+            "title": "Direction",
+            "description": "import=매입(기본) / export=매출",
+            "default": "import"
+          }
+        },
+        "type": "object",
+        "required": [
+          "triple_list",
+          "seed_list",
+          "shock_rate"
+        ],
+        "title": "TariffRequest",
+        "example": {
+          "direction": "export",
+          "seed_list": [
+            "b"
+          ],
+          "shock_rate": 1.0,
+          "triple_list": [
+            {
+              "from": "a",
+              "rate": 0.115,
+              "to": "b"
+            },
+            {
+              "from": "b",
+              "rate": 0.06,
+              "to": "a"
+            },
+            {
+              "from": "c",
+              "rate": 0.912,
+              "to": "b"
+            },
+            {
+              "from": "b",
+              "rate": 0.607,
+              "to": "c"
+            }
+          ]
+        }
+      },
+      "TripleIn": {
+        "properties": {
+          "from": {
+            "type": "string",
+            "title": "From",
+            "description": "셀러(거래 출발) bizno"
+          },
+          "to": {
+            "type": "string",
+            "title": "To",
+            "description": "바이어(거래 도착) bizno"
+          },
+          "rate": {
+            "type": "number",
+            "title": "Rate",
+            "description": "거래비율(trade_rate, source 정규화)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from",
+          "to",
+          "rate"
+        ],
+        "title": "TripleIn"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VolumeRequest": {
+        "properties": {
+          "triple_list": {
+            "items": {
+              "$ref": "#/components/schemas/TripleIn"
+            },
+            "type": "array",
+            "title": "Triple List"
+          },
+          "seed_list": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Seed List"
+          },
+          "node_overrides": {
+            "items": {
+              "$ref": "#/components/schemas/OverrideIn"
+            },
+            "type": "array",
+            "title": "Node Overrides",
+            "description": "[{p1, delta}] 노드별 거래량 변동율(0=무변화, 음수=감소)"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "import",
+              "export"
+            ],
+            "title": "Direction",
+            "description": "import=매입(기본) / export=매출",
+            "default": "import"
+          }
+        },
+        "type": "object",
+        "required": [
+          "triple_list",
+          "seed_list",
+          "node_overrides"
+        ],
+        "title": "VolumeRequest",
+        "example": {
+          "direction": "export",
+          "node_overrides": [
+            {
+              "delta": -0.2,
+              "p1": "b"
+            }
+          ],
+          "seed_list": [
+            "b"
+          ],
+          "triple_list": [
+            {
+              "from": "a",
+              "rate": 0.115,
+              "to": "b"
+            },
+            {
+              "from": "b",
+              "rate": 0.607,
+              "to": "c"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

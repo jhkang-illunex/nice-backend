@@ -1,0 +1,133 @@
+{
+  "info": {
+    "_postman_id": "nice-shock-propagate-0001",
+    "name": "NICE shock-propagate 1.0.0",
+    "description": "triple_list 입력 순수 쇼크 전파 — 관세충격 / 거래량변동.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "관세(외생) 충격",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/shock/tariff",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "shock",
+            "tariff"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"direction\": \"export\",\n  \"seed_list\": [\n    \"b\"\n  ],\n  \"shock_rate\": 1.0,\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"rate\": 0.115,\n      \"to\": \"b\"\n    },\n    {\n      \"from\": \"b\",\n      \"rate\": 0.06,\n      \"to\": \"a\"\n    },\n    {\n      \"from\": \"c\",\n      \"rate\": 0.912,\n      \"to\": \"b\"\n    },\n    {\n      \"from\": \"b\",\n      \"rate\": 0.607,\n      \"to\": \"c\"\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "거래량 변동",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/shock/volume",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "shock",
+            "volume"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"direction\": \"export\",\n  \"node_overrides\": [\n    {\n      \"delta\": -0.2,\n      \"p1\": \"b\"\n    }\n  ],\n  \"seed_list\": [\n    \"b\"\n  ],\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"rate\": 0.115,\n      \"to\": \"b\"\n    },\n    {\n      \"from\": \"b\",\n      \"rate\": 0.607,\n      \"to\": \"c\"\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "저수준 전파(edges+init)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/shock/propagate",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "shock",
+            "propagate"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"init\": {\n    \"a\": 1.0\n  },\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"rate\": 0.5,\n      \"to\": \"b\"\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "헬스체크",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:18004",
+      "type": "string"
+    }
+  ]
+}
