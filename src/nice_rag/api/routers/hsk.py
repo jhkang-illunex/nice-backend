@@ -262,9 +262,11 @@ def search(
     hits = _search_or_503(q_norm, qvec, limit, hs_prefix=hs_prefix, active_only=active_only)
     log_search(q, q_norm, hits)
 
-    # CRAG (조건부): 저신뢰(top1 < 임계)일 때만 평가기 발동 — 자신 있는 검색은
-    # 레이턴시 그대로, 의심 구간만 LLM 비용. unrelated 는 빈 리스트(추천 불가).
-    if s.crag_search_enabled and hits and hits[0].score < s.lowconf_threshold:
+    # CRAG (조건부): 저신뢰(top1 < crag_search_threshold)일 때만 평가기 발동 —
+    # 자신 있는 검색은 레이턴시 그대로, 의심 구간만 LLM 비용. unrelated 는 빈
+    # 리스트(추천 불가). 임계는 lowconf_threshold 와 분리 — 2시그널 경계 정답
+    # (LNG 0.0328)이 거부되지 않도록 1시그널 구간만 평가 대상으로 둔다(config 참조).
+    if s.crag_search_enabled and hits and hits[0].score < s.crag_search_threshold:
         verdict, _, hits = _crag_correct(
             q, hits, limit, hs_prefix=hs_prefix, active_only=active_only
         )

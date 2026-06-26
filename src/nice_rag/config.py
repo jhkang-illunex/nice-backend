@@ -65,9 +65,18 @@ class RagSettings(BaseSettings):
     # fit=그대로 / ambiguous=대체 키워드 재검색·병합 / unrelated=즉시 거부.
     # 평가기 실패 시 fit 폴백 — 켜서 나빠질 수 없는 구조 (crag.py 참조).
     crag_enabled: bool = Field(default=True, alias="RAG_CRAG")  # /agent: 항상 평가
-    # /search: 저신뢰(top1 < lowconf_threshold)일 때만 평가 — fast path 보존.
+    # /search: 저신뢰(top1 < crag_search_threshold)일 때만 평가 — fast path 보존.
     # unrelated 판정 시 빈 리스트 반환 (= 추천 불가).
     crag_search_enabled: bool = Field(default=True, alias="RAG_CRAG_SEARCH")
+    # /search CRAG 발동 임계 — lowconf_threshold(0.033, search_log·self-play 용)와
+    # 분리. 2시그널 만점(0.0328)이 lowconf 바로 아래라, LNG 271111 처럼 ts+vec 둘 다
+    # 매칭된 *정답*(0.0328)이 CRAG 의 unrelated 오판으로 빈 리스트가 되는 경계
+    # 문제가 있었다(06-18 평가 거부 3건). 발동선을 1시그널 잡음 구간(~0.0164)과
+    # 2시그널 신뢰 구간(0.0328) *사이* 로 낮춰, 한 시그널만 매칭된 진짜 저신뢰만
+    # CRAG 가 평가하고 2시그널 이상 후보는 거부 대상에서 제외한다. negative 질의
+    # (비관련) 차단은 그 score 가 이 임계 미만일 때만 유지되므로, 기본값은 평가
+    # 데이터(비관련 질의 vs 경계 정답 score 분리)로 확정한다.
+    crag_search_threshold: float = Field(default=0.025, alias="RAG_CRAG_SEARCH_THRESHOLD")
 
 
 @lru_cache
