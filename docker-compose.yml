@@ -116,7 +116,7 @@ services:
       EMBED_NORMALIZE: ${EMBED_NORMALIZE:-true}
       EMBED_QUERY_INSTRUCTION: ${EMBED_QUERY_INSTRUCTION:-}
     ports:
-      - "${RAG_API_PORT:-18002}:8000"
+      - "${RAG_API_PORT:-8002}:8000"
     depends_on:
       redis:
         condition: service_healthy
@@ -139,7 +139,7 @@ services:
       APP_ENV: ${APP_ENV:-local}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     ports:
-      - "${SHOCK_API_PORT:-18004}:8000"
+      - "${SHOCK_API_PORT:-8004}:8000"
     restart: unless-stopped
     networks: [nice-net]
 
