@@ -14,6 +14,7 @@ from typing import Literal
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
+from nice_shock.cri import compute_cri
 from nice_shock.engine import propagate_dispatch
 from nice_shock.scenario import run_tariff, run_volume
 
@@ -225,6 +226,121 @@ def propagate(req: PropagateRequest) -> DirectionOut:
         total_shock=res.total_shock,
         shock_list=[ShockRowOut(**row) for row in res.shock_list],
         damped_cycles=[DampedCycleOut(**d) for d in res.damped_cycles],
+    )
+
+
+# ── CRI(신용위험지표) — 판매/구매망 신용등급 가중평균 (DB 의존 없음) ─────────────
+# 누적 거래망 T=Σ_k λ^k W^k (직접+간접+loop) 위에서 거래상대 신용등급을 거래비중 가중평균.
+_EX_CRI_REQ = {
+    "nodes": [
+        {"id": "A", "grade": "AA", "sales": 1000},
+        {"id": "B", "grade": "NR", "sales": 800},
+        {"id": "C", "grade": "BBB", "sales": 500},
+        {"id": "D", "grade": "A", "sales": 600},
+        {"id": "E", "grade": "BB", "sales": 400},
+    ],
+    "edges": [
+        {"source": "A", "target": "B", "sell_share": 0.300, "buy_share": 0.375},
+        {"source": "A", "target": "D", "sell_share": 0.200, "buy_share": 0.333},
+        {"source": "D", "target": "B", "sell_share": 0.300, "buy_share": 0.225},
+        {"source": "D", "target": "E", "sell_share": 0.400, "buy_share": 0.600},
+        {"source": "B", "target": "C", "sell_share": 0.500, "buy_share": 0.800},
+        {"source": "B", "target": "A", "sell_share": 0.200, "buy_share": 0.160},
+    ],
+}
+_EX_CRI_RESP = {
+    "data_list": [
+        {"id": "A",
+         "sell": {"total_weight": 0.883621, "valid_weight": 0.495690, "coverage": 0.560976,
+                  "avg_cri": 3.739130, "exposure": 1.853448},
+         "buy": {"total_weight": 0.211204, "valid_weight": 0.038793, "coverage": 0.183673,
+                 "avg_cri": 3.0, "exposure": 0.116378}},
+        {"id": "C",  # 판매 엣지 없음 → 판매망 지표 null
+         "sell": {"total_weight": 0.0, "valid_weight": 0.0, "coverage": None,
+                  "avg_cri": None, "exposure": 0.0},
+         "buy": {"total_weight": 1.443882, "valid_weight": 0.581824, "coverage": 0.402958,
+                 "avg_cri": 2.333370, "exposure": 1.357612}},
+    ],
+    "network": {
+        "sell": {"risk_index": 3.784242, "coverage": 0.723983},
+        "buy": {"risk_index": 2.393419, "coverage": 0.690818},
+    },
+}
+
+
+class CriNodeIn(BaseModel):
+    id: str = Field(..., description="노드(기업) 식별자")
+    grade: str | None = Field(
+        None, description="신용등급(AAA~D, NR 등; 노치 포함 가능). score 미지정 시 이걸로 매핑")
+    score: int | None = Field(
+        None, description="등급점수(1=AAA … 10=D) 직접 지정 — 주면 grade 무시. 무등급은 생략")
+    sales: float = Field(..., description="매출액 (Network Risk Index 가중에만 사용)")
+
+
+class CriEdgeIn(BaseModel):
+    source: str = Field(..., description="셀러(판매) node id")
+    target: str = Field(..., description="바이어(구매) node id")
+    sell_share: float = Field(..., description="판매비중 = 거래액 / 셀러 매출")
+    buy_share: float = Field(..., description="구매비중 = 거래액 / 바이어 매출")
+
+
+class CriRequest(BaseModel):
+    nodes: list[CriNodeIn] = Field(..., description="노드(기업)별 등급·매출")
+    edges: list[CriEdgeIn] = Field(..., description="거래 엣지(셀러→바이어)·판매/구매 비중")
+    lamb: float = Field(1.0, gt=0.0, le=1.0, description="단계 감쇠 λ (기본 1.0=무감쇠)")
+
+    model_config = {"json_schema_extra": {"example": _EX_CRI_REQ}}
+
+
+class CriMetricsOut(BaseModel):
+    total_weight: float = Field(..., description="전체 누적 거래비중(self 제외)")
+    valid_weight: float = Field(..., description="유효(등급보유 거래처) 누적 거래비중")
+    coverage: float | None = Field(None, description="유효/전체 — 등급 평가 가능 비율(거래처 없으면 null)")
+    avg_cri: float | None = Field(None, description="가중평균 CRI 점수(클수록 위험, 유효 없으면 null)")
+    exposure: float = Field(..., description="CRI Exposure = Σ(누적비중×등급점수)")
+
+
+class CriNodeOut(BaseModel):
+    id: str
+    sell: CriMetricsOut = Field(..., description="판매망(셀러 관점) 지표")
+    buy: CriMetricsOut = Field(..., description="구매망(바이어 관점) 지표")
+
+
+class CriNetworkSideOut(BaseModel):
+    risk_index: float | None = Field(None, description="Network Risk Index(매출가중 평균 거래상대 CRI)")
+    coverage: float | None = Field(None, description="Network Coverage(매출가중 유효/전체)")
+
+
+class CriNetworkOut(BaseModel):
+    sell: CriNetworkSideOut
+    buy: CriNetworkSideOut
+
+
+class CriResponse(BaseModel):
+    data_list: list[CriNodeOut] = Field(..., description="노드별 판매망/구매망 지표")
+    network: CriNetworkOut = Field(..., description="네트워크 전체 지표")
+
+    model_config = {"json_schema_extra": {"example": _EX_CRI_RESP}}
+
+
+@app.post("/api/shock/cri", response_model=CriResponse, summary="CRI(신용위험지표) 판매/구매망")
+def cri(req: CriRequest) -> CriResponse:
+    res = compute_cri(
+        [n.model_dump() for n in req.nodes],
+        [e.model_dump() for e in req.edges],
+        lamb=req.lamb,
+    )
+    data_list = [
+        CriNodeOut(id=nid, sell=CriMetricsOut(**m["sell"]), buy=CriMetricsOut(**m["buy"]))
+        for nid, m in res["nodes"].items()
+    ]
+    net = res["network"]
+    return CriResponse(
+        data_list=data_list,
+        network=CriNetworkOut(
+            sell=CriNetworkSideOut(**net["sell"]),
+            buy=CriNetworkSideOut(**net["buy"]),
+        ),
     )
 
 

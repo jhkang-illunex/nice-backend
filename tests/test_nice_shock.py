@@ -126,5 +126,62 @@ def test_propagate_endpoint_edges_init() -> None:
     assert sm["A"] == 1.0 and abs(sm["B"] - 0.5) < 1e-9  # B = A×0.5
 
 
+# ── CRI(신용위험지표) ──────────────────────────────────────────────────────────
+_CRI_NODES = [
+    {"id": "A", "grade": "AA", "sales": 1000},
+    {"id": "B", "grade": "NR", "sales": 800},   # 무등급 — 전파 포함·CRI 제외
+    {"id": "C", "grade": "BBB", "sales": 500},
+    {"id": "D", "grade": "A", "sales": 600},
+    {"id": "E", "grade": "BB", "sales": 400},
+]
+_CRI_EDGES = [
+    {"source": "A", "target": "B", "sell_share": 0.300, "buy_share": 0.375},
+    {"source": "A", "target": "D", "sell_share": 0.200, "buy_share": 0.333},
+    {"source": "D", "target": "B", "sell_share": 0.300, "buy_share": 0.225},
+    {"source": "D", "target": "E", "sell_share": 0.400, "buy_share": 0.600},
+    {"source": "B", "target": "C", "sell_share": 0.500, "buy_share": 0.800},
+    {"source": "B", "target": "A", "sell_share": 0.200, "buy_share": 0.160},
+]
+
+
+def test_cri_matches_spec() -> None:
+    """엔진이 스펙 샘플 출력과 일치 — A 판매망·네트워크 지수."""
+    from nice_shock.cri import compute_cri
+
+    r = compute_cri(_CRI_NODES, _CRI_EDGES)
+    a = r["nodes"]["A"]["sell"]
+    assert abs(a["total_weight"] - 0.883621) < 1e-5   # 간접·loop 누적
+    assert abs(a["valid_weight"] - 0.495690) < 1e-5   # B(NR) 제외
+    assert abs(a["coverage"] - 0.560976) < 1e-5
+    assert abs(a["avg_cri"] - 3.739130) < 1e-5
+    assert abs(a["exposure"] - 1.853448) < 1e-5
+    # 판매 엣지 없는 C 는 판매망 지표 None
+    assert r["nodes"]["C"]["sell"]["coverage"] is None
+    assert abs(r["network"]["sell"]["risk_index"] - 3.784242) < 1e-5
+    assert abs(r["network"]["buy"]["risk_index"] - 2.393419) < 1e-5
+
+
+def test_cri_endpoint() -> None:
+    """공개 /api/shock/cri — 노드별 sell/buy 속성 + 네트워크 지표."""
+    r = client.post("/api/shock/cri", json={"nodes": _CRI_NODES, "edges": _CRI_EDGES})
+    assert r.status_code == 200
+    d = r.json()
+    nodes = {n["id"]: n for n in d["data_list"]}
+    assert abs(nodes["A"]["sell"]["avg_cri"] - 3.739130) < 1e-5
+    assert nodes["C"]["sell"]["coverage"] is None  # 판매 엣지 없음
+    assert abs(d["network"]["buy"]["risk_index"] - 2.393419) < 1e-5
+
+
+def test_cri_is_db_free() -> None:
+    """nice_shock.cri 도 DB 스택을 끌어오지 않아야 한다(서브프로세스)."""
+    code = (
+        "import sys, nice_shock.cri;"
+        "leaked=[m for m in sys.modules if m.startswith('nice_poc') or m=='sqlalchemy'];"
+        "print(leaked); sys.exit(1 if leaked else 0)"
+    )
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert r.returncode == 0, f"cri 가 DB 의존을 끌어옴: {r.stdout.strip()}"
+
+
 def test_health() -> None:
     assert client.get("/health").json()["status"] == "ok"
