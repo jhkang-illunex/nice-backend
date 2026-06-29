@@ -16,7 +16,8 @@ class DemoSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # 같은 compose network 의 다른 서비스 호출.
-    # 로컬 dev (`streamlit run`) 에서는 .env 에 http://localhost:18001/2 같이 둘 수도 있음.
+    # 로컬 dev (`streamlit run`) 에서는 .env 에 RAG_API_URL=http://localhost:8002
+    # (graph 는 http://localhost:18001) 같이 둘 수도 있음.
     rag_api_url: str = Field(default="http://rag-server:8000", alias="RAG_API_URL")
     graph_api_url: str = Field(
         default="http://graph-analysis:8000", alias="GRAPH_API_URL"

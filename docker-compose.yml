@@ -106,6 +106,9 @@ services:
       RAG_CRAG: ${RAG_CRAG:-true}
       # /search CRAG — 저신뢰(top1<임계)일 때만 평가, unrelated 는 빈 리스트
       RAG_CRAG_SEARCH: ${RAG_CRAG_SEARCH:-true}
+      # /search CRAG 발동 임계 — lowconf(0.033)와 분리. 2시그널 경계 정답
+      # (LNG 0.0328)이 거부되지 않도록 1시그널 잡음 구간만 평가 대상으로.
+      RAG_CRAG_SEARCH_THRESHOLD: ${RAG_CRAG_SEARCH_THRESHOLD:-0.025}
       EMBED_BASE_URL: ${EMBED_BASE_URL:-http://embed:8080/v1}
       EMBED_MODEL: ${EMBED_MODEL:-BAAI/bge-m3}
       EMBED_API_KEY: ${EMBED_API_KEY:-noop}
@@ -113,7 +116,7 @@ services:
       EMBED_NORMALIZE: ${EMBED_NORMALIZE:-true}
       EMBED_QUERY_INSTRUCTION: ${EMBED_QUERY_INSTRUCTION:-}
     ports:
-      - "${RAG_API_PORT:-18002}:8000"
+      - "${RAG_API_PORT:-8002}:8000"
     depends_on:
       redis:
         condition: service_healthy
@@ -136,7 +139,7 @@ services:
       APP_ENV: ${APP_ENV:-local}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     ports:
-      - "${SHOCK_API_PORT:-18004}:8000"
+      - "${SHOCK_API_PORT:-8004}:8000"
     restart: unless-stopped
     networks: [nice-net]
 

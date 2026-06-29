@@ -44,8 +44,8 @@ from nice_shock.engine import ShockResult
 # 쇼크 전파 서버(HTTP) — 데모는 **공개 엔드포인트**(/api/shock/tariff·/volume)를 호출한다.
 #   데모가 nice_dbtool 로 그래프를 조립·정향(triple_list)하고, pin·init·전파·depth 는
 #   공개 API 가 내부 처리. 외부 클라이언트와 동일한 계약을 실제로 태우는 쇼케이스/통합테스트.
-#   compose 내부: http://shock-server:8000, 로컬: http://localhost:18004
-SHOCK_API_URL = os.getenv("SHOCK_API_URL", "http://localhost:18004")
+#   compose 내부: http://shock-server:8000, 로컬: http://localhost:8004
+SHOCK_API_URL = os.getenv("SHOCK_API_URL", "http://localhost:8004")
 
 
 def _post_shock(path: str, payload: dict) -> dict:
