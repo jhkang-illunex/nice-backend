@@ -116,13 +116,12 @@
           }
         ],
         "url": {
-          "raw": "{{baseUrl}}/api/shock/cri",
+          "raw": "{{baseUrl}}/api/cri",
           "host": [
             "{{baseUrl}}"
           ],
           "path": [
             "api",
-            "shock",
             "cri"
           ]
         },

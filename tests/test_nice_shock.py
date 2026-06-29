@@ -162,8 +162,8 @@ def test_cri_matches_spec() -> None:
 
 
 def test_cri_endpoint() -> None:
-    """공개 /api/shock/cri — 노드별 sell/buy 속성 + 네트워크 지표."""
-    r = client.post("/api/shock/cri", json={"nodes": _CRI_NODES, "edges": _CRI_EDGES})
+    """공개 /api/cri (shock 와 동급) — 노드별 sell/buy 속성 + 네트워크 지표."""
+    r = client.post("/api/cri", json={"nodes": _CRI_NODES, "edges": _CRI_EDGES})
     assert r.status_code == 200
     d = r.json()
     nodes = {n["id"]: n for n in d["data_list"]}

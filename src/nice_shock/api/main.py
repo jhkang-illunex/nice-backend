@@ -323,7 +323,7 @@ class CriResponse(BaseModel):
     model_config = {"json_schema_extra": {"example": _EX_CRI_RESP}}
 
 
-@app.post("/api/shock/cri", response_model=CriResponse, summary="CRI(신용위험지표) 판매/구매망")
+@app.post("/api/cri", response_model=CriResponse, summary="CRI(신용위험지표) 판매/구매망")
 def cri(req: CriRequest) -> CriResponse:
     res = compute_cri(
         [n.model_dump() for n in req.nodes],

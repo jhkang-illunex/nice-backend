@@ -120,10 +120,10 @@
         }
       }
     },
-    "/api/shock/cri": {
+    "/api/cri": {
       "post": {
         "summary": "CRI(신용위험지표) 판매/구매망",
-        "operationId": "cri_api_shock_cri_post",
+        "operationId": "cri_api_cri_post",
         "requestBody": {
           "content": {
             "application/json": {
