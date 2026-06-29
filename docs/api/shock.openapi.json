@@ -120,6 +120,44 @@
         }
       }
     },
+    "/api/shock/cri": {
+      "post": {
+        "summary": "CRI(신용위험지표) 판매/구매망",
+        "operationId": "cri_api_shock_cri_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CriRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CriResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "헬스체크",
@@ -143,6 +181,370 @@
   },
   "components": {
     "schemas": {
+      "CriEdgeIn": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "셀러(판매) node id"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target",
+            "description": "바이어(구매) node id"
+          },
+          "sell_share": {
+            "type": "number",
+            "title": "Sell Share",
+            "description": "판매비중 = 거래액 / 셀러 매출"
+          },
+          "buy_share": {
+            "type": "number",
+            "title": "Buy Share",
+            "description": "구매비중 = 거래액 / 바이어 매출"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "target",
+          "sell_share",
+          "buy_share"
+        ],
+        "title": "CriEdgeIn"
+      },
+      "CriMetricsOut": {
+        "properties": {
+          "total_weight": {
+            "type": "number",
+            "title": "Total Weight",
+            "description": "전체 누적 거래비중(self 제외)"
+          },
+          "valid_weight": {
+            "type": "number",
+            "title": "Valid Weight",
+            "description": "유효(등급보유 거래처) 누적 거래비중"
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage",
+            "description": "유효/전체 — 등급 평가 가능 비율(거래처 없으면 null)"
+          },
+          "avg_cri": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Cri",
+            "description": "가중평균 CRI 점수(클수록 위험, 유효 없으면 null)"
+          },
+          "exposure": {
+            "type": "number",
+            "title": "Exposure",
+            "description": "CRI Exposure = Σ(누적비중×등급점수)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_weight",
+          "valid_weight",
+          "exposure"
+        ],
+        "title": "CriMetricsOut"
+      },
+      "CriNetworkOut": {
+        "properties": {
+          "sell": {
+            "$ref": "#/components/schemas/CriNetworkSideOut"
+          },
+          "buy": {
+            "$ref": "#/components/schemas/CriNetworkSideOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sell",
+          "buy"
+        ],
+        "title": "CriNetworkOut"
+      },
+      "CriNetworkSideOut": {
+        "properties": {
+          "risk_index": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Risk Index",
+            "description": "Network Risk Index(매출가중 평균 거래상대 CRI)"
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage",
+            "description": "Network Coverage(매출가중 유효/전체)"
+          }
+        },
+        "type": "object",
+        "title": "CriNetworkSideOut"
+      },
+      "CriNodeIn": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "노드(기업) 식별자"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade",
+            "description": "신용등급(AAA~D, NR 등; 노치 포함 가능). score 미지정 시 이걸로 매핑"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score",
+            "description": "등급점수(1=AAA … 10=D) 직접 지정 — 주면 grade 무시. 무등급은 생략"
+          },
+          "sales": {
+            "type": "number",
+            "title": "Sales",
+            "description": "매출액 (Network Risk Index 가중에만 사용)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "sales"
+        ],
+        "title": "CriNodeIn"
+      },
+      "CriNodeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "sell": {
+            "$ref": "#/components/schemas/CriMetricsOut",
+            "description": "판매망(셀러 관점) 지표"
+          },
+          "buy": {
+            "$ref": "#/components/schemas/CriMetricsOut",
+            "description": "구매망(바이어 관점) 지표"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "sell",
+          "buy"
+        ],
+        "title": "CriNodeOut"
+      },
+      "CriRequest": {
+        "properties": {
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/CriNodeIn"
+            },
+            "type": "array",
+            "title": "Nodes",
+            "description": "노드(기업)별 등급·매출"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/CriEdgeIn"
+            },
+            "type": "array",
+            "title": "Edges",
+            "description": "거래 엣지(셀러→바이어)·판매/구매 비중"
+          },
+          "lamb": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Lamb",
+            "description": "단계 감쇠 λ (기본 1.0=무감쇠)",
+            "default": 1.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "nodes",
+          "edges"
+        ],
+        "title": "CriRequest",
+        "example": {
+          "edges": [
+            {
+              "buy_share": 0.375,
+              "sell_share": 0.3,
+              "source": "A",
+              "target": "B"
+            },
+            {
+              "buy_share": 0.333,
+              "sell_share": 0.2,
+              "source": "A",
+              "target": "D"
+            },
+            {
+              "buy_share": 0.225,
+              "sell_share": 0.3,
+              "source": "D",
+              "target": "B"
+            },
+            {
+              "buy_share": 0.6,
+              "sell_share": 0.4,
+              "source": "D",
+              "target": "E"
+            },
+            {
+              "buy_share": 0.8,
+              "sell_share": 0.5,
+              "source": "B",
+              "target": "C"
+            },
+            {
+              "buy_share": 0.16,
+              "sell_share": 0.2,
+              "source": "B",
+              "target": "A"
+            }
+          ],
+          "nodes": [
+            {
+              "grade": "AA",
+              "id": "A",
+              "sales": 1000
+            },
+            {
+              "grade": "NR",
+              "id": "B",
+              "sales": 800
+            },
+            {
+              "grade": "BBB",
+              "id": "C",
+              "sales": 500
+            },
+            {
+              "grade": "A",
+              "id": "D",
+              "sales": 600
+            },
+            {
+              "grade": "BB",
+              "id": "E",
+              "sales": 400
+            }
+          ]
+        }
+      },
+      "CriResponse": {
+        "properties": {
+          "data_list": {
+            "items": {
+              "$ref": "#/components/schemas/CriNodeOut"
+            },
+            "type": "array",
+            "title": "Data List",
+            "description": "노드별 판매망/구매망 지표"
+          },
+          "network": {
+            "$ref": "#/components/schemas/CriNetworkOut",
+            "description": "네트워크 전체 지표"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data_list",
+          "network"
+        ],
+        "title": "CriResponse",
+        "example": {
+          "data_list": [
+            {
+              "buy": {
+                "avg_cri": 3.0,
+                "coverage": 0.183673,
+                "exposure": 0.116378,
+                "total_weight": 0.211204,
+                "valid_weight": 0.038793
+              },
+              "id": "A",
+              "sell": {
+                "avg_cri": 3.73913,
+                "coverage": 0.560976,
+                "exposure": 1.853448,
+                "total_weight": 0.883621,
+                "valid_weight": 0.49569
+              }
+            },
+            {
+              "buy": {
+                "avg_cri": 2.33337,
+                "coverage": 0.402958,
+                "exposure": 1.357612,
+                "total_weight": 1.443882,
+                "valid_weight": 0.581824
+              },
+              "id": "C",
+              "sell": {
+                "exposure": 0.0,
+                "total_weight": 0.0,
+                "valid_weight": 0.0
+              }
+            }
+          ],
+          "network": {
+            "buy": {
+              "coverage": 0.690818,
+              "risk_index": 2.393419
+            },
+            "sell": {
+              "coverage": 0.723983,
+              "risk_index": 3.784242
+            }
+          }
+        }
+      },
       "DampedCycleOut": {
         "properties": {
           "members": {

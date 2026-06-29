@@ -106,6 +106,39 @@
       "response": []
     },
     {
+      "name": "CRI(신용위험지표) 판매/구매망",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/shock/cri",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "shock",
+            "cri"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"edges\": [\n    {\n      \"buy_share\": 0.375,\n      \"sell_share\": 0.3,\n      \"source\": \"A\",\n      \"target\": \"B\"\n    },\n    {\n      \"buy_share\": 0.333,\n      \"sell_share\": 0.2,\n      \"source\": \"A\",\n      \"target\": \"D\"\n    },\n    {\n      \"buy_share\": 0.225,\n      \"sell_share\": 0.3,\n      \"source\": \"D\",\n      \"target\": \"B\"\n    },\n    {\n      \"buy_share\": 0.6,\n      \"sell_share\": 0.4,\n      \"source\": \"D\",\n      \"target\": \"E\"\n    },\n    {\n      \"buy_share\": 0.8,\n      \"sell_share\": 0.5,\n      \"source\": \"B\",\n      \"target\": \"C\"\n    },\n    {\n      \"buy_share\": 0.16,\n      \"sell_share\": 0.2,\n      \"source\": \"B\",\n      \"target\": \"A\"\n    }\n  ],\n  \"nodes\": [\n    {\n      \"grade\": \"AA\",\n      \"id\": \"A\",\n      \"sales\": 1000\n    },\n    {\n      \"grade\": \"NR\",\n      \"id\": \"B\",\n      \"sales\": 800\n    },\n    {\n      \"grade\": \"BBB\",\n      \"id\": \"C\",\n      \"sales\": 500\n    },\n    {\n      \"grade\": \"A\",\n      \"id\": \"D\",\n      \"sales\": 600\n    },\n    {\n      \"grade\": \"BB\",\n      \"id\": \"E\",\n      \"sales\": 400\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
       "name": "헬스체크",
       "request": {
         "method": "GET",
