@@ -226,3 +226,6 @@ docs/data/*.xlsx
 
 # DB 백업 덤프(대용량, 버전관리 제외)
 backups/
+
+# 배포용 이미지 번들(대용량)
+*.tar.gz
