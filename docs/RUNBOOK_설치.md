@@ -50,10 +50,19 @@ DB·임베딩·LLM 불요. `/api/shock/{tariff,volume,propagate}`, `/api/cri` �
 
 ## 3. rag-server 외부 연결 설정 (`.env`)
 
-**코드가 config를 읽고(하드코딩 아님) + compose가 env를 노출** → `.env` 한 파일로 전환된다.
-- DB: `nice_common.db.get_pg_engine()` → `POSTGRES_*` (대소문자 무관)
-- 임베딩: `EmbedClient(base_url=EMBED_BASE_URL)`
-- LLM: `LLM_BASE_URL`
+**rag 는 외부 3종에 붙는다** (전부 env·하드코딩 아님):
+
+| 의존 | env | 필수도 | 쓰이는 곳 |
+|---|---|---|---|
+| **PostgreSQL**(pgvector) | `POSTGRES_*` | 필수 | 검색 대상 데이터(hsk) |
+| **임베딩 서버** | `EMBED_BASE_URL` | **필수** | `/search`·`/agent` 질의 벡터화 (불통 시 503) |
+| **LLM** | `LLM_BASE_URL` | /agent 필수 · /search 사용 | `/search` 질의추출·CRAG(폴백 degrade) / `/agent` 답변 |
+| Redis | `REDIS_*` | rag 프로파일이 자동 기동 | 검색로그 등 |
+
+> 즉 **임베딩과 LLM 둘 다** 붙는다. 임베딩은 검색 필수(없으면 503), LLM은 /agent 필수이며
+> /search 에서도 품목추출·CRAG 로 호출된다(불통이면 폴백으로 degrade). 근거(코드):
+> `nice_common.db.get_pg_engine()`→`POSTGRES_*`, `EmbedClient(base_url=EMBED_BASE_URL)`,
+> `extract_goods`/`_crag_correct`→`LLM_BASE_URL`.
 
 ```env
 # ── 외부 PostgreSQL (pgvector) ──
@@ -69,7 +78,9 @@ EMBED_MODEL=BAAI/bge-m3        # 서버 모델에 맞게
 EMBED_DIM=1024                 # 모델 차원 (bge-m3=1024)
 EMBED_API_KEY=noop             # 필요 시
 
-# ── 외부 LLM (/agent 엔드포인트에만 필요) ──
+# ── 외부 LLM ──  ※ /agent 필수 + /search 도 사용(질의 품목추출·CRAG)
+#   /search: LLM 불통 시 폴백(원 질의·fit)으로 degrade는 되나, 정확도 위해 연결 권장.
+#   /agent : LLM 필수(답변 생성).
 LLM_BASE_URL=http://<LLM서버>:<port>/v1
 LLM_MODEL=<모델>
 
