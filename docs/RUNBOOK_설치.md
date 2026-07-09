@@ -26,16 +26,29 @@ DB를 가리키면 그대로 동작.
   `text-embeddings-inference`, `ollama/ollama`)
 - (air-gap) LLM/임베딩 모델 볼륨 사전적재 — [`README.md`](../README.md) §현행 배포-E 에어갭 체크리스트
 
-### 이미지 반입 (레지스트리 없을 때)
+### 이미지 반입 (레지스트리 없을 때) — 배포 번들 `nice_ai.tar.gz`
+
+연결 구간에서 만든 번들(`nice/rag-server:dev`·`nice/shock-server:dev`·`nice/postgres:pg16`·
+`nice/ingestion:dev`·`redis:7-alpine`, gzip ≈496MB)을 매체로 옮겨 **오프라인 적재**:
 ```bash
-# (연결 구간) 저장
-docker save -o nice-images.tar nice/rag-server:dev nice/shock-server:dev \
-  redis:7-alpine ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 ollama/ollama:latest
-# (대상 시스템) 적재
-docker load -i nice-images.tar
+# (대상 시스템, 인터넷 불필요)
+docker load -i nice_ai.tar.gz
+docker images | grep -E "nice/|redis"        # 5개 로드 확인
 ```
-> 태그가 compose의 `${APP_TAG:-dev}` 와 일치해야 `docker compose up` 이 **빌드 없이** 그 이미지를 쓴다.
-> (이미지가 없으면 compose가 build 를 시도 → 소스 없으면 실패. 반드시 load 먼저.)
+> 번들 재생성이 필요하면(연결 구간):
+> `docker save nice/rag-server:dev nice/shock-server:dev nice/postgres:pg16 nice/ingestion:dev redis:7-alpine | gzip > nice_ai.tar.gz`
+
+**에어갭 실행 3원칙** (검증됨 — 세 이미지 모두 `--network none` 기동 확인):
+1. **반드시 `docker load` 먼저**, 그다음 `docker compose ... up -d` (이미지 있으면 빌드/pull 안 함).
+2. **`--build` 금지** — `docker compose build`/`up --build` 는 pip·apt 를 인터넷에서 받으려다 실패.
+   태그가 compose `${APP_TAG:-dev}=dev` 와 일치해야 로드한 이미지를 그대로 쓴다.
+3. **번들에 없는 프로파일 금지** — `--profile embed-local`/`llm-local` 은 TEI/ollama 이미지가
+   필요한데 번들에 없다. 임베딩·LLM 은 **외부(내부망) 엔드포인트**(`EMBED_BASE_URL`/`LLM_BASE_URL`)로
+   붙이거나, 그 이미지들을 별도 save/load 하고 **모델 볼륨을 사전적재**해야 한다
+   (모델은 첫 실행 때 인터넷에서 받으므로 — [`README.md`](../README.md) §현행 배포-E).
+
+> 런타임 인터넷 의존 없음 검증: `docker run --network none nice/shock-server:dev`(→/health ok),
+> `nice/postgres:pg16`(→확장 vector/pg_trgm/btree_gin 자동생성), `nice/rag-server:dev`(→부팅 ok).
 
 ---
 
