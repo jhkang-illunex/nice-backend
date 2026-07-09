@@ -117,6 +117,47 @@ docker compose --profile ingest run --rm ingestion \
 > shock 은 데이터 전제 없음. (단, 데모/company_edge 기반 작업을 병행한다면
 > `company_edge.trade_rate` 는 [`RUNBOOK_trade_rate_갱신.md`](RUNBOOK_trade_rate_갱신.md) 로 채운다.)
 
+### 4-B. RAG 데이터 백업 / 복원 (nice_ingest 재적재 대신 통째로 이관)
+
+RAG 데이터는 **`rag` 스키마**에 있다: `hsk`(HS코드+임베딩, 12,469행), `hs_heading`, `synonyms`,
+`alembic_version`, `search_log`(런타임 로그). 임베딩 재계산(nice_ingest) 없이 **덤프로 이관** 가능.
+
+**필요 확장(대상 DB)**: `vector`, `pg_trgm`, `btree_gin` (덤프 헤더에 `CREATE EXTENSION IF NOT
+EXISTS` 로 포함됨).
+
+**백업 (pg_dump, schema+data)** — 로컬에 `postgres:16`/`pgvector:pg16` 이미지 이용:
+```bash
+mkdir -p backups
+printf -- "CREATE EXTENSION IF NOT EXISTS vector;\nCREATE EXTENSION IF NOT EXISTS pg_trgm;\nCREATE EXTENSION IF NOT EXISTS btree_gin;\n\n" > backups/rag_backup.sql
+docker run --rm --network host -e PGPASSWORD='<pw>' postgres:16 \
+  pg_dump -h <DB호스트> -p <포트> -U <user> -d <db> \
+  --schema=rag --no-owner --no-privileges \
+  --exclude-table=rag.hsk_backup_20260611 \
+  --exclude-table-data=rag.search_log \
+  >> backups/rag_backup.sql
+gzip -k backups/rag_backup.sql   # 전송용 압축(.gz)
+```
+> 제외: 구백업 테이블(`hsk_backup_*`) 전체, `search_log` **데이터**(스키마는 유지).
+
+**복원 (대상 DB에 업로드)**:
+```bash
+# 대상 DB 준비 (없으면)
+psql -h <대상DB> -U <user> -c "CREATE DATABASE <db>;"
+# 복원 (확장은 덤프 헤더가 자동 생성)
+gunzip -c backups/rag_backup.sql.gz | psql -h <대상DB> -U <user> -d <db>
+#   또는 비압축: psql ... -d <db> -f backups/rag_backup.sql
+```
+
+**복원 검증**:
+```sql
+SELECT count(*) AS 행, count(embedding) AS 임베딩 FROM rag.hsk;   -- 12469 / 12469
+SELECT count(*) FROM pg_indexes WHERE schemaname='rag' AND tablename='hsk';  -- 9
+```
+
+> 현재 스냅샷(이관용)은 `backups/rag_backup.sql`(≈139MB) / `.sql.gz`(≈44MB) 에 생성돼 있다.
+> **대용량이라 git 에는 커밋 안 함**(`.gitignore` 처리). 임시 pgvector 컨테이너 복원으로 무결성
+> 검증 완료(에러 0, 12,469행·인덱스 9개).
+
 ---
 
 ## 5. 검증
