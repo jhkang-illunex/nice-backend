@@ -1,0 +1,19 @@
+# GPU override (ollama) — 기존 llm 서비스(ollama/ollama)에 GPU 만 부착.
+#   docker-compose.gpu.yml 은 vLLM 로 교체하는 override 이고, 이 파일은 ollama 를 그대로
+#   두고 GPU 자원만 준다(번들 nice_ai_llm.tar.gz = ollama + qwen3:14b 에 맞춤).
+#
+# 전제: 호스트에 NVIDIA 드라이버 + nvidia-container-toolkit (docs/RUNBOOK_GPU_docker.md).
+#
+# 사용:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu-ollama.yml \
+#     --profile llm-local up -d llm
+#   # .env: LLM_MODEL=qwen3:14b  (ollama 태그 형식)
+services:
+  llm:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
