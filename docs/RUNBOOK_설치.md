@@ -28,7 +28,7 @@ DB를 가리키면 그대로 동작.
 |---|---|---|---|
 | `nice_ai_app.tar.gz` | 이미지: rag-server·shock-server·ingestion·redis | ≈350MB | **항상** |
 | `nice_ai_embed.tar.gz` | TEI 이미지 + **bge-m3 모델** | ≈1.5GB | 임베딩 자체호스팅 시 |
-| `nice_ai_llm.tar.gz` | ollama 이미지 + **qwen3:14b(q4_K_M) 모델** | ≈10GB | LLM 자체호스팅 시 |
+| `nice_ai_llm.tar.gz` | ollama 이미지 + **qwen3:14b(q4_K_M) 모델** | ≈12GB | LLM 자체호스팅 시 |
 
 > **PostgreSQL 은 별도 제공**(외부 DB) — 번들에 미포함. 자체 PG 가 필요하면 `deploy/postgres/`
 > (nice/postgres:pg16, vector/pg_trgm/btree_gin 기본) 를 별도 빌드·반입.
