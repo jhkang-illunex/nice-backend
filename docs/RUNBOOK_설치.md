@@ -22,33 +22,46 @@ DB를 가리키면 그대로 동작.
 ## 1. 반입물 (연결 구간에서 준비 → 매체로 이동)
 
 - `docker-compose.yml`, `.env` (아래 §3 값 채운 것)
-- **이미지**: `nice/rag-server`, `nice/shock-server` (+ 자체 호스팅 시 `redis:7-alpine`,
-  `text-embeddings-inference`, `ollama/ollama`)
-- (air-gap) LLM/임베딩 모델 볼륨 사전적재 — [`README.md`](../README.md) §현행 배포-E 에어갭 체크리스트
+- **3개 개별 번들** (필요한 것만 반입):
 
-### 이미지 반입 (레지스트리 없을 때) — 배포 번들 `nice_ai.tar.gz`
+| 번들 | 내용 | 크기 | 언제 |
+|---|---|---|---|
+| `nice_ai_app.tar.gz` | 이미지: rag-server·shock-server·ingestion·redis | ≈350MB | **항상** |
+| `nice_ai_embed.tar.gz` | TEI 이미지 + **bge-m3 모델** | ≈1.5GB | 임베딩 자체호스팅 시 |
+| `nice_ai_llm.tar.gz` | ollama 이미지 + **qwen3:14b(q4_K_M) 모델** | ≈10GB | LLM 자체호스팅 시 |
 
-연결 구간에서 만든 번들(`nice/rag-server:dev`·`nice/shock-server:dev`·`nice/postgres:pg16`·
-`nice/ingestion:dev`·`redis:7-alpine`, gzip ≈496MB)을 매체로 옮겨 **오프라인 적재**:
+> **PostgreSQL 은 별도 제공**(외부 DB) — 번들에 미포함. 자체 PG 가 필요하면 `deploy/postgres/`
+> (nice/postgres:pg16, vector/pg_trgm/btree_gin 기본) 를 별도 빌드·반입.
+> 임베딩·LLM 을 **외부(내부망) 엔드포인트**로 붙이면 embed/llm 번들도 불필요(URL만 지정).
+
+### 오프라인 적재
+
 ```bash
-# (대상 시스템, 인터넷 불필요)
-docker load -i nice_ai.tar.gz
-docker images | grep -E "nice/|redis"        # 5개 로드 확인
-```
-> 번들 재생성이 필요하면(연결 구간):
-> `docker save nice/rag-server:dev nice/shock-server:dev nice/postgres:pg16 nice/ingestion:dev redis:7-alpine | gzip > nice_ai.tar.gz`
+# (대상 시스템, 인터넷 불필요) — 앱은 항상
+docker load -i nice_ai_app.tar.gz
+docker images | grep -E "nice/|redis"
 
-**에어갭 실행 3원칙** (검증됨 — 세 이미지 모두 `--network none` 기동 확인):
+# 임베딩 자체호스팅 (bge-m3): 이미지 load + 모델 볼륨 복원
+tar -xzf nice_ai_embed.tar.gz               # → tei-*.image.tar, bge-m3.model.tar, RESTORE.txt
+docker load -i tei-cpu-1.6.image.tar
+docker run --rm -v nice-backend_embed-models:/v -v "$PWD":/in alpine tar xf /in/bge-m3.model.tar -C /v
+
+# LLM 자체호스팅 (qwen3:14b): 동일 패턴
+tar -xzf nice_ai_llm.tar.gz                 # → ollama.image.tar, qwen3-14b.model.tar, RESTORE.txt
+docker load -i ollama.image.tar
+docker run --rm -v nice-backend_llm-models:/v -v "$PWD":/in alpine tar xf /in/qwen3-14b.model.tar -C /v
+```
+> 각 embed/llm 번들 안에 `RESTORE.txt`(적재·실행 명령)가 들어 있다.
+
+**에어갭 실행 3원칙** (검증됨 — 이미지들 `--network none` 기동 확인):
 1. **반드시 `docker load` 먼저**, 그다음 `docker compose ... up -d` (이미지 있으면 빌드/pull 안 함).
-2. **`--build` 금지** — `docker compose build`/`up --build` 는 pip·apt 를 인터넷에서 받으려다 실패.
-   태그가 compose `${APP_TAG:-dev}=dev` 와 일치해야 로드한 이미지를 그대로 쓴다.
-3. **번들에 없는 프로파일 금지** — `--profile embed-local`/`llm-local` 은 TEI/ollama 이미지가
-   필요한데 번들에 없다. 임베딩·LLM 은 **외부(내부망) 엔드포인트**(`EMBED_BASE_URL`/`LLM_BASE_URL`)로
-   붙이거나, 그 이미지들을 별도 save/load 하고 **모델 볼륨을 사전적재**해야 한다
-   (모델은 첫 실행 때 인터넷에서 받으므로 — [`README.md`](../README.md) §현행 배포-E).
+2. **`--build` 금지** — `build`/`up --build` 는 pip·apt 를 인터넷에서 받으려다 실패.
+   태그가 compose `${APP_TAG:-dev}=dev` 와 일치해야 로드본을 그대로 쓴다.
+3. **모델은 이미지가 아니라 볼륨** — embed/llm 은 모델을 `*-models` 볼륨에 **먼저 복원**해야
+   첫 실행 때 인터넷에서 안 받는다(위 tar 복원). 안 하면 에어갭에서 모델 다운로드 시도 → 실패.
 
 > 런타임 인터넷 의존 없음 검증: `docker run --network none nice/shock-server:dev`(→/health ok),
-> `nice/postgres:pg16`(→확장 vector/pg_trgm/btree_gin 자동생성), `nice/rag-server:dev`(→부팅 ok).
+> `nice/rag-server:dev`(→부팅 ok), `nice/postgres:pg16`(→확장 자동생성).
 
 ---
 
