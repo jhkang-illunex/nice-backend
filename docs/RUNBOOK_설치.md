@@ -125,6 +125,15 @@ RAG 데이터는 **`rag` 스키마**에 있다: `hsk`(HS코드+임베딩, 12,469
 **필요 확장(대상 DB)**: `vector`, `pg_trgm`, `btree_gin` (덤프 헤더에 `CREATE EXTENSION IF NOT
 EXISTS` 로 포함됨).
 
+> **대상 PG를 `nice/postgres:pg16` 베이스 이미지로 띄우면** 이 확장 3종이 **기본 생성**돼 있어
+> 복원이 바로 된다 (vector 0.8.2 = NICE 운영 DB 동일 버전).
+> ```bash
+> docker build -t nice/postgres:pg16 deploy/postgres/        # 정의: deploy/postgres/
+> docker run -d -e POSTGRES_PASSWORD=<pw> -e POSTGRES_DB=nice_innovation \
+>   -v pgdata:/var/lib/postgresql/data -p 5432:5432 nice/postgres:pg16
+> ```
+> template1 에도 만들어 두므로 이후 `CREATE DATABASE` 로 만드는 DB 도 확장을 상속한다.
+
 **백업 (pg_dump, schema+data)** — 로컬에 `postgres:16`/`pgvector:pg16` 이미지 이용:
 ```bash
 mkdir -p backups
