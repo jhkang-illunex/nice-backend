@@ -32,7 +32,7 @@ Content-Type: application/json; charset=utf-8
 | Method | Path | 용도 | 의존성 |
 |---|---|---|---|
 | `GET` | `/health` | 라이브니스 | (없음) |
-| `GET` | `/health/deep` | 의존성 4종 도달성 | postgres + redis + llm + embed |
+| `GET` | `/health/deep` | 의존성 3종 도달성 | postgres + llm + embed |
 | `GET` | `/api/hsk/search` | 키워드/의미 검색 (RRF hybrid) | postgres + embed |
 | `GET` | `/api/hsk/agent` | 자연어 질의 → LLM 답변 + 인용 | postgres + embed + llm |
 
@@ -62,7 +62,7 @@ curl http://localhost:18002/health
 
 ## `GET /health/deep` — 의존성 도달성
 
-PG / Redis / LLM / Embed 4종 도달 여부를 한 번에. 각 필드 값 = `"ok"` 또는
+PG / LLM / Embed 3종 도달 여부를 한 번에. 각 필드 값 = `"ok"` 또는
 `"fail: {ExceptionClass}"`. **HTTP 상태는 항상 200** — 운영 디버깅 용도라
 의존성 일부 실패해도 본문은 정상 반환.
 
@@ -75,7 +75,6 @@ PG / Redis / LLM / Embed 4종 도달 여부를 한 번에. 각 필드 값 = `"ok
 ```json
 {
   "postgres": "ok",
-  "redis": "ok",
   "llm": "ok",
   "embed": "ok"
 }
@@ -86,7 +85,6 @@ PG / Redis / LLM / Embed 4종 도달 여부를 한 번에. 각 필드 값 = `"ok
 ```json
 {
   "postgres": "ok",
-  "redis": "ok",
   "llm": "fail: ConnectError",
   "embed": "ok"
 }

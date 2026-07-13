@@ -349,7 +349,7 @@ curl "http://localhost:18001/api/network/neighbors/1130452404?depth=2&direction=
 | `/neighbors/{bizno}` p50 | < 150 ms |
 
 > ⚠️ 매 호출마다 PG SELECT + 그래프 빌드. 빈번한 호출은 캐시 도입 권장
-> (in-process LRU 또는 Redis). 5만 노드 진입 시 빌드 ~5s + ~50MB —
+> (in-process LRU). 5만 노드 진입 시 빌드 ~5s + ~50MB —
 > prod 진입 전 캐시 필수.
 
 ## Python 클라이언트 SDK 예시

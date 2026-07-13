@@ -68,7 +68,7 @@ src/nice_poc/
 ├── estimate/     # ML 추정 (보조)
 ├── result/       # :IMPACTS 적재 + 화면 집계
 ├── config/       # pydantic-settings (env 로딩)
-├── db/           # Neo4j / PG / Redis 클라이언트
+├── db/           # Neo4j / PG 클라이언트
 └── api/          # FastAPI 진입점
 ```
 

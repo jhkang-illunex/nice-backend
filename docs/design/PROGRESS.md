@@ -44,11 +44,10 @@ PoC 1차 시연 가능 라인(4주차) + 폴리글랏 §5.5 까지 **5단계 모
 |---|---|---|
 | Neo4j | 5.24 Community + APOC 5.24 | 호스트 17474/17687, healthy |
 | PostgreSQL | 16 + pgvector + pg_trgm + btree_gin | 호스트 15432, healthy |
-| Redis | 7 alpine | 호스트 16379, healthy |
 | Python | 3.12.10 (pyenv) | .venv/, dev extras 설치 |
 | Docker Compose | v2.20.2 | 컨테이너 3종 모두 healthy |
 
-호스트 포트는 기존 Neo4j 클러스터(7474/7687/7476/7689/7477/7690)와 Redis(6379)
+호스트 포트는 기존 Neo4j 클러스터(7474/7687/7476/7689/7477/7690)
 점유 회피 위해 **프리픽스 1** 매핑.
 
 ---
@@ -87,7 +86,7 @@ PoC 1차 시연 가능 라인(4주차) + 폴리글랏 §5.5 까지 **5단계 모
 src/nice_poc/                      # 18 디렉토리 / 50+ 파일 / 2,714 줄
 ├── __init__.py
 ├── config/                        # pydantic-settings (env 로딩)
-├── db/                            # neo4j / postgres / redis 클라이언트
+├── db/                            # neo4j / postgres 클라이언트
 ├── api/                           # FastAPI 진입점
 │   ├── main.py                    # 8 라우터 include
 │   ├── schemas.py                 # Pydantic v2 모델 (15+ 클래스)
@@ -239,6 +238,6 @@ Pydantic 스키마 15+ 클래스 (KpiCard / FirmImpact / NetworkSubgraph / Pagin
 - `ui_severity` 분류 룰 — 스펙 미정 → dual_write 가 NULL 적재 중
 - B 행렬 — Supply 매출 전방이 H.T 폴백 (5주차)
 - Hub-aware BFS — 안전장치 4종 중 4번 (6주차)
-- Redis 캐시 (`cache/`) — PoC 2차 진입 시 신설
-- `sync/` 모듈 — 운영 1.0 진입 시 (firms_master 양방향, redis warmup)
+- 캐시 계층 (`cache/`) — PoC 2차 진입 시 신설 (기술 TBD; redis 제거됨)
+- `sync/` 모듈 — 운영 1.0 진입 시 (firms_master 양방향, 캐시 warmup)
 - `search/` 모듈 + mecab-ko + sentence-transformers — 운영 1.1

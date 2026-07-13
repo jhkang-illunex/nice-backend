@@ -10,14 +10,14 @@
 
 ```bash
 docker ps --filter name=nice- --format 'table {{.Names}}\t{{.Status}}'
-# nice-pg / nice-neo4j / nice-redis 모두 "healthy" 여야 함
+# nice-pg / nice-neo4j 모두 "healthy" 여야 함
 
 .venv/bin/pytest -q     # 41 passed
 ```
 
 | 항목 | 상태 |
 |---|---|
-| 컨테이너 | PG 16 + Neo4j 5.24 Community + Redis 7 — healthy |
+| 컨테이너 | PG 16 + Neo4j 5.24 Community — healthy |
 | PG 테이블 | 8 + MV 2 (firms / impacts / scenarios / shocks / simulation_runs / sectors / hs_codes / countries / mv_impacts_by_sector / mv_impacts_by_hq) |
 | PG 확장 | `vector` / `pg_trgm` / `btree_gin` |
 | Neo4j 제약 | 9 (PK UNIQUE 전체) |

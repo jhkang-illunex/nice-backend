@@ -13,7 +13,7 @@
   GET /components                 → algo.components          연결 컴포넌트
 
 성능: 호출 1회마다 PG 풀 SELECT + 그래프 재빌드(캐시 없음). 빈번 호출은 캐시 권장
-  (별 단계 — Redis 또는 in-process LRU). betweenness 는 O(N·M) 로 가장 무겁다.
+  (별 단계 — in-process LRU). betweenness 는 O(N·M) 로 가장 무겁다.
 
 ⚠️ 데이터 드리프트(중요): 본 라우터가 읽는 ``public.node`` / ``public.edge`` 는 현재
   운영 스키마에서 **0건(빈 테이블)** 이라, 실호출 시 노드/엣지 0 의 빈 결과가 온다.

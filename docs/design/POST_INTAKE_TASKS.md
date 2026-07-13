@@ -19,7 +19,7 @@ DATA_INTAKE.md 6단계 끝나는 즉시 본 문서의 **P0** 진입.
 | **P2** | 6주차 산출물 | 5주차 PR 머지 후 |
 | **P3** | 7주차 산출물 | 6주차 PR 머지 후 |
 | **P4** | 8주차 — 시연 직전 | PoC 종료 직전 |
-| **P5** | PoC 2차 (Redis) | PoC 1차 종료 후 |
+| **P5** | PoC 2차 (캐시) | PoC 1차 종료 후 |
 | **P6** | 운영 1.0 (sync/) | PoC 2차 종료 후 |
 | **P7** | 운영 1.1 (search/) | 운영 1.0 안정화 후 |
 
@@ -151,7 +151,7 @@ DATA_INTAKE.md 6단계 끝나는 즉시 본 문서의 **P0** 진입.
 
 ---
 
-## P5 — PoC 2차 (Redis 도입)
+## P5 — PoC 2차 (캐시 계층 도입)
 
 ### P5-1. `cache/` 모듈 신설
 
@@ -160,15 +160,15 @@ DATA_INTAKE.md 6단계 끝나는 즉시 본 문서의 **P0** 진입.
 - 무효화 이벤트 (시뮬 종료 / firms 마스터 변경 / ETL 갱신)
 - **의존**: PoC 1차 시연 종료 + 사용자 동의
 - **산출물**:
-  - `cache/client.py` (Redis pool + key prefix)
+  - `cache/client.py` (캐시 pool + key prefix; 기술 TBD — redis 제거됨)
   - `cache/kpi.py` / `layout.py` / `firm.py` / `timeseries.py` / `invalidate.py`
-  - `dual_write` 에 Redis warmup 단계 추가
+  - `dual_write` 에 캐시 warmup 단계 추가
 - **예상 시간**: 1주
 
 ### P5-2. FastAPI 라우터 본 구현 (501 → 실제)
 
 - 화면 ①~⑦ 의 GET 엔드포인트 실 데이터 응답
-- KPI 카드는 Redis 우선, PG MV 폴백
+- KPI 카드는 캐시 우선, PG MV 폴백
 - 좌표 캐시 적용 (force-directed 사전 계산)
 - **예상 시간**: 1주
 
@@ -181,7 +181,7 @@ DATA_INTAKE.md 6단계 끝나는 즉시 본 문서의 **P0** 진입.
 - 아키텍처 §5.4 — `neo4j_to_pg.write_impacts_dual` 의 운영 1.0 버전 (현재 `result/dual_write` 가 PoC 1차 형태)
 - `firms_master.sync_firms_master()` — PG ↔ Neo4j 마스터 정합성 보장 (일 1회 cron 또는 Airflow DAG)
 - `mv_refresh.refresh_all_views(run_id)` — 트리거 기반
-- `redis_warmup.warmup_after_run(run_id)` — 시뮬 종료 시 캐시 사전 적재
+- `cache_warmup.warmup_after_run(run_id)` — 시뮬 종료 시 캐시 사전 적재
 - **결정 항목**: `result/dual_write` 를 `sync/` 로 이동할지 vs 유지할지 (ADR-006 작성 대상)
 - **예상 시간**: 1주
 

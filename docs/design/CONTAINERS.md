@@ -12,9 +12,8 @@
 
 | 컨테이너 | 이미지 | profile | 진입점 | 호스트 포트 | 의존 | restart |
 |---|---|---|---|---|---|---|
-| `nice-rag-server` | `nice/rag-server:${APP_TAG:-dev}` | `rag` | `uvicorn nice_rag.api.main:app --host 0.0.0.0 --port 8000` | `${RAG_API_PORT:-18002}:8000` | redis(internal) + postgres(external) + llm/embed(internal or external) | `unless-stopped` |
+| `nice-rag-server` | `nice/rag-server:${APP_TAG:-dev}` | `rag` | `uvicorn nice_rag.api.main:app --host 0.0.0.0 --port 8000` | `${RAG_API_PORT:-18002}:8000` | postgres(external) + llm/embed(internal or external) | `unless-stopped` |
 | `nice-graph-analysis` | `nice/graph-analysis:${APP_TAG:-dev}` | `network` | `uvicorn nice_graph.api.main:app --host 0.0.0.0 --port 8000` | `${GRAPH_API_PORT:-18001}:8000` | postgres(external) | `unless-stopped` |
-| `nice-redis` | `redis:7-alpine` | `rag` | `redis-server --maxmemory 2gb --maxmemory-policy allkeys-lru --appendonly no` | `${REDIS_PORT:-6379}:6379` | (없음) | `unless-stopped` |
 | `nice-ingestion` | `nice/ingestion:${APP_TAG:-dev}` | `ingest` | (compose `run` 마다 CMD 지정) | (포트 없음 — 잡 컨테이너) | postgres(external) + embed(internal or external) | `no` (oneshot) |
 | `nice-llm` | `ollama/ollama:latest` (dev) / `vllm/vllm-openai:latest` (prod gpu.yml) | `llm-local` | image entrypoint | `${LLM_PORT:-11434}:11434` | (없음) | `unless-stopped` |
 | `nice-embed` | `ghcr.io/huggingface/text-embeddings-inference:cpu-1.6` | `embed-local` | `--model-id ${EMBED_MODEL} --port 8080 --max-batch-tokens 16384` | `${EMBED_PORT:-18080}:8080` | (없음, HF Hub 다운로드) | `unless-stopped` |
@@ -23,13 +22,12 @@
 
 | 볼륨 | 마운트 | 용도 | 보존 정책 |
 |---|---|---|---|
-| `redis-data` | nice-redis:/data | Redis 데이터(AOF off 라 사실상 휘발) | 무관 |
 | `llm-models` | nice-llm:/root/.ollama | ollama 모델 캐시 (~400MB ~ 4GB) | 보존 권장 (재다운로드 회피) |
 | `embed-models` | nice-embed:/data | HF 모델 캐시 (BGE-M3 ~2GB) | 보존 권장 |
 | `./:/work:ro` | nice-ingestion | 호스트의 데이터(Excel 등) read-only 마운트 | 호스트 파일 |
 
 **네트워크**: 모든 컨테이너가 `nice-net` (bridge) 에 attach. 컨테이너 끼리
-서비스명(`redis`, `llm`, `embed`)으로 도달, 외부(`postgres`) 는 원격 IP 로
+서비스명(`llm`, `embed`)으로 도달, 외부(`postgres`) 는 원격 IP 로
 직접 도달.
 
 ---
@@ -48,10 +46,6 @@
 | `POSTGRES_USER` | `nice` | 위와 같음 | PG user | recreate |
 | `POSTGRES_PASSWORD` | `nice` | 위와 같음 | PG password (시크릿) | recreate |
 | `POSTGRES_DB` | `nice_innovation` | 위와 같음 | PG database | recreate |
-| `REDIS_HOST_INTERNAL` | `redis` | rag-server | compose 내부 alias | recreate |
-| `REDIS_PORT_INTERNAL` | `6379` | rag-server | compose 내부 포트 | recreate |
-| `REDIS_PORT` | `6379` | redis (호스트 노출) | 호스트 → redis | restart |
-| `REDIS_DB` | `0` | rag-server | Redis DB index | recreate |
 
 ### LLM 백엔드 (OpenAI-호환)
 
@@ -255,8 +249,6 @@ docker volume rm nice-backend_llm-models
 # TEI 모델 캐시 비우기
 docker volume rm nice-backend_embed-models
 
-# Redis 비우기
-docker exec nice-redis redis-cli FLUSHDB
 ```
 
 ---
@@ -341,7 +333,6 @@ docker exec nice-redis redis-cli FLUSHDB
 ### 백업
 
 - PG: **운영 DBA 가 관리** — 본 PoC 는 read-only 사용이라 백업 책임 없음
-- Redis: AOF off, maxmemory-policy=allkeys-lru → 데이터 손실 허용
 - ollama/TEI 모델 캐시: 재다운로드 가능 → 백업 불필요
 
 ### 의존성 업데이트
