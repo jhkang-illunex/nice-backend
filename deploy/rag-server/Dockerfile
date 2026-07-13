@@ -1,4 +1,4 @@
-# rag-server 서비스 — PG + Redis + LLM/Embed 원격(OpenAI-호환).
+# rag-server 서비스 — PG + LLM/Embed 원격(OpenAI-호환).
 # 임베딩 모델을 자체 로딩하지 않으므로 sentence-transformers/torch 불요(EMBED_BASE_URL 사용).
 # 자체 로딩이 필요해지면 .[search] extras 활성 + ARG INSTALL_LOCAL_EMBED=true 분기 추가.
 

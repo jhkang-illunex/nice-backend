@@ -2,7 +2,6 @@
 ##
 ## ┌─ rag ────────────────────────────────────────────────────────────────────┐
 ## │  rag-server   : HSCode RAG REST API (FastAPI, OpenAI-호환 LLM/Embed 호출) │
-## │  redis        : RAG 캐시                                                   │
 ## │  ingestion    : hscode/hsk_embed 잡 컨테이너                              │
 ## │  llm  (옵션)  : 자체 LLM (ollama / vLLM)                                   │
 ## │  embed (옵션) : 자체 임베딩 (TEI)                                          │
@@ -16,7 +15,7 @@
 ## RAG = rag.hsk schema, Network = public.node/edge. 격리 보장.
 ##
 ## profiles
-##   rag                       : rag-server + redis
+##   rag                       : rag-server
 ##   network                   : graph-analysis
 ##   ingest                    : ingestion 잡 (적재/임베딩)
 ##   llm-local / embed-local   : 자체 LLM / 임베딩 컨테이너 (옵션)
@@ -50,30 +49,6 @@ services:
   # ─────────────────────────────────────────────────────────────────────────────
   # RAG layer
   # ─────────────────────────────────────────────────────────────────────────────
-  redis:
-    profiles: ["rag"]
-    image: redis:7-alpine
-    container_name: nice-redis
-    command:
-      - redis-server
-      - --maxmemory
-      - 2gb
-      - --maxmemory-policy
-      - allkeys-lru
-      - --appendonly
-      - "no"
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
-    networks: [nice-net]
-
   rag-server:
     profiles: ["rag"]
     build:
@@ -90,9 +65,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-nice}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nice}
       POSTGRES_DB: ${POSTGRES_DB:-nice_innovation}
-      REDIS_HOST: ${REDIS_HOST_INTERNAL:-redis}
-      REDIS_PORT: ${REDIS_PORT_INTERNAL:-6379}
-      REDIS_DB: ${REDIS_DB:-0}
       LLM_BASE_URL: ${LLM_BASE_URL:-http://llm:11434/v1}
       LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b-instruct}
       LLM_API_KEY: ${LLM_API_KEY:-noop}
@@ -117,9 +89,6 @@ services:
       EMBED_QUERY_INSTRUCTION: ${EMBED_QUERY_INSTRUCTION:-}
     ports:
       - "${RAG_API_PORT:-8002}:8000"
-    depends_on:
-      redis:
-        condition: service_healthy
     restart: unless-stopped
     networks: [nice-net]
 
@@ -337,7 +306,6 @@ services:
     networks: [nice-net]
 
 volumes:
-  redis-data:
   llm-models:
   embed-models:
   # Neo4j 비활성 — 위 neo4j 서비스 주석과 함께 해제 (보존용)

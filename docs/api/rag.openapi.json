@@ -41,7 +41,7 @@
           "health"
         ],
         "summary": "의존성 도달성",
-        "description": "PG/Redis/LLM/Embed 네 가지 의존성을 한 번에 점검. 각 필드는 'ok' 또는 'fail: {ExceptionClass}'. 운영 디버깅용 — 503 으로 인한 사용자 측 에러가 어느 의존성에서 발생했는지 즉시 분간 가능.",
+        "description": "PG/LLM/Embed 세 가지 의존성을 한 번에 점검. 각 필드는 'ok' 또는 'fail: {ExceptionClass}'. 운영 디버깅용 — 503 으로 인한 사용자 측 에러가 어느 의존성에서 발생했는지 즉시 분간 가능.",
         "operationId": "health_deep_health_deep_get",
         "responses": {
           "200": {
@@ -287,14 +287,6 @@
               "ok"
             ]
           },
-          "redis": {
-            "type": "string",
-            "title": "Redis",
-            "description": "Redis PING 응답 여부.",
-            "examples": [
-              "ok"
-            ]
-          },
           "llm": {
             "type": "string",
             "title": "Llm",
@@ -315,12 +307,11 @@
         "type": "object",
         "required": [
           "postgres",
-          "redis",
           "llm",
           "embed"
         ],
         "title": "DeepHealthResponse",
-        "description": "의존성 4종(postgres/redis/llm/embed) 도달성 점검 결과."
+        "description": "의존성 3종(postgres/llm/embed) 도달성 점검 결과."
       },
       "ErrorResponse": {
         "properties": {
@@ -461,7 +452,7 @@
   "tags": [
     {
       "name": "health",
-      "description": "라이브니스 + 의존성 도달성 점검 (postgres/redis/llm/embed)."
+      "description": "라이브니스 + 의존성 도달성 점검 (postgres/llm/embed)."
     },
     {
       "name": "hsk",

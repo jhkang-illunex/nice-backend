@@ -1,6 +1,6 @@
 """rag-server FastAPI 진입점.
 
-graph-analysis 와 분리된 독립 앱 — Neo4j 의존 없음, PG/Redis + LLM/Embed
+graph-analysis 와 분리된 독립 앱 — Neo4j 의존 없음, PG + LLM/Embed
 원격 백엔드만 사용.
 """
 
@@ -43,7 +43,7 @@ app = FastAPI(
     openapi_tags=[
         {
             "name": "health",
-            "description": "라이브니스 + 의존성 도달성 점검 (postgres/redis/llm/embed).",
+            "description": "라이브니스 + 의존성 도달성 점검 (postgres/llm/embed).",
         },
         {
             "name": "hsk",

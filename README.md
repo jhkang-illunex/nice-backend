@@ -12,7 +12,7 @@ NICE Open Innovation PoC — 공급망/수요망 충격 시뮬레이션 백엔�
 
 | 영역 | 상태 |
 |---|---|
-| 인프라 (PG/Neo4j/Redis) | docker-compose 기동, healthy |
+| 인프라 (PG/Neo4j) | docker-compose 기동, healthy |
 | PG 스키마 | 8 테이블 + MV 2 + 확장 3 (vector/pg_trgm/btree_gin) 적용 완료 |
 | Neo4j 스키마 | 제약 9 + 인덱스 17 + APOC 5.24 적용 완료 |
 | Python 모듈 | 1~4주차 (PoC 1차 시연 가능 분량) + 폴리글랏 §5.5 dual_write 구현 + 49 단위 테스트 pass |
@@ -70,14 +70,14 @@ PYTHONPATH=src python -m nice_migrate            # 전 연도
 
 | 이미지 | 서비스 / profile | 설치 | 실행(CMD) | host포트 | 역할 · 런타임 의존 |
 |---|---|---|---|---|---|
-| `nice/rag-server` | rag-server / **rag** | `.[rag]` | `uvicorn nice_rag.api.main:app` | 18002 | HS 자연어 검색 API · **PG(pgvector)+redis+임베딩** |
+| `nice/rag-server` | rag-server / **rag** | `.[rag]` | `uvicorn nice_rag.api.main:app` | 18002 | HS 자연어 검색 API · **PG(pgvector)+임베딩** |
 | `nice/shock-server` | shock-server / **shock** | 최소(fastapi·uvicorn·pydantic·numpy·networkx), `src/nice_shock` 만 복사 | `uvicorn nice_shock.api.main:app` | 18004 | 순수 쇼크 전파(`/tariff`·`/volume`·`/propagate`) · **의존 없음**(triple_list 입력, stateless) |
 | `nice/graph-analysis` | graph-analysis / **network** | `.`(전체) | `uvicorn nice_graph.api.main:app` | 18001 | `public.node/edge` networkx 분석 + `/api/shock/*` · **PG(read-only)+LLM**. 레거시/선택 |
 | `nice/demo` | demo / **demo** | `.[demo]` | `streamlit run src/nice_demo/app_shock.py` | 18003 | Streamlit 시연 UI · **PG(read-only) + rag·shock·graph HTTP** (소스 `./src` 볼륨마운트) |
 | `nice/ingestion` | ingestion / **ingest** | `.[ingest]` | `python -m nice_ingest …` (1회성) | — | RAG용 HS코드 적재(xlsx→임베딩→pgvector) · **PG+임베딩** · `restart:"no"` |
 
-서드파티(pull): `redis:7-alpine`(redis/**rag**, 16379) · `ollama/ollama`(llm/**llm-local**,
-11434) · `text-embeddings-inference`(embed/**embed-local**, 18080). `neo4j` 는 **주석 비활성**.
+서드파티(pull): `ollama/ollama`(llm/**llm-local**, 11434) ·
+`text-embeddings-inference`(embed/**embed-local**, 18080). `neo4j` 는 **주석 비활성**.
 
 **런타임 의존 요약**
 ```
@@ -92,7 +92,7 @@ nice_migrate (CLI)    → PostgreSQL (company_edge UPDATE)
 ### C. 파이썬 의존성(extras)
 
 `pyproject.toml` base + 이미지별 extra. base: fastapi, uvicorn, pydantic(-settings),
-psycopg, sqlalchemy, alembic, redis, httpx, numpy, scipy, pandas, networkx, neo4j.
+psycopg, sqlalchemy, alembic, httpx, numpy, scipy, pandas, networkx, neo4j.
 
 | extra | 추가 패키지 | 쓰는 이미지 |
 |---|---|---|
@@ -109,7 +109,7 @@ psycopg, sqlalchemy, alembic, redis, httpx, numpy, scipy, pandas, networkx, neo4
 ### D. 외부 노출(제품) vs 내부
 
 - **외부**: rag-server `/api/hsk/search` · shock-server `/api/shock/{tariff,volume}`
-- **내부/선택**: graph-analysis(레거시) · demo(시연) · ingestion(배치) · redis/llm/embed(서드파티)
+- **내부/선택**: graph-analysis(레거시) · demo(시연) · ingestion(배치) · llm/embed(서드파티)
 
 ### E. 에어갭(인터넷 차단) 온프레미스 배포 체크리스트
 
@@ -132,7 +132,7 @@ psycopg, sqlalchemy, alembic, redis, httpx, numpy, scipy, pandas, networkx, neo4
    docker save -o nice-images.tar \
      nice/rag-server:dev nice/shock-server:dev nice/graph-analysis:dev \
      nice/demo:dev nice/ingestion:dev \
-     redis:7-alpine ollama/ollama:latest \
+     ollama/ollama:latest \
      ghcr.io/huggingface/text-embeddings-inference:cpu-1.6
    # (에어갭) 적재
    docker load -i nice-images.tar
@@ -188,8 +188,7 @@ psycopg, sqlalchemy, alembic, redis, httpx, numpy, scipy, pandas, networkx, neo4
 | 영역 | 컴포넌트 | 패키지 / 이미지 | 역할 | GPU |
 |---|---|---|---|---|
 | **외부 (운영)** | **PostgreSQL** (`172.30.1.101:5433`, NICE 운영) | (외부) | `rag` schema (RAG) + `public.node/edge` (Network) — 운영 31 public 테이블 무수정 | — |
-| **rag**         | `redis` (nice-redis)            | `redis:7-alpine`              | RAG 캐시/세션 | — |
-|                  | `rag-server`                   | `nice_rag` / `nice/rag-server:dev` | HSCode RAG REST (OpenAI-호환 LLM·임베딩 호출) | — |
+| **rag**         | `rag-server`                   | `nice_rag` / `nice/rag-server:dev` | HSCode RAG REST (OpenAI-호환 LLM·임베딩 호출) | — |
 |                  | `ingestion` (`ingest` profile) | `nice_ingest` / `nice/ingestion:dev` | hscode → `rag.hsk` 적재 + hsk_embed 임베딩 잡 | — |
 |                  | `llm` (옵션, `llm-local`)      | `ollama/ollama` (dev) → `vllm/vllm-openai` (gpu.yml prod) | 자체 LLM (OpenAI `/v1/`) — URL 변경으로 외부 API 전환 | ✓ (gpu.yml 활성 시) |
 |                  | `embed` (옵션, `embed-local`)  | `text-embeddings-inference`   | 자체 임베딩 (OpenAI `/v1/embeddings`) — URL 변경으로 외부 API 전환 | — |
@@ -216,7 +215,7 @@ LLM / 임베딩 백엔드 교체 = `.env` 의 `LLM_BASE_URL` / `EMBED_BASE_URL` 
 ```bash
 cp .env.example .env
 
-# (a) 전체 띄움 — rag-server + redis + 자체 LLM/Embed
+# (a) 전체 띄움 — rag-server + 자체 LLM/Embed
 docker compose --profile rag --profile network --profile llm-local --profile embed-local up -d --build
 
 # (b) RAG 코어만 — LLM/Embed 는 외부 API 사용
@@ -246,12 +245,12 @@ pip install -e ".[dev,ingest,rag]"
 
 # 헬스체크
 curl http://localhost:${RAG_API_PORT:-18002}/health          # liveness
-curl http://localhost:${RAG_API_PORT:-18002}/health/deep     # + postgres/redis/llm/embed 도달성
+curl http://localhost:${RAG_API_PORT:-18002}/health/deep     # + postgres/llm/embed 도달성
 ```
 
 PostgreSQL 은 **원격 NICE 운영 인스턴스(`172.30.1.101`)** 를 사용합니다 — compose
 정의에서 로컬 PG 컨테이너는 제거됨. 따라서 `--profile rag --profile network` 가 띄우는 것은
-`redis + rag-server + graph-analysis` 3개입니다.
+`rag-server + graph-analysis` 2개입니다.
 
 `.env` 의 PG 관련 변수만 운영 인스턴스를 가리키고 있으면 됩니다:
 
@@ -290,7 +289,7 @@ docker exec -i nice-neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" < deploy/ne
 |---|---|---|---|
 | `nice_poc`    | (공용)            | —              | 도메인 코어 — propagation/matrix/shock/indicator/safety/result/db 클라이언트 |
 | `nice_graph`  | `graph-analysis`  | PostgreSQL (read-only) | `public.node/edge` → networkx 네트워크 분석 REST API (centrality / path / components / neighbors) — 데모 단계 |
-| `nice_rag`    | `rag-server`      | PostgreSQL + Redis | HSCode/문서 RAG REST API + LLM/임베딩 클라이언트 — `clients/{llm,embed}` 가 OpenAI-호환 base_url 만 호출 |
+| `nice_rag`    | `rag-server`      | PostgreSQL | HSCode/문서 RAG REST API + LLM/임베딩 클라이언트 — `clients/{llm,embed}` 가 OpenAI-호환 base_url 만 호출 |
 | `nice_ingest` | `ingestion`       | PG (rag.hsk) | 잡 컨테이너 CLI + `pipelines/<name>/` 플러그인 (현재: `hscode`, `hsk_embed`) |
 
 ### HSCode RAG — 4단계 파이프라인
@@ -438,7 +437,7 @@ docker compose --profile ingest run --rm ingestion alembic downgrade -1
 ### API — `rag-server` (rag)
 
 ```bash
-# 1) 헬스 — pg/redis/llm/embed 도달성 한 번에
+# 1) 헬스 — pg/llm/embed 도달성 한 번에
 curl http://localhost:18002/health/deep
 
 # 2) HSCode 검색 — 키워드 → RRF(vec + trgm + ts) → 후보 리스트
@@ -505,7 +504,7 @@ curl "http://localhost:18002/api/hsk/agent?q=농가+사육용+말&k=5"
 │   └── ingestion/              # Dockerfile (.[ingest] — openpyxl)
 ├── src/nice_poc/               # 공용 도메인 코어 (변경 없음)
 │   ├── config/                 # pydantic-settings (.env 로딩)
-│   ├── db/                     # Neo4j / PG / Redis 클라이언트
+│   ├── db/                     # Neo4j / PG 클라이언트
 │   ├── api/                    # FastAPI 라우터 (graph-analysis 가 재사용)
 │   ├── data/                   # Neo4j → DataFrame + scipy.sparse
 │   ├── matrix/ shock/ propagation/ indicator/ safety/

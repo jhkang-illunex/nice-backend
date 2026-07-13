@@ -26,7 +26,7 @@ DB를 가리키면 그대로 동작.
 
 | 번들 | 내용 | 크기 | 언제 |
 |---|---|---|---|
-| `nice_ai_app.tar.gz` | 이미지: rag-server·shock-server·ingestion·redis | ≈350MB | **항상** |
+| `nice_ai_app.tar.gz` | 이미지: rag-server·shock-server·ingestion | ≈320MB | **항상** |
 | `nice_ai_embed.tar.gz` | TEI 이미지 + **bge-m3 모델** | ≈1.5GB | 임베딩 자체호스팅 시 |
 | `nice_ai_llm.tar.gz` | ollama 이미지 + **qwen3:14b(q4_K_M) 모델** | ≈12GB | LLM 자체호스팅 시 |
 
@@ -39,7 +39,7 @@ DB를 가리키면 그대로 동작.
 ```bash
 # (대상 시스템, 인터넷 불필요) — 앱은 항상
 docker load -i nice_ai_app.tar.gz
-docker images | grep -E "nice/|redis"
+docker images | grep -E "nice/"
 
 # 임베딩 자체호스팅 (bge-m3): 이미지 load + 모델 볼륨 복원
 tar -xzf nice_ai_embed.tar.gz               # → tei-*.image.tar, bge-m3.model.tar, RESTORE.txt
@@ -83,7 +83,6 @@ DB·임베딩·LLM 불요. `/api/shock/{tariff,volume,propagate}`, `/api/cri` �
 | **PostgreSQL**(pgvector) | `POSTGRES_*` | 필수 | 검색 대상 데이터(hsk) |
 | **임베딩 서버** | `EMBED_BASE_URL` | **필수** | `/search`·`/agent` 질의 벡터화 (불통 시 503) |
 | **LLM** | `LLM_BASE_URL` | /agent 필수 · /search 사용 | `/search` 질의추출·CRAG(폴백 degrade) / `/agent` 답변 |
-| Redis | `REDIS_*` | rag 프로파일이 자동 기동 | 검색로그 등 |
 
 > 즉 **임베딩과 LLM 둘 다** 붙는다. 임베딩은 검색 필수(없으면 503), LLM은 /agent 필수이며
 > /search 에서도 품목추출·CRAG 로 호출된다(불통이면 폴백으로 degrade). 근거(코드):
@@ -109,9 +108,6 @@ EMBED_API_KEY=noop             # 필요 시
 #   /agent : LLM 필수(답변 생성).
 LLM_BASE_URL=http://<LLM서버>:<port>/v1
 LLM_MODEL=<모델>
-
-# ── Redis (rag 프로파일이 자동 기동; 외부 쓰면 아래 지정) ──
-REDIS_HOST_INTERNAL=redis      # 자체 컨테이너면 기본값 유지
 ```
 
 ### 기동
@@ -202,12 +198,12 @@ SELECT count(*) FROM pg_indexes WHERE schemaname='rag' AND tablename='hsk';  -- 
 curl http://localhost:8004/health
 curl -X POST http://localhost:8004/api/cri -H 'Content-Type: application/json' -d @cri_sample.json
 
-# rag — 의존성 4종(postgres/redis/llm/embed) 도달성 한 번에
+# rag — 의존성 3종(postgres/llm/embed) 도달성 한 번에
 curl http://localhost:8002/health/deep
 # 실제 검색
 curl "http://localhost:8002/api/hsk/search?q=밸브&limit=5"
 ```
-`/health/deep` 이 postgres/redis/llm/embed 각각 `ok` 면 외부 연결 정상.
+`/health/deep` 이 postgres/llm/embed 각각 `ok` 면 외부 연결 정상.
 
 ---
 

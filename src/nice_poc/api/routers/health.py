@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from sqlalchemy import text
 
-from nice_poc.db import get_pg_engine, get_redis, neo4j_session
+from nice_poc.db import get_pg_engine, neo4j_session
 
 router = APIRouter(tags=["health"])
 
@@ -28,11 +28,5 @@ def health_deep() -> dict[str, str]:
         checks["neo4j"] = "ok"
     except Exception as exc:
         checks["neo4j"] = f"fail: {exc.__class__.__name__}"
-
-    try:
-        get_redis().ping()
-        checks["redis"] = "ok"
-    except Exception as exc:
-        checks["redis"] = f"fail: {exc.__class__.__name__}"
 
     return checks

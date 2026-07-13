@@ -26,10 +26,6 @@ class Settings(BaseSettings):
     neo4j_bolt_port: int = 7687
     neo4j_database: str = "neo4j"
 
-    redis_host: str = "localhost"
-    redis_port: int = 6379
-    redis_db: int = 0
-
     @property
     def postgres_dsn(self) -> str:
         return (
@@ -40,10 +36,6 @@ class Settings(BaseSettings):
     @property
     def neo4j_uri(self) -> str:
         return f"bolt://{self.neo4j_host}:{self.neo4j_bolt_port}"
-
-    @property
-    def redis_url(self) -> str:
-        return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
 
 
 @lru_cache

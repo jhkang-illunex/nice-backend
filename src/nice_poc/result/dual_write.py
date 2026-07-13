@@ -5,8 +5,6 @@ write_impacts_dual() 가 시뮬레이션 종료 직후 호출되어:
 2. Neo4j :SimulationRun + :IMPACTS UNWIND (to_neo4j.write_impacts 위임)
 3. PG ``impacts`` UPSERT — 9 컬럼 + impact_score + capped
 4. PG mv_impacts_by_sector / mv_impacts_by_hq REFRESH (CONCURRENTLY → 실패 시 폴백)
-
-Redis 캐시 warmup (kpi.set_kpi 등) 은 PoC 2차 진입 후 추가한다.
 """
 
 from __future__ import annotations

@@ -18,7 +18,6 @@ dependencies = [
     "psycopg[binary,pool]>=3.2",
     "sqlalchemy>=2.0",
     "alembic>=1.13",
-    "redis>=5.1",
 
     # HTTP — OpenAI-호환 백엔드 호출
     "httpx>=0.27",
