@@ -49,14 +49,21 @@ docker images | grep -E "nice/"
 # 임베딩 자체호스팅 (bge-m3): 이미지 load + 모델 볼륨 복원
 tar -xzf nice_ai_embed.tar.gz               # → tei-*.image.tar, bge-m3.model.tar, RESTORE.txt
 docker load -i tei-cpu-1.6.image.tar
-docker run --rm -v nice-backend_embed-models:/v -v "$PWD":/in alpine tar xf /in/bge-m3.model.tar -C /v
+# 모델→볼륨 복원. 헬퍼는 방금 로드한 TEI 이미지(에어갭: alpine 등 pull 회피). --user root 로 빈 볼륨에 쓰기.
+docker run --rm --user root -v nice-backend_embed-models:/v -v "$PWD":/in \
+  --entrypoint tar ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 xf /in/bge-m3.model.tar -C /v
 
 # LLM 자체호스팅 (qwen3:14b): 동일 패턴  ※ GPU 필수(§기동 참조)
 tar -xzf nice_ai_llm.tar.gz                 # → ollama.image.tar, qwen3-14b.model.tar, RESTORE.txt
 docker load -i ollama.image.tar
-docker run --rm -v nice-backend_llm-models:/v -v "$PWD":/in alpine tar xf /in/qwen3-14b.model.tar -C /v
+# 모델→볼륨 복원. 헬퍼는 방금 로드한 ollama 이미지(에어갭: alpine pull 회피).
+docker run --rm --user root -v nice-backend_llm-models:/v -v "$PWD":/in \
+  --entrypoint tar ollama/ollama:latest xf /in/qwen3-14b.model.tar -C /v
 ```
-> 각 embed/llm 번들 안에 `RESTORE.txt`(적재·실행 명령)가 들어 있다. **LLM 은 GPU 필수** — 아래 §기동.
+> ⚠ **에어갭 주의**: 모델 볼륨 복원에 `alpine` 같은 미반입 이미지를 쓰면 `Unable to find image
+> 'alpine:latest' locally` 로 실패(인터넷 없어 pull 불가). 위처럼 **방금 로드한 그 번들의 이미지**를
+> tar 헬퍼로 재사용한다(ollama/TEI/앱 이미지 모두 GNU tar 내장).
+> 각 embed/llm 번들 안 `RESTORE.txt` 에 이 절차가 들어 있다. **LLM 은 GPU 필수** — 아래 §기동.
 
 **에어갭 실행 3원칙** (검증됨 — 이미지들 `--network none` 기동 확인):
 1. **반드시 `docker load` 먼저**, 그다음 `docker compose ... up -d` (이미지 있으면 빌드/pull 안 함).
