@@ -1,0 +1,96 @@
+# 배포 전용 compose — ingestion / rag-server / shock-server 3개만.
+# ─ 이미지: nice_ai_app.tar.gz 로 `docker load` 된 것을 사용(build 섹션 없음 = 에어갭 안전).
+# ─ 외부 의존(PostgreSQL / 임베딩 / LLM)은 별도 실행(컨테이너·엔드포인트) → .env 로 주소 주입.
+# ─ 값은 전부 ${VAR:-기본값} — 같은 폴더의 .env 가 자동 로드됨(docker compose 규약).
+#
+# 기동(rag+shock 상시):   docker compose -f docker-compose.deploy.yml up -d
+# 적재 잡(1회성):         docker compose -f docker-compose.deploy.yml --profile ingest \
+#                           run --rm ingestion python -m nice_ingest run hscode --file=/work/hsk.xlsx
+# 상태·로그:              docker compose -f docker-compose.deploy.yml ps / logs -f rag-server
+#
+# 외부 의존 주소 규칙:
+#   PG·임베딩·LLM 이 "같은 호스트에서 포트 published"(docker run -p ...)면 기본값
+#   host.docker.internal 로 도달(아래 extra_hosts 로 매핑). .env 에서 실제 주소로 덮어씀.
+#   PG·임베딩을 이 compose 의 nice-net 에 붙였다면 컨테이너명(예: http://nice-embed:8080/v1)으로.
+services:
+  # RAG 검색 API — 외부 PG + 임베딩 + LLM 에 의존(전부 .env)
+  rag-server:
+    image: nice/rag-server:${APP_TAG:-dev}
+    container_name: nice-rag-server
+    environment:
+      APP_ENV: ${APP_ENV:-prod}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # 외부 PostgreSQL(pgvector)
+      POSTGRES_HOST: ${POSTGRES_HOST:-host.docker.internal}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5433}
+      POSTGRES_USER: ${POSTGRES_USER:-nice}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nice}
+      POSTGRES_DB: ${POSTGRES_DB:-nice_innovation}
+      # 외부 임베딩(OpenAI 호환 /v1/embeddings) — 필수
+      EMBED_BASE_URL: ${EMBED_BASE_URL:-http://host.docker.internal:18080/v1}
+      EMBED_MODEL: ${EMBED_MODEL:-BAAI/bge-m3}
+      EMBED_API_KEY: ${EMBED_API_KEY:-noop}
+      EMBED_DIM: ${EMBED_DIM:-1024}
+      EMBED_NORMALIZE: ${EMBED_NORMALIZE:-true}
+      EMBED_QUERY_INSTRUCTION: ${EMBED_QUERY_INSTRUCTION:-}
+      # 외부 LLM(OpenAI 호환) — /agent 필수, /search 는 사용(불통 시 degrade)
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      LLM_MODEL: ${LLM_MODEL:-qwen3:14b}
+      LLM_API_KEY: ${LLM_API_KEY:-noop}
+      LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-60}
+      LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-}
+      # RAG 파이프라인 토글
+      RAG_QUERY_EXTRACT: ${RAG_QUERY_EXTRACT:-true}
+      RAG_EXTRACT_TIMEOUT_S: ${RAG_EXTRACT_TIMEOUT_S:-15}
+      RAG_CRAG: ${RAG_CRAG:-true}
+      RAG_CRAG_SEARCH: ${RAG_CRAG_SEARCH:-true}
+      RAG_CRAG_SEARCH_THRESHOLD: ${RAG_CRAG_SEARCH_THRESHOLD:-0.025}
+    ports:
+      - "${RAG_API_PORT:-18002}:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # 호스트 published 포트 도달용(Linux)
+    restart: unless-stopped
+    networks: [nice-net]
+
+  # 쇼크 전파 API — DB-free(요청 body 로 그래프 입력). 외부 의존 없음.
+  shock-server:
+    image: nice/shock-server:${APP_TAG:-dev}
+    container_name: nice-shock-server
+    environment:
+      APP_ENV: ${APP_ENV:-prod}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${SHOCK_API_PORT:-18004}:8000"
+    restart: unless-stopped
+    networks: [nice-net]
+
+  # 적재/임베딩 배치 잡 — `up` 으로 안 뜸(profile ingest). `run --rm` 으로 실행.
+  ingestion:
+    profiles: ["ingest"]
+    image: nice/ingestion:${APP_TAG:-dev}
+    container_name: nice-ingestion
+    environment:
+      APP_ENV: ${APP_ENV:-prod}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      POSTGRES_HOST: ${POSTGRES_HOST:-host.docker.internal}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5433}
+      POSTGRES_USER: ${POSTGRES_USER:-nice}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nice}
+      POSTGRES_DB: ${POSTGRES_DB:-nice_innovation}
+      EMBED_BASE_URL: ${EMBED_BASE_URL:-http://host.docker.internal:18080/v1}
+      EMBED_MODEL: ${EMBED_MODEL:-BAAI/bge-m3}
+      EMBED_API_KEY: ${EMBED_API_KEY:-noop}
+      EMBED_DIM: ${EMBED_DIM:-1024}
+      EMBED_NORMALIZE: ${EMBED_NORMALIZE:-true}
+      EMBED_QUERY_INSTRUCTION: ${EMBED_QUERY_INSTRUCTION:-}
+    volumes:
+      - ./:/work:ro          # 호스트 현재 폴더(hsk.xlsx 등)를 /work 로 read-only 마운트
+    working_dir: /work
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: "no"
+    networks: [nice-net]
+
+networks:
+  nice-net:
+    driver: bridge
