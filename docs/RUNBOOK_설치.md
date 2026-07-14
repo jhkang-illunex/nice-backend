@@ -238,7 +238,8 @@ curl "http://localhost:8002/api/hsk/search?q=밸브&limit=5"
 | rag 검색 결과 0건 | DB에 hsk 임베딩 미적재 | §4 적재 |
 | `/health/deep` embed=fail | EMBED_BASE_URL 도달 불가/모델 차원 불일치 | URL·`EMBED_DIM` 확인 |
 | `/health/deep` postgres=fail | POSTGRES_* 오설정/방화벽 | 값·네트워크 확인 |
-| (air-gap) embed/llm 컨테이너 모델 다운로드 시도 | 모델 볼륨 미적재 | README 에어갭 체크리스트 |
+| (air-gap) embed TEI 로그에 `Starting download`/`Downloading …` | ① `HF_HUB_OFFLINE` 미설정 → 캐시 있어도 HF 로 조회 시도 (가장 흔함) ② 모델 볼륨 미적재/이름 불일치 | ① `HF_HUB_OFFLINE=1`+`TRANSFORMERS_OFFLINE=1` 주고 재기동 ② 볼륨에 `models--BAAI--bge-m3/snapshots/<hash>` 있는지 확인 |
+| (air-gap) llm ollama 모델 다운로드 시도 | 모델 볼륨 미적재/이름 불일치 | `nice-backend_llm-models` 에 blobs 복원됐는지 확인 |
 
 ---
 

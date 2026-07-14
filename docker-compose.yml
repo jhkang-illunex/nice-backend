@@ -302,6 +302,10 @@ services:
     environment:
       HUGGINGFACE_HUB_CACHE: /data
       HF_HOME: /data
+      # 에어갭: 캐시(/data)에 모델이 있어도 오프라인 아니면 HF 로 etag 확인하러 나가 실패.
+      # 1 = 네트워크 조회 건너뛰고 로컬 캐시만 사용. (연결 환경 최초 다운로드 시에만 0)
+      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-1}
+      TRANSFORMERS_OFFLINE: ${TRANSFORMERS_OFFLINE:-1}
     restart: unless-stopped
     networks: [nice-net]
 
