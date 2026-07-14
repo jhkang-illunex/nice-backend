@@ -34,6 +34,11 @@ DB를 가리키면 그대로 동작.
 > (nice/postgres:pg16, vector/pg_trgm/btree_gin 기본) 를 별도 빌드·반입.
 > 임베딩·LLM 을 **외부(내부망) 엔드포인트**로 붙이면 embed/llm 번들도 불필요(URL만 지정).
 
+> ⚠ **LLM(qwen3:14b) 은 GPU 필수** — 16GB GPU 전제. nvidia runtime 이 없어도 컨테이너는
+> CPU 로 뜨지만 14B 추론이 초당 수 토큰 이하라 실사용 불가. 실전 서버는 **NVIDIA 드라이버 +
+> nvidia-container-toolkit** 설치 후 `gpu-ollama.yml` override 로 기동(아래 §기동). 임베딩은
+> CPU 전용(TEI, GPU 불요).  → GPU 환경 구성: [`RUNBOOK_GPU_docker.md`](RUNBOOK_GPU_docker.md).
+
 ### 오프라인 적재
 
 ```bash
@@ -46,12 +51,12 @@ tar -xzf nice_ai_embed.tar.gz               # → tei-*.image.tar, bge-m3.model.
 docker load -i tei-cpu-1.6.image.tar
 docker run --rm -v nice-backend_embed-models:/v -v "$PWD":/in alpine tar xf /in/bge-m3.model.tar -C /v
 
-# LLM 자체호스팅 (qwen3:14b): 동일 패턴
+# LLM 자체호스팅 (qwen3:14b): 동일 패턴  ※ GPU 필수(§기동 참조)
 tar -xzf nice_ai_llm.tar.gz                 # → ollama.image.tar, qwen3-14b.model.tar, RESTORE.txt
 docker load -i ollama.image.tar
 docker run --rm -v nice-backend_llm-models:/v -v "$PWD":/in alpine tar xf /in/qwen3-14b.model.tar -C /v
 ```
-> 각 embed/llm 번들 안에 `RESTORE.txt`(적재·실행 명령)가 들어 있다.
+> 각 embed/llm 번들 안에 `RESTORE.txt`(적재·실행 명령)가 들어 있다. **LLM 은 GPU 필수** — 아래 §기동.
 
 **에어갭 실행 3원칙** (검증됨 — 이미지들 `--network none` 기동 확인):
 1. **반드시 `docker load` 먼저**, 그다음 `docker compose ... up -d` (이미지 있으면 빌드/pull 안 함).
@@ -114,9 +119,20 @@ LLM_MODEL=<모델>
 ```bash
 # 외부 임베딩·LLM 사용(자체 컨테이너 안 띄움): rag 프로파일만
 docker compose --profile rag up -d
-# 자체 임베딩/LLM 도 띄우려면 프로파일 추가
-docker compose --profile rag --profile embed-local --profile llm-local up -d
+
+# 자체 임베딩만(CPU) + 외부 LLM
+docker compose --profile rag --profile embed-local up -d
+
+# 자체 임베딩(CPU) + 자체 LLM(qwen3:14b, GPU 필수) — gpu-ollama.yml override 로 GPU 예약
+docker compose -f docker-compose.yml -f docker-compose.gpu-ollama.yml \
+  --profile rag --profile embed-local --profile llm-local up -d
 ```
+> ⚠ **LLM(llm-local)** 은 반드시 `-f docker-compose.gpu-ollama.yml` 를 붙여 GPU 로 기동한다.
+> 이 override 없이(base compose 만) 띄우면 ollama 가 **CPU 로 뜨는데 qwen3:14b 는 실사용 불가**.
+> 반대로 override 를 붙였는데 **nvidia-container-toolkit 미설치**면
+> `could not select device driver "" with capabilities: [[gpu]]` 로 기동 실패
+> → 먼저 [`RUNBOOK_GPU_docker.md`](RUNBOOK_GPU_docker.md) 로 드라이버·toolkit 설치.
+> GPU 사용 확인: `docker logs nice-llm 2>&1 | grep -i offload` (`offloaded N/N layers to GPU`).
 
 ---
 
