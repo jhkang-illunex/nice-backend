@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
@@ -21,6 +22,29 @@ import httpx
 from nice_llm.settings import get_llm_settings
 
 log = logging.getLogger(__name__)
+
+
+# ─── thinking 모델(<think>...</think>) 출력 정리 ───────────────────────────
+# qwen3 등 reasoning 모델은 OpenAI-호환 content 앞에 <think>추론</think> 를 붙인다.
+# 제거하지 않으면 (1) JSON 파싱이 think 안 중괄호에 걸려 깨지고(chat_json→빈dict),
+# (2) /agent 답변에 추론이 그대로 노출된다. 어떤 모델이 와도 안전하도록 무조건 제거
+# (비-think 모델은 태그가 없어 무해한 no-op — 모델 종류를 감지할 필요 없음).
+_THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+
+
+def strip_reasoning(content: str) -> str:
+    """LLM content 에서 <think>...</think> 추론 블록 제거.
+
+    - 정상 쌍 <think>..</think> 은 통째 제거.
+    - 여는 태그 없이 </think> 로만 끝나는 변형(일부 백엔드)도 마지막 </think> 뒤만 취함.
+    - 비-think 모델(태그 없음)은 원문 그대로 반환(no-op).
+    """
+    if not content:
+        return content
+    cleaned = _THINK_RE.sub("", content)
+    if "</think>" in cleaned:  # 여는 태그 없이 닫힘만 오는 변형 대비
+        cleaned = cleaned.rsplit("</think>", 1)[-1]
+    return cleaned.strip()
 
 
 # ─── 일반 chat ────────────────────────────────────────────────────────────
@@ -70,7 +94,8 @@ class LlmClient:
             )
             r.raise_for_status()
             data = r.json()
-        return data["choices"][0]["message"]["content"]
+        # thinking 모델(<think>) 출력 정리 — 파싱 깨짐·답변 누출 방지(공통 관문)
+        return strip_reasoning(data["choices"][0]["message"]["content"])
 
 
 @lru_cache
