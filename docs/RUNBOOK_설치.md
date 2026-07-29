@@ -120,6 +120,10 @@ EMBED_API_KEY=noop             # 필요 시
 #   /agent : LLM 필수(답변 생성).
 LLM_BASE_URL=http://<LLM서버>:<port>/v1
 LLM_MODEL=<모델>
+# qwen3 등 thinking 모델이면 반드시 설정 — 안 하면 추론이 길어져 느리고 timeout 위험.
+# (<think> 출력 자체는 코드에서 항상 제거되나, 그건 파싱 깨짐·누출만 막을 뿐 속도는 별개.
+#  상세: THINK_모델_대응.md §5)
+LLM_REASONING_EFFORT=none
 ```
 
 ### 기동
@@ -240,6 +244,7 @@ curl "http://localhost:8002/api/hsk/search?q=밸브&limit=5"
 | `/health/deep` postgres=fail | POSTGRES_* 오설정/방화벽 | 값·네트워크 확인 |
 | (air-gap) embed TEI 로그에 `Starting download`/`Downloading …` | ① `HF_HUB_OFFLINE` 미설정 → 캐시 있어도 HF 로 조회 시도 (가장 흔함) ② 모델 볼륨 미적재/이름 불일치 | ① `HF_HUB_OFFLINE=1`+`TRANSFORMERS_OFFLINE=1` 주고 재기동 ② 볼륨에 `models--BAAI--bge-m3/snapshots/<hash>` 있는지 확인 |
 | (air-gap) llm ollama 모델 다운로드 시도 | 모델 볼륨 미적재/이름 불일치 | `nice-backend_llm-models` 에 blobs 복원됐는지 확인 |
+| `/agent` 응답이 느리거나 `ReadTimeout` (qwen3 등 thinking 모델) | `LLM_REASONING_EFFORT` 미설정 → 추론 토큰이 `max_tokens` 소진 | `.env` 에 `LLM_REASONING_EFFORT=none` 추가 후 재기동. 상세: [`THINK_모델_대응.md`](THINK_모델_대응.md) |
 
 ---
 
