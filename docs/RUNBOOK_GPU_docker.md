@@ -207,3 +207,14 @@ sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart doc
 4. `docker ... --gpus all ollama/ollama` + `ollama list` 에 qwen3:14b  →  LLM GPU 실행 ✅
 
 관련: [`RUNBOOK_설치.md`](RUNBOOK_설치.md)(전체 설치), [`README.md`](../README.md) §GPU.
+
+
+
+gpu 서버 필수 사항 : cuda 12.4 이상 버젼 설치
+nvidia-container-toolkit 설치
+
+docker daemon에 runtime으로 nvidia 설정.
+
+설정 이후 아래 명령으로 nvidia-smi가 실행되고, gpu, cuda 버젼이 명시 되어야 함.
+
+docker run --rm --runtime=nvidia --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi
