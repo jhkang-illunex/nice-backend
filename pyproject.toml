@@ -56,6 +56,13 @@ demo = [
     "streamlit>=1.41",
     "streamlit-agraph>=0.0.45",
 ]
+# nice_migrate --shell 전용 (pandas/psycopg 는 base 의존성에 이미 포함).
+# nice_migrate 자체는 sqlalchemy 만으로 동작하는 독립 CLI 원칙 유지 → ipython/requests 는 이 extra 로만 설치.
+# requests: --shell 에서 LLM/ollama 호출 테스트용(OpenAI 호환 엔드포인트 quick curl 대용).
+migrate-shell = [
+    "ipython>=8.26",
+    "requests>=2.32",
+]
 
 [build-system]
 requires = ["hatchling"]

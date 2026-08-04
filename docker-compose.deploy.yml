@@ -1,5 +1,6 @@
-# 배포 전용 compose — ingestion / rag-server / shock-server 3개만.
-# ─ 이미지: nice_ai_app.tar.gz 로 `docker load` 된 것을 사용(build 섹션 없음 = 에어갭 안전).
+# 배포 전용 compose — ingestion / rag-server / shock-server / migrate.
+# ─ 이미지: nice_ai_app.tar.gz(+migrate 는 별도 이미지, 아래 참고) 로 `docker load` 된 것을 사용
+#   (build 섹션 없음 = 에어갭 안전).
 # ─ 외부 의존(PostgreSQL / 임베딩 / LLM)은 별도 실행(컨테이너·엔드포인트) → .env 로 주소 주입.
 # ─ 값은 전부 ${VAR:-기본값} — 같은 폴더의 .env 가 자동 로드됨(docker compose 규약).
 #
@@ -7,6 +8,9 @@
 # 적재 잡(1회성):         docker compose -f docker-compose.deploy.yml --profile ingest \
 #                           run --rm ingestion python -m nice_ingest run hscode --file=/work/hsk.xlsx
 # 상태·로그:              docker compose -f docker-compose.deploy.yml ps / logs -f rag-server
+# 마이그레이션(1회성):     docker compose -f docker-compose.deploy.yml --profile migrate \
+#                           run --rm migrate python -m nice_migrate --year 2026 --dry-run
+#                         (이미지 빌드·반입·상세 예시: docs/RUNBOOK_trade_rate_갱신.md §2-컨테이너)
 #
 # 외부 의존 주소 규칙:
 #   PG·임베딩·LLM 이 "같은 호스트에서 포트 published"(docker run -p ...)면 기본값
@@ -86,6 +90,31 @@ services:
     volumes:
       - ./:/work:ro          # 호스트 현재 폴더(hsk.xlsx 등)를 /work 로 read-only 마운트
     working_dir: /work
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: "no"
+    networks: [nice-net]
+
+  # company_edge.trade_rate/sell_rate/buy_rate 갱신 잡 + IPython 데이터 조회 쉘.
+  # `up` 으로 안 뜸(profile migrate). `run --rm` 으로 실행. 상세: docs/RUNBOOK_trade_rate_갱신.md
+  migrate:
+    profiles: ["migrate"]
+    image: nice/migrate:${APP_TAG:-dev}
+    container_name: nice-migrate
+    environment:
+      POSTGRES_HOST: ${POSTGRES_HOST:-host.docker.internal}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5433}
+      POSTGRES_USER: ${POSTGRES_USER:-nice}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nice}
+      POSTGRES_DB: ${POSTGRES_DB:-nice_innovation}
+      # --shell 의 llm_chat()/requests 로 LLM·ollama 호출 테스트용 (rag-server 와 동일 변수 재사용)
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      LLM_MODEL: ${LLM_MODEL:-qwen3:14b}
+      LLM_API_KEY: ${LLM_API_KEY:-noop}
+      LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-60}
+      LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-}
+    stdin_open: true   # --shell(IPython) 대화형 진입용
+    tty: true
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: "no"
