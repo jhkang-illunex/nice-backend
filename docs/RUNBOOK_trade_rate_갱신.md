@@ -144,6 +144,48 @@ docker compose -f docker-compose.deploy.yml --profile migrate run --rm migrate \
 > `sqlalchemy`/`psycopg`/`pandas`(base 의존성)도 호스트에 미리 없다면 같은 방식으로 받아야 한다.
 > 컨테이너(방법 E)를 쓰면 이 단계 전체가 불필요 — 이미지에 다 포함돼 있다.
 
+#### 방법 E-2) compose 없이 — `docker run` + `docker exec -it bash` 로 직접 진입 (검증됨)
+
+compose 를 안 쓰고 이미지만 단독으로 받아 컨테이너 안에서 직접 작업하고 싶을 때. 이미지 이름은
+예시로 `nice/migrate2:dev`(기존 `nice/migrate:dev` 와 별도로 구분해 반입한 경우) 사용.
+
+```bash
+# (인터넷 있는 곳) 빌드 + 반출 — 이름을 다르게 주면 기존 이미지와 구분해 따로 관리 가능
+docker build -t nice/migrate2:dev -f deploy/migrate/Dockerfile .
+docker save nice/migrate2:dev | gzip > nice_migrate2.image.tar.gz   # 매체로 이동
+
+# (에어갭 대상) 반입
+gunzip -c nice_migrate2.image.tar.gz | docker load
+```
+
+> ⚠ **기본 `CMD`(`python -m nice_migrate --help`)는 실행 즉시 종료된다** — `docker exec` 로
+> 들어갈 대상이 없으면(컨테이너가 이미 Exited) 실패한다. 반드시 **`bash` 를 메인 프로세스로
+> 살려둔 채** `-d`(백그라운드)로 띄운 뒤 `exec` 로 들어간다.
+
+```bash
+# 컨테이너를 살려둔 채로 백그라운드 기동 — DB/LLM 접속 정보는 -e 로 직접 주입
+# (compose 를 안 거치므로 .env 자동 주입 없음 — --env-file <파일> 로 대체 가능)
+docker run -dit --name migrate2 \
+  -e POSTGRES_HOST=<DB호스트> -e POSTGRES_PORT=5432 \
+  -e POSTGRES_USER=nice -e POSTGRES_PASSWORD=<pw> -e POSTGRES_DB=nice_innovation \
+  -e LLM_BASE_URL=http://<LLM서버>:<port>/v1 -e LLM_MODEL=<모델> \
+  nice/migrate2:dev bash
+
+# 진입 (여러 번 반복 가능 — 컨테이너는 계속 떠있음)
+docker exec -it migrate2 bash
+# 안에서: python -m nice_migrate --year 2026 --dry-run
+#        python -m nice_migrate --shell
+#        vi 아무파일   (에디터 확인용)
+
+# root 권한이 필요하면 (기본은 uid 1000 nice 계정)
+docker exec -u root -it migrate2 bash
+
+# 작업 종료 후 정리
+docker rm -f migrate2
+```
+> 실측(2026-08-04): `whoami`→`nice`, `which vi`→`/usr/bin/vi`, `python -m nice_migrate --help`,
+> `import IPython, pandas, requests` 전부 exec 세션 안에서 정상 확인됨.
+
 ---
 
 ## 3. 옵션 레퍼런스
