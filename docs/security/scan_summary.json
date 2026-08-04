@@ -1,0 +1,4018 @@
+{
+  "nice_migrate": {
+    "meta": {
+      "image_id": "sha256:cf9bb6ab0296f8c2ded7fd5ab534005857b4d81b85e7c44fbe3cbd629de5c800",
+      "image_ref": "nice/migrate:dev"
+    },
+    "counts": {
+      "CRITICAL": 4,
+      "HIGH": 61,
+      "MEDIUM": 111,
+      "LOW": 113,
+      "UNKNOWN": 30
+    },
+    "critical_high": [
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "bsdutils",
+        "installed": "1:2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "curl",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-12064",
+        "severity": "HIGH",
+        "title": "curl: curl: SSH host verification bypass when using schemeless URLs with SFTP/SCP"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "curl",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-8286",
+        "severity": "HIGH",
+        "title": "curl: curl: Insecure connection establishment due to TLS configuration mismatch"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "curl",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-8927",
+        "severity": "HIGH",
+        "title": "curl: Information disclosure due to uncleared proxy authentication state"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "gzip",
+        "installed": "1.13-1",
+        "fixed": "",
+        "id": "CVE-2026-41992",
+        "severity": "HIGH",
+        "title": "GNU gzip contains a global buffer overflow vulnerability in the LZH de ..."
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "libacl1",
+        "installed": "2.3.2-2+b1",
+        "fixed": "",
+        "id": "CVE-2026-54369",
+        "severity": "HIGH",
+        "title": "acl: Symlink traversal privilege escalation via libacl functions"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "libblkid1",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "libcurl4t64",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-12064",
+        "severity": "HIGH",
+        "title": "curl: curl: SSH host verification bypass when using schemeless URLs with SFTP/SCP"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "libcurl4t64",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-8286",
+        "severity": "HIGH",
+        "title": "curl: curl: Insecure connection establishment due to TLS configuration mismatch"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "libcurl4t64",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-8927",
+        "severity": "HIGH",
+        "title": "curl: Information disclosure due to uncleared proxy authentication state"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "liblastlog2-2",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "libmount1",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "libncursesw6",
+        "installed": "6.5+20250216-2",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "libsmartcols1",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "libtinfo6",
+        "installed": "6.5+20250216-2",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "libuuid1",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "login",
+        "installed": "1:4.16.0-2+really2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "mount",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "ncurses-base",
+        "installed": "6.5+20250216-2",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "ncurses-bin",
+        "installed": "6.5+20250216-2",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-13221",
+        "severity": "CRITICAL",
+        "title": "Perl versions through 5.43.9 produce silently incorrect regular expres ..."
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-42496",
+        "severity": "CRITICAL",
+        "title": "perl-archive-tar: perl-archive-tar: Path traversal via crafted symlinks allows arbitrary file access"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-57433",
+        "severity": "CRITICAL",
+        "title": "Storable versions before 3.41 for Perl have a signed integer overflow  ..."
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-8376",
+        "severity": "CRITICAL",
+        "title": "perl: Perl: Heap buffer overflow when compiling regular expressions on 32-bit builds"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-42497",
+        "severity": "HIGH",
+        "title": "perl-Archive-Tar: perl-Archive-Tar: Arbitrary file modification via crafted hardlinks during archive"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-48962",
+        "severity": "HIGH",
+        "title": "perl-IO-Compress: perl-IO-Compress: Arbitrary code execution via attacker-controlled output glob"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-57432",
+        "severity": "HIGH",
+        "title": "Perl versions through 5.43.10 have an integer overflow in S_measure_st ..."
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-9538",
+        "severity": "HIGH",
+        "title": "perl-Archive-Tar: perl-Archive-Tar: Denial of Service via crafted tar header with large entry size"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "util-linux",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-26269",
+        "severity": "HIGH",
+        "title": "vim: Netbeans specialKeys stack buffer overflow"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-28417",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via OS command injection in the netrw plugin"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-28421",
+        "severity": "HIGH",
+        "title": "vim: Vim: Denial of service and information disclosure via crafted swap file"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-33412",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via command injection in glob() function"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-34982",
+        "severity": "HIGH",
+        "title": "vim: arbitrary command execution via modeline sandbox bypass"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-35177",
+        "severity": "HIGH",
+        "title": "vim: zip.vim: Vim zip.vim plugin: Arbitrary file overwrite via path traversal bypass"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-39881",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via command injection in NetBeans interface"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-46483",
+        "severity": "HIGH",
+        "title": "vim: command injection when decompressing .tgz archives"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-47162",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary Code Execution via crafted directory names"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-52858",
+        "severity": "HIGH",
+        "title": "Vim is an open source, command line text editor. Prior to version 9.2. ..."
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-52860",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution through Python omni-completion."
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-55693",
+        "severity": "HIGH",
+        "title": "vim: Vim: Out-of-bounds Write in Spell File Word Count"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-55895",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via Vimscript code injection in netrw plugin"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-57455",
+        "severity": "HIGH",
+        "title": "vim: Vim: Denial of Service via stack out-of-bounds write in spell_soundfold_sofo()"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-57456",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via malicious docstrings in Python omni-completion"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-59856",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via crafted PHP file in omni-completion"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-59858",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary command execution via crafted tags file in C omni-completion"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-26269",
+        "severity": "HIGH",
+        "title": "vim: Netbeans specialKeys stack buffer overflow"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-28417",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via OS command injection in the netrw plugin"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-28421",
+        "severity": "HIGH",
+        "title": "vim: Vim: Denial of service and information disclosure via crafted swap file"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-33412",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via command injection in glob() function"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-34982",
+        "severity": "HIGH",
+        "title": "vim: arbitrary command execution via modeline sandbox bypass"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-35177",
+        "severity": "HIGH",
+        "title": "vim: zip.vim: Vim zip.vim plugin: Arbitrary file overwrite via path traversal bypass"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-39881",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via command injection in NetBeans interface"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-46483",
+        "severity": "HIGH",
+        "title": "vim: command injection when decompressing .tgz archives"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-47162",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary Code Execution via crafted directory names"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-52858",
+        "severity": "HIGH",
+        "title": "Vim is an open source, command line text editor. Prior to version 9.2. ..."
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-52860",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution through Python omni-completion."
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-55693",
+        "severity": "HIGH",
+        "title": "vim: Vim: Out-of-bounds Write in Spell File Word Count"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-55895",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via Vimscript code injection in netrw plugin"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-57455",
+        "severity": "HIGH",
+        "title": "vim: Vim: Denial of Service via stack out-of-bounds write in spell_soundfold_sofo()"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-57456",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via malicious docstrings in Python omni-completion"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-59856",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via crafted PHP file in omni-completion"
+      },
+      {
+        "target": "nice/migrate:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-59858",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary command execution via crafted tags file in C omni-completion"
+      },
+      {
+        "target": "Python",
+        "pkg": "jaraco.context",
+        "installed": "5.3.0",
+        "fixed": "6.1.0",
+        "id": "CVE-2026-23949",
+        "severity": "HIGH",
+        "title": "jaraco.context: jaraco.context: Path traversal via malicious tar archives"
+      },
+      {
+        "target": "Python",
+        "pkg": "wheel",
+        "installed": "0.45.1",
+        "fixed": "0.46.2",
+        "id": "CVE-2026-24049",
+        "severity": "HIGH",
+        "title": "wheel: wheel: Privilege Escalation or Arbitrary Code Execution via malicious wheel file unpacking"
+      }
+    ],
+    "trivy_version": 2
+  },
+  "nice_migrate2": {
+    "meta": {
+      "image_id": "sha256:cf9bb6ab0296f8c2ded7fd5ab534005857b4d81b85e7c44fbe3cbd629de5c800",
+      "image_ref": "nice/migrate2:dev"
+    },
+    "counts": {
+      "CRITICAL": 4,
+      "HIGH": 61,
+      "MEDIUM": 111,
+      "LOW": 113,
+      "UNKNOWN": 30
+    },
+    "critical_high": [
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "bsdutils",
+        "installed": "1:2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "curl",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-12064",
+        "severity": "HIGH",
+        "title": "curl: curl: SSH host verification bypass when using schemeless URLs with SFTP/SCP"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "curl",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-8286",
+        "severity": "HIGH",
+        "title": "curl: curl: Insecure connection establishment due to TLS configuration mismatch"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "curl",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-8927",
+        "severity": "HIGH",
+        "title": "curl: Information disclosure due to uncleared proxy authentication state"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "gzip",
+        "installed": "1.13-1",
+        "fixed": "",
+        "id": "CVE-2026-41992",
+        "severity": "HIGH",
+        "title": "GNU gzip contains a global buffer overflow vulnerability in the LZH de ..."
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "libacl1",
+        "installed": "2.3.2-2+b1",
+        "fixed": "",
+        "id": "CVE-2026-54369",
+        "severity": "HIGH",
+        "title": "acl: Symlink traversal privilege escalation via libacl functions"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "libblkid1",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "libcurl4t64",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-12064",
+        "severity": "HIGH",
+        "title": "curl: curl: SSH host verification bypass when using schemeless URLs with SFTP/SCP"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "libcurl4t64",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-8286",
+        "severity": "HIGH",
+        "title": "curl: curl: Insecure connection establishment due to TLS configuration mismatch"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "libcurl4t64",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-8927",
+        "severity": "HIGH",
+        "title": "curl: Information disclosure due to uncleared proxy authentication state"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "liblastlog2-2",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "libmount1",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "libncursesw6",
+        "installed": "6.5+20250216-2",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "libsmartcols1",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "libtinfo6",
+        "installed": "6.5+20250216-2",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "libuuid1",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "login",
+        "installed": "1:4.16.0-2+really2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "mount",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "ncurses-base",
+        "installed": "6.5+20250216-2",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "ncurses-bin",
+        "installed": "6.5+20250216-2",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-13221",
+        "severity": "CRITICAL",
+        "title": "Perl versions through 5.43.9 produce silently incorrect regular expres ..."
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-42496",
+        "severity": "CRITICAL",
+        "title": "perl-archive-tar: perl-archive-tar: Path traversal via crafted symlinks allows arbitrary file access"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-57433",
+        "severity": "CRITICAL",
+        "title": "Storable versions before 3.41 for Perl have a signed integer overflow  ..."
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-8376",
+        "severity": "CRITICAL",
+        "title": "perl: Perl: Heap buffer overflow when compiling regular expressions on 32-bit builds"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-42497",
+        "severity": "HIGH",
+        "title": "perl-Archive-Tar: perl-Archive-Tar: Arbitrary file modification via crafted hardlinks during archive"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-48962",
+        "severity": "HIGH",
+        "title": "perl-IO-Compress: perl-IO-Compress: Arbitrary code execution via attacker-controlled output glob"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-57432",
+        "severity": "HIGH",
+        "title": "Perl versions through 5.43.10 have an integer overflow in S_measure_st ..."
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-9538",
+        "severity": "HIGH",
+        "title": "perl-Archive-Tar: perl-Archive-Tar: Denial of Service via crafted tar header with large entry size"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "util-linux",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-26269",
+        "severity": "HIGH",
+        "title": "vim: Netbeans specialKeys stack buffer overflow"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-28417",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via OS command injection in the netrw plugin"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-28421",
+        "severity": "HIGH",
+        "title": "vim: Vim: Denial of service and information disclosure via crafted swap file"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-33412",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via command injection in glob() function"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-34982",
+        "severity": "HIGH",
+        "title": "vim: arbitrary command execution via modeline sandbox bypass"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-35177",
+        "severity": "HIGH",
+        "title": "vim: zip.vim: Vim zip.vim plugin: Arbitrary file overwrite via path traversal bypass"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-39881",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via command injection in NetBeans interface"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-46483",
+        "severity": "HIGH",
+        "title": "vim: command injection when decompressing .tgz archives"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-47162",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary Code Execution via crafted directory names"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-52858",
+        "severity": "HIGH",
+        "title": "Vim is an open source, command line text editor. Prior to version 9.2. ..."
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-52860",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution through Python omni-completion."
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-55693",
+        "severity": "HIGH",
+        "title": "vim: Vim: Out-of-bounds Write in Spell File Word Count"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-55895",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via Vimscript code injection in netrw plugin"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-57455",
+        "severity": "HIGH",
+        "title": "vim: Vim: Denial of Service via stack out-of-bounds write in spell_soundfold_sofo()"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-57456",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via malicious docstrings in Python omni-completion"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-59856",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via crafted PHP file in omni-completion"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-common",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-59858",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary command execution via crafted tags file in C omni-completion"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-26269",
+        "severity": "HIGH",
+        "title": "vim: Netbeans specialKeys stack buffer overflow"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-28417",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via OS command injection in the netrw plugin"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-28421",
+        "severity": "HIGH",
+        "title": "vim: Vim: Denial of service and information disclosure via crafted swap file"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-33412",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via command injection in glob() function"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-34982",
+        "severity": "HIGH",
+        "title": "vim: arbitrary command execution via modeline sandbox bypass"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-35177",
+        "severity": "HIGH",
+        "title": "vim: zip.vim: Vim zip.vim plugin: Arbitrary file overwrite via path traversal bypass"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-39881",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via command injection in NetBeans interface"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-46483",
+        "severity": "HIGH",
+        "title": "vim: command injection when decompressing .tgz archives"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-47162",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary Code Execution via crafted directory names"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-52858",
+        "severity": "HIGH",
+        "title": "Vim is an open source, command line text editor. Prior to version 9.2. ..."
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-52860",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution through Python omni-completion."
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-55693",
+        "severity": "HIGH",
+        "title": "vim: Vim: Out-of-bounds Write in Spell File Word Count"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-55895",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via Vimscript code injection in netrw plugin"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-57455",
+        "severity": "HIGH",
+        "title": "vim: Vim: Denial of Service via stack out-of-bounds write in spell_soundfold_sofo()"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-57456",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via malicious docstrings in Python omni-completion"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-59856",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary code execution via crafted PHP file in omni-completion"
+      },
+      {
+        "target": "nice/migrate2:dev (debian 13.6)",
+        "pkg": "vim-tiny",
+        "installed": "2:9.1.1230-2",
+        "fixed": "",
+        "id": "CVE-2026-59858",
+        "severity": "HIGH",
+        "title": "vim: Vim: Arbitrary command execution via crafted tags file in C omni-completion"
+      },
+      {
+        "target": "Python",
+        "pkg": "jaraco.context",
+        "installed": "5.3.0",
+        "fixed": "6.1.0",
+        "id": "CVE-2026-23949",
+        "severity": "HIGH",
+        "title": "jaraco.context: jaraco.context: Path traversal via malicious tar archives"
+      },
+      {
+        "target": "Python",
+        "pkg": "wheel",
+        "installed": "0.45.1",
+        "fixed": "0.46.2",
+        "id": "CVE-2026-24049",
+        "severity": "HIGH",
+        "title": "wheel: wheel: Privilege Escalation or Arbitrary Code Execution via malicious wheel file unpacking"
+      }
+    ],
+    "trivy_version": 2
+  },
+  "nice_rag-server": {
+    "meta": {
+      "image_id": "sha256:74513ae61d26b490fc3e931048cabe3ef402b715e8846199812a84bb6509f257",
+      "image_ref": "nice/rag-server:dev"
+    },
+    "counts": {
+      "CRITICAL": 4,
+      "HIGH": 27,
+      "MEDIUM": 81,
+      "LOW": 101,
+      "UNKNOWN": 30
+    },
+    "critical_high": [
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "bsdutils",
+        "installed": "1:2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "curl",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-12064",
+        "severity": "HIGH",
+        "title": "curl: curl: SSH host verification bypass when using schemeless URLs with SFTP/SCP"
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "curl",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-8286",
+        "severity": "HIGH",
+        "title": "curl: curl: Insecure connection establishment due to TLS configuration mismatch"
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "curl",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-8927",
+        "severity": "HIGH",
+        "title": "curl: Information disclosure due to uncleared proxy authentication state"
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "gzip",
+        "installed": "1.13-1",
+        "fixed": "",
+        "id": "CVE-2026-41992",
+        "severity": "HIGH",
+        "title": "GNU gzip contains a global buffer overflow vulnerability in the LZH de ..."
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "libacl1",
+        "installed": "2.3.2-2+b1",
+        "fixed": "",
+        "id": "CVE-2026-54369",
+        "severity": "HIGH",
+        "title": "acl: Symlink traversal privilege escalation via libacl functions"
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "libblkid1",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "libcurl4t64",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-12064",
+        "severity": "HIGH",
+        "title": "curl: curl: SSH host verification bypass when using schemeless URLs with SFTP/SCP"
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "libcurl4t64",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-8286",
+        "severity": "HIGH",
+        "title": "curl: curl: Insecure connection establishment due to TLS configuration mismatch"
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "libcurl4t64",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-8927",
+        "severity": "HIGH",
+        "title": "curl: Information disclosure due to uncleared proxy authentication state"
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "liblastlog2-2",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "libmount1",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "libncursesw6",
+        "installed": "6.5+20250216-2",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "libsmartcols1",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "libtinfo6",
+        "installed": "6.5+20250216-2",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "libuuid1",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "login",
+        "installed": "1:4.16.0-2+really2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "mount",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "ncurses-base",
+        "installed": "6.5+20250216-2",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "ncurses-bin",
+        "installed": "6.5+20250216-2",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-13221",
+        "severity": "CRITICAL",
+        "title": "Perl versions through 5.43.9 produce silently incorrect regular expres ..."
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-42496",
+        "severity": "CRITICAL",
+        "title": "perl-archive-tar: perl-archive-tar: Path traversal via crafted symlinks allows arbitrary file access"
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-57433",
+        "severity": "CRITICAL",
+        "title": "Storable versions before 3.41 for Perl have a signed integer overflow  ..."
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-8376",
+        "severity": "CRITICAL",
+        "title": "perl: Perl: Heap buffer overflow when compiling regular expressions on 32-bit builds"
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-42497",
+        "severity": "HIGH",
+        "title": "perl-Archive-Tar: perl-Archive-Tar: Arbitrary file modification via crafted hardlinks during archive"
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-48962",
+        "severity": "HIGH",
+        "title": "perl-IO-Compress: perl-IO-Compress: Arbitrary code execution via attacker-controlled output glob"
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-57432",
+        "severity": "HIGH",
+        "title": "Perl versions through 5.43.10 have an integer overflow in S_measure_st ..."
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-9538",
+        "severity": "HIGH",
+        "title": "perl-Archive-Tar: perl-Archive-Tar: Denial of Service via crafted tar header with large entry size"
+      },
+      {
+        "target": "nice/rag-server:dev (debian 13.6)",
+        "pkg": "util-linux",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "Python",
+        "pkg": "jaraco.context",
+        "installed": "5.3.0",
+        "fixed": "6.1.0",
+        "id": "CVE-2026-23949",
+        "severity": "HIGH",
+        "title": "jaraco.context: jaraco.context: Path traversal via malicious tar archives"
+      },
+      {
+        "target": "Python",
+        "pkg": "wheel",
+        "installed": "0.45.1",
+        "fixed": "0.46.2",
+        "id": "CVE-2026-24049",
+        "severity": "HIGH",
+        "title": "wheel: wheel: Privilege Escalation or Arbitrary Code Execution via malicious wheel file unpacking"
+      }
+    ],
+    "trivy_version": 2
+  },
+  "nice_ingestion": {
+    "meta": {
+      "image_id": "sha256:ea725b25e1d4c65fc425abd76eb6cec8edffc1a4678017f754f84764f11cfc6e",
+      "image_ref": "nice/ingestion:dev"
+    },
+    "counts": {
+      "CRITICAL": 4,
+      "HIGH": 27,
+      "MEDIUM": 81,
+      "LOW": 101,
+      "UNKNOWN": 30
+    },
+    "critical_high": [
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "bsdutils",
+        "installed": "1:2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "curl",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-12064",
+        "severity": "HIGH",
+        "title": "curl: curl: SSH host verification bypass when using schemeless URLs with SFTP/SCP"
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "curl",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-8286",
+        "severity": "HIGH",
+        "title": "curl: curl: Insecure connection establishment due to TLS configuration mismatch"
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "curl",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-8927",
+        "severity": "HIGH",
+        "title": "curl: Information disclosure due to uncleared proxy authentication state"
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "gzip",
+        "installed": "1.13-1",
+        "fixed": "",
+        "id": "CVE-2026-41992",
+        "severity": "HIGH",
+        "title": "GNU gzip contains a global buffer overflow vulnerability in the LZH de ..."
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "libacl1",
+        "installed": "2.3.2-2+b1",
+        "fixed": "",
+        "id": "CVE-2026-54369",
+        "severity": "HIGH",
+        "title": "acl: Symlink traversal privilege escalation via libacl functions"
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "libblkid1",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "libcurl4t64",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-12064",
+        "severity": "HIGH",
+        "title": "curl: curl: SSH host verification bypass when using schemeless URLs with SFTP/SCP"
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "libcurl4t64",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-8286",
+        "severity": "HIGH",
+        "title": "curl: curl: Insecure connection establishment due to TLS configuration mismatch"
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "libcurl4t64",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-8927",
+        "severity": "HIGH",
+        "title": "curl: Information disclosure due to uncleared proxy authentication state"
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "liblastlog2-2",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "libmount1",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "libncursesw6",
+        "installed": "6.5+20250216-2",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "libsmartcols1",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "libtinfo6",
+        "installed": "6.5+20250216-2",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "libuuid1",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "login",
+        "installed": "1:4.16.0-2+really2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "mount",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "ncurses-base",
+        "installed": "6.5+20250216-2",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "ncurses-bin",
+        "installed": "6.5+20250216-2",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-13221",
+        "severity": "CRITICAL",
+        "title": "Perl versions through 5.43.9 produce silently incorrect regular expres ..."
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-42496",
+        "severity": "CRITICAL",
+        "title": "perl-archive-tar: perl-archive-tar: Path traversal via crafted symlinks allows arbitrary file access"
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-57433",
+        "severity": "CRITICAL",
+        "title": "Storable versions before 3.41 for Perl have a signed integer overflow  ..."
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-8376",
+        "severity": "CRITICAL",
+        "title": "perl: Perl: Heap buffer overflow when compiling regular expressions on 32-bit builds"
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-42497",
+        "severity": "HIGH",
+        "title": "perl-Archive-Tar: perl-Archive-Tar: Arbitrary file modification via crafted hardlinks during archive"
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-48962",
+        "severity": "HIGH",
+        "title": "perl-IO-Compress: perl-IO-Compress: Arbitrary code execution via attacker-controlled output glob"
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-57432",
+        "severity": "HIGH",
+        "title": "Perl versions through 5.43.10 have an integer overflow in S_measure_st ..."
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-9538",
+        "severity": "HIGH",
+        "title": "perl-Archive-Tar: perl-Archive-Tar: Denial of Service via crafted tar header with large entry size"
+      },
+      {
+        "target": "nice/ingestion:dev (debian 13.6)",
+        "pkg": "util-linux",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "Python",
+        "pkg": "jaraco.context",
+        "installed": "5.3.0",
+        "fixed": "6.1.0",
+        "id": "CVE-2026-23949",
+        "severity": "HIGH",
+        "title": "jaraco.context: jaraco.context: Path traversal via malicious tar archives"
+      },
+      {
+        "target": "Python",
+        "pkg": "wheel",
+        "installed": "0.45.1",
+        "fixed": "0.46.2",
+        "id": "CVE-2026-24049",
+        "severity": "HIGH",
+        "title": "wheel: wheel: Privilege Escalation or Arbitrary Code Execution via malicious wheel file unpacking"
+      }
+    ],
+    "trivy_version": 2
+  },
+  "nice_shock-server": {
+    "meta": {
+      "image_id": "sha256:b4085be26c6f01e689b177ae08d2cd8dcfc7b9ac05a4325abbfde69824801e4f",
+      "image_ref": "nice/shock-server:dev"
+    },
+    "counts": {
+      "CRITICAL": 4,
+      "HIGH": 27,
+      "MEDIUM": 82,
+      "LOW": 101,
+      "UNKNOWN": 30
+    },
+    "critical_high": [
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "bsdutils",
+        "installed": "1:2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "curl",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-12064",
+        "severity": "HIGH",
+        "title": "curl: curl: SSH host verification bypass when using schemeless URLs with SFTP/SCP"
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "curl",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-8286",
+        "severity": "HIGH",
+        "title": "curl: curl: Insecure connection establishment due to TLS configuration mismatch"
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "curl",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-8927",
+        "severity": "HIGH",
+        "title": "curl: Information disclosure due to uncleared proxy authentication state"
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "gzip",
+        "installed": "1.13-1",
+        "fixed": "",
+        "id": "CVE-2026-41992",
+        "severity": "HIGH",
+        "title": "GNU gzip contains a global buffer overflow vulnerability in the LZH de ..."
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "libacl1",
+        "installed": "2.3.2-2+b1",
+        "fixed": "",
+        "id": "CVE-2026-54369",
+        "severity": "HIGH",
+        "title": "acl: Symlink traversal privilege escalation via libacl functions"
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "libblkid1",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "libcurl4t64",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-12064",
+        "severity": "HIGH",
+        "title": "curl: curl: SSH host verification bypass when using schemeless URLs with SFTP/SCP"
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "libcurl4t64",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-8286",
+        "severity": "HIGH",
+        "title": "curl: curl: Insecure connection establishment due to TLS configuration mismatch"
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "libcurl4t64",
+        "installed": "8.14.1-2+deb13u4",
+        "fixed": "",
+        "id": "CVE-2026-8927",
+        "severity": "HIGH",
+        "title": "curl: Information disclosure due to uncleared proxy authentication state"
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "liblastlog2-2",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "libmount1",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "libncursesw6",
+        "installed": "6.5+20250216-2",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "libsmartcols1",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "libtinfo6",
+        "installed": "6.5+20250216-2",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "libuuid1",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "login",
+        "installed": "1:4.16.0-2+really2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "mount",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "ncurses-base",
+        "installed": "6.5+20250216-2",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "ncurses-bin",
+        "installed": "6.5+20250216-2",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-13221",
+        "severity": "CRITICAL",
+        "title": "Perl versions through 5.43.9 produce silently incorrect regular expres ..."
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-42496",
+        "severity": "CRITICAL",
+        "title": "perl-archive-tar: perl-archive-tar: Path traversal via crafted symlinks allows arbitrary file access"
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-57433",
+        "severity": "CRITICAL",
+        "title": "Storable versions before 3.41 for Perl have a signed integer overflow  ..."
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-8376",
+        "severity": "CRITICAL",
+        "title": "perl: Perl: Heap buffer overflow when compiling regular expressions on 32-bit builds"
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-42497",
+        "severity": "HIGH",
+        "title": "perl-Archive-Tar: perl-Archive-Tar: Arbitrary file modification via crafted hardlinks during archive"
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-48962",
+        "severity": "HIGH",
+        "title": "perl-IO-Compress: perl-IO-Compress: Arbitrary code execution via attacker-controlled output glob"
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-57432",
+        "severity": "HIGH",
+        "title": "Perl versions through 5.43.10 have an integer overflow in S_measure_st ..."
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "perl-base",
+        "installed": "5.40.1-6",
+        "fixed": "",
+        "id": "CVE-2026-9538",
+        "severity": "HIGH",
+        "title": "perl-Archive-Tar: perl-Archive-Tar: Denial of Service via crafted tar header with large entry size"
+      },
+      {
+        "target": "nice/shock-server:dev (debian 13.5)",
+        "pkg": "util-linux",
+        "installed": "2.41-5",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "Python",
+        "pkg": "jaraco.context",
+        "installed": "5.3.0",
+        "fixed": "6.1.0",
+        "id": "CVE-2026-23949",
+        "severity": "HIGH",
+        "title": "jaraco.context: jaraco.context: Path traversal via malicious tar archives"
+      },
+      {
+        "target": "Python",
+        "pkg": "wheel",
+        "installed": "0.45.1",
+        "fixed": "0.46.2",
+        "id": "CVE-2026-24049",
+        "severity": "HIGH",
+        "title": "wheel: wheel: Privilege Escalation or Arbitrary Code Execution via malicious wheel file unpacking"
+      }
+    ],
+    "trivy_version": 2
+  },
+  "nice_postgres_pg16": {
+    "meta": {
+      "image_id": "sha256:17ee2618c5f62cfc35e2ace9f5239a771b142c34ea7169bf9bf15edb3cdd3eef",
+      "image_ref": "nice/postgres:pg16"
+    },
+    "counts": {
+      "CRITICAL": 22,
+      "HIGH": 59,
+      "MEDIUM": 164,
+      "LOW": 179,
+      "UNKNOWN": 15
+    },
+    "critical_high": [
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "bsdutils",
+        "installed": "1:2.38.1-5+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "gzip",
+        "installed": "1.12-1",
+        "fixed": "",
+        "id": "CVE-2026-41992",
+        "severity": "HIGH",
+        "title": "GNU gzip contains a global buffer overflow vulnerability in the LZH de ..."
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libacl1",
+        "installed": "2.3.1-3",
+        "fixed": "",
+        "id": "CVE-2026-54369",
+        "severity": "HIGH",
+        "title": "acl: Symlink traversal privilege escalation via libacl functions"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libblkid1",
+        "installed": "2.38.1-5+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libcap2",
+        "installed": "1:2.66-4+deb12u2+b2",
+        "fixed": "1:2.66-4+deb12u3",
+        "id": "CVE-2026-4878",
+        "severity": "HIGH",
+        "title": "libcap: libcap: Privilege escalation via TOCTOU race condition in cap_set_file()"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libgnutls30",
+        "installed": "3.7.9-2+deb12u6",
+        "fixed": "3.7.9-2+deb12u7",
+        "id": "CVE-2026-33845",
+        "severity": "CRITICAL",
+        "title": "gnutls: GnuTLS: Denial of Service via DTLS zero-length fragment"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libgnutls30",
+        "installed": "3.7.9-2+deb12u6",
+        "fixed": "3.7.9-2+deb12u7",
+        "id": "CVE-2026-42010",
+        "severity": "CRITICAL",
+        "title": "gnutls: gnutls: Authentication Bypass via NUL Character in Username"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libgnutls30",
+        "installed": "3.7.9-2+deb12u6",
+        "fixed": "3.7.9-2+deb12u7",
+        "id": "CVE-2026-33846",
+        "severity": "HIGH",
+        "title": "gnutls: GnuTLS: Denial of Service via heap buffer overflow in DTLS handshake fragment reassembly"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libgnutls30",
+        "installed": "3.7.9-2+deb12u6",
+        "fixed": "3.7.9-2+deb12u7",
+        "id": "CVE-2026-3833",
+        "severity": "HIGH",
+        "title": "gnutls: GnuTLS: Policy bypass due to case-sensitive nameConstraints comparison"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libgnutls30",
+        "installed": "3.7.9-2+deb12u6",
+        "fixed": "3.7.9-2+deb12u7",
+        "id": "CVE-2026-42009",
+        "severity": "HIGH",
+        "title": "gnutls: gnutls: Denial of Service via DTLS packet reordering vulnerability"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libgssapi-krb5-2",
+        "installed": "1.20.1-2+deb12u4",
+        "fixed": "1.20.1-2+deb12u5",
+        "id": "CVE-2026-40355",
+        "severity": "HIGH",
+        "title": "krb5: MIT Kerberos 5: Denial of Service via NULL pointer dereference in NegoEx mechanism"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libgssapi-krb5-2",
+        "installed": "1.20.1-2+deb12u4",
+        "fixed": "1.20.1-2+deb12u5",
+        "id": "CVE-2026-40356",
+        "severity": "HIGH",
+        "title": "krb5: MIT Kerberos 5 (krb5): Denial of Service via integer underflow and out-of-bounds read"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libk5crypto3",
+        "installed": "1.20.1-2+deb12u4",
+        "fixed": "1.20.1-2+deb12u5",
+        "id": "CVE-2026-40355",
+        "severity": "HIGH",
+        "title": "krb5: MIT Kerberos 5: Denial of Service via NULL pointer dereference in NegoEx mechanism"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libk5crypto3",
+        "installed": "1.20.1-2+deb12u4",
+        "fixed": "1.20.1-2+deb12u5",
+        "id": "CVE-2026-40356",
+        "severity": "HIGH",
+        "title": "krb5: MIT Kerberos 5 (krb5): Denial of Service via integer underflow and out-of-bounds read"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libkrb5-3",
+        "installed": "1.20.1-2+deb12u4",
+        "fixed": "1.20.1-2+deb12u5",
+        "id": "CVE-2026-40355",
+        "severity": "HIGH",
+        "title": "krb5: MIT Kerberos 5: Denial of Service via NULL pointer dereference in NegoEx mechanism"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libkrb5-3",
+        "installed": "1.20.1-2+deb12u4",
+        "fixed": "1.20.1-2+deb12u5",
+        "id": "CVE-2026-40356",
+        "severity": "HIGH",
+        "title": "krb5: MIT Kerberos 5 (krb5): Denial of Service via integer underflow and out-of-bounds read"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libkrb5support0",
+        "installed": "1.20.1-2+deb12u4",
+        "fixed": "1.20.1-2+deb12u5",
+        "id": "CVE-2026-40355",
+        "severity": "HIGH",
+        "title": "krb5: MIT Kerberos 5: Denial of Service via NULL pointer dereference in NegoEx mechanism"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libkrb5support0",
+        "installed": "1.20.1-2+deb12u4",
+        "fixed": "1.20.1-2+deb12u5",
+        "id": "CVE-2026-40356",
+        "severity": "HIGH",
+        "title": "krb5: MIT Kerberos 5 (krb5): Denial of Service via integer underflow and out-of-bounds read"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libldap-2.5-0",
+        "installed": "2.5.13+dfsg-5",
+        "fixed": "",
+        "id": "CVE-2023-2953",
+        "severity": "HIGH",
+        "title": "openldap: null pointer dereference in  ber_memalloc_x  function"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libmount1",
+        "installed": "2.38.1-5+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libncursesw6",
+        "installed": "6.4-4",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libperl5.36",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-13221",
+        "severity": "CRITICAL",
+        "title": "Perl versions through 5.43.9 produce silently incorrect regular expres ..."
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libperl5.36",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-42496",
+        "severity": "CRITICAL",
+        "title": "perl-archive-tar: perl-archive-tar: Path traversal via crafted symlinks allows arbitrary file access"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libperl5.36",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-57433",
+        "severity": "CRITICAL",
+        "title": "Storable versions before 3.41 for Perl have a signed integer overflow  ..."
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libperl5.36",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-8376",
+        "severity": "CRITICAL",
+        "title": "perl: Perl: Heap buffer overflow when compiling regular expressions on 32-bit builds"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libperl5.36",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-42497",
+        "severity": "HIGH",
+        "title": "perl-Archive-Tar: perl-Archive-Tar: Arbitrary file modification via crafted hardlinks during archive"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libperl5.36",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-48962",
+        "severity": "HIGH",
+        "title": "perl-IO-Compress: perl-IO-Compress: Arbitrary code execution via attacker-controlled output glob"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libperl5.36",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-57432",
+        "severity": "HIGH",
+        "title": "Perl versions through 5.43.10 have an integer overflow in S_measure_st ..."
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libperl5.36",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-9538",
+        "severity": "HIGH",
+        "title": "perl-Archive-Tar: perl-Archive-Tar: Denial of Service via crafted tar header with large entry size"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libsmartcols1",
+        "installed": "2.38.1-5+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libsqlite3-0",
+        "installed": "3.40.1-2+deb12u2",
+        "fixed": "",
+        "id": "CVE-2025-7458",
+        "severity": "CRITICAL",
+        "title": "sqlite: SQLite integer overflow"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libssl3",
+        "installed": "3.0.19-1~deb12u2",
+        "fixed": "3.0.20-1~deb12u2",
+        "id": "CVE-2026-45447",
+        "severity": "HIGH",
+        "title": "openssl: Heap Use-After-Free in OpenSSL PKCS7_verify()"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libtinfo6",
+        "installed": "6.4-4",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libuuid1",
+        "installed": "2.38.1-5+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "libxml2",
+        "installed": "2.9.14+dfsg-1.3~deb12u5",
+        "fixed": "",
+        "id": "CVE-2026-6653",
+        "severity": "CRITICAL",
+        "title": "libxml2: mingw-libxml2: libxml2: Denial of Service via crafted XML input due to use-after-free"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "mount",
+        "installed": "2.38.1-5+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "ncurses-base",
+        "installed": "6.4-4",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "ncurses-bin",
+        "installed": "6.4-4",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "openssl",
+        "installed": "3.0.19-1~deb12u2",
+        "fixed": "3.0.20-1~deb12u2",
+        "id": "CVE-2026-45447",
+        "severity": "HIGH",
+        "title": "openssl: Heap Use-After-Free in OpenSSL PKCS7_verify()"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-13221",
+        "severity": "CRITICAL",
+        "title": "Perl versions through 5.43.9 produce silently incorrect regular expres ..."
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-42496",
+        "severity": "CRITICAL",
+        "title": "perl-archive-tar: perl-archive-tar: Path traversal via crafted symlinks allows arbitrary file access"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-57433",
+        "severity": "CRITICAL",
+        "title": "Storable versions before 3.41 for Perl have a signed integer overflow  ..."
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-8376",
+        "severity": "CRITICAL",
+        "title": "perl: Perl: Heap buffer overflow when compiling regular expressions on 32-bit builds"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-42497",
+        "severity": "HIGH",
+        "title": "perl-Archive-Tar: perl-Archive-Tar: Arbitrary file modification via crafted hardlinks during archive"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-48962",
+        "severity": "HIGH",
+        "title": "perl-IO-Compress: perl-IO-Compress: Arbitrary code execution via attacker-controlled output glob"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-57432",
+        "severity": "HIGH",
+        "title": "Perl versions through 5.43.10 have an integer overflow in S_measure_st ..."
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-9538",
+        "severity": "HIGH",
+        "title": "perl-Archive-Tar: perl-Archive-Tar: Denial of Service via crafted tar header with large entry size"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl-base",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-13221",
+        "severity": "CRITICAL",
+        "title": "Perl versions through 5.43.9 produce silently incorrect regular expres ..."
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl-base",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-42496",
+        "severity": "CRITICAL",
+        "title": "perl-archive-tar: perl-archive-tar: Path traversal via crafted symlinks allows arbitrary file access"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl-base",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-57433",
+        "severity": "CRITICAL",
+        "title": "Storable versions before 3.41 for Perl have a signed integer overflow  ..."
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl-base",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-8376",
+        "severity": "CRITICAL",
+        "title": "perl: Perl: Heap buffer overflow when compiling regular expressions on 32-bit builds"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl-base",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-42497",
+        "severity": "HIGH",
+        "title": "perl-Archive-Tar: perl-Archive-Tar: Arbitrary file modification via crafted hardlinks during archive"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl-base",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-48962",
+        "severity": "HIGH",
+        "title": "perl-IO-Compress: perl-IO-Compress: Arbitrary code execution via attacker-controlled output glob"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl-base",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-57432",
+        "severity": "HIGH",
+        "title": "Perl versions through 5.43.10 have an integer overflow in S_measure_st ..."
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl-base",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-9538",
+        "severity": "HIGH",
+        "title": "perl-Archive-Tar: perl-Archive-Tar: Denial of Service via crafted tar header with large entry size"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl-modules-5.36",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-13221",
+        "severity": "CRITICAL",
+        "title": "Perl versions through 5.43.9 produce silently incorrect regular expres ..."
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl-modules-5.36",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-42496",
+        "severity": "CRITICAL",
+        "title": "perl-archive-tar: perl-archive-tar: Path traversal via crafted symlinks allows arbitrary file access"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl-modules-5.36",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-57433",
+        "severity": "CRITICAL",
+        "title": "Storable versions before 3.41 for Perl have a signed integer overflow  ..."
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl-modules-5.36",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-8376",
+        "severity": "CRITICAL",
+        "title": "perl: Perl: Heap buffer overflow when compiling regular expressions on 32-bit builds"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl-modules-5.36",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-42497",
+        "severity": "HIGH",
+        "title": "perl-Archive-Tar: perl-Archive-Tar: Arbitrary file modification via crafted hardlinks during archive"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl-modules-5.36",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-48962",
+        "severity": "HIGH",
+        "title": "perl-IO-Compress: perl-IO-Compress: Arbitrary code execution via attacker-controlled output glob"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl-modules-5.36",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-57432",
+        "severity": "HIGH",
+        "title": "Perl versions through 5.43.10 have an integer overflow in S_measure_st ..."
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "perl-modules-5.36",
+        "installed": "5.36.0-7+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-9538",
+        "severity": "HIGH",
+        "title": "perl-Archive-Tar: perl-Archive-Tar: Denial of Service via crafted tar header with large entry size"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "util-linux",
+        "installed": "2.38.1-5+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "util-linux-extra",
+        "installed": "2.38.1-5+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "nice/postgres:pg16 (debian 12.13)",
+        "pkg": "zlib1g",
+        "installed": "1:1.2.13.dfsg-1",
+        "fixed": "",
+        "id": "CVE-2023-45853",
+        "severity": "CRITICAL",
+        "title": "zlib: integer overflow and resultant heap-based buffer overflow in zipOpenNewFileInZip4_6"
+      },
+      {
+        "target": "usr/local/bin/gosu",
+        "pkg": "stdlib",
+        "installed": "v1.24.6",
+        "fixed": "1.24.13, 1.25.7, 1.26.0-rc.3",
+        "id": "CVE-2025-68121",
+        "severity": "CRITICAL",
+        "title": "crypto/tls: crypto/tls: Incorrect certificate validation during TLS session resumption"
+      },
+      {
+        "target": "usr/local/bin/gosu",
+        "pkg": "stdlib",
+        "installed": "v1.24.6",
+        "fixed": "1.24.12, 1.25.6",
+        "id": "CVE-2025-61726",
+        "severity": "HIGH",
+        "title": "golang: net/url: Memory exhaustion in query parameter parsing in net/url"
+      },
+      {
+        "target": "usr/local/bin/gosu",
+        "pkg": "stdlib",
+        "installed": "v1.24.6",
+        "fixed": "1.24.11, 1.25.5",
+        "id": "CVE-2025-61729",
+        "severity": "HIGH",
+        "title": "crypto/x509: golang: Denial of Service due to excessive resource consumption via crafted certificate"
+      },
+      {
+        "target": "usr/local/bin/gosu",
+        "pkg": "stdlib",
+        "installed": "v1.24.6",
+        "fixed": "1.25.8, 1.26.1",
+        "id": "CVE-2026-25679",
+        "severity": "HIGH",
+        "title": "net/url: Incorrect parsing of IPv6 host literals in net/url"
+      },
+      {
+        "target": "usr/local/bin/gosu",
+        "pkg": "stdlib",
+        "installed": "v1.24.6",
+        "fixed": "1.25.11, 1.26.4",
+        "id": "CVE-2026-27145",
+        "severity": "HIGH",
+        "title": "crypto/x509: golang: golang crypto/x509: Denial of Service via excessive processing of DNS SAN entri"
+      },
+      {
+        "target": "usr/local/bin/gosu",
+        "pkg": "stdlib",
+        "installed": "v1.24.6",
+        "fixed": "1.25.9, 1.26.2",
+        "id": "CVE-2026-32280",
+        "severity": "HIGH",
+        "title": "crypto/x509: crypto/tls: golang: Go: Denial of Service vulnerability in certificate chain building"
+      },
+      {
+        "target": "usr/local/bin/gosu",
+        "pkg": "stdlib",
+        "installed": "v1.24.6",
+        "fixed": "1.25.9, 1.26.2",
+        "id": "CVE-2026-32281",
+        "severity": "HIGH",
+        "title": "crypto/x509: golang: Go crypto/x509: Denial of Service via inefficient certificate chain validation"
+      },
+      {
+        "target": "usr/local/bin/gosu",
+        "pkg": "stdlib",
+        "installed": "v1.24.6",
+        "fixed": "1.25.9, 1.26.2",
+        "id": "CVE-2026-32283",
+        "severity": "HIGH",
+        "title": "crypto/tls: golang: Go crypto/tls: Denial of Service via multiple TLS 1.3 key update messages"
+      },
+      {
+        "target": "usr/local/bin/gosu",
+        "pkg": "stdlib",
+        "installed": "v1.24.6",
+        "fixed": "1.25.10, 1.26.3",
+        "id": "CVE-2026-33811",
+        "severity": "HIGH",
+        "title": "net: golang: Go net package: Denial of Service via long CNAME response in LookupCNAME"
+      },
+      {
+        "target": "usr/local/bin/gosu",
+        "pkg": "stdlib",
+        "installed": "v1.24.6",
+        "fixed": "1.25.10, 1.26.3",
+        "id": "CVE-2026-33814",
+        "severity": "HIGH",
+        "title": "net/http/internal/http2: golang: golang.org/x/net: Go HTTP/2: Denial of Service via malformed SETTIN"
+      },
+      {
+        "target": "usr/local/bin/gosu",
+        "pkg": "stdlib",
+        "installed": "v1.24.6",
+        "fixed": "1.25.10, 1.26.3",
+        "id": "CVE-2026-39820",
+        "severity": "HIGH",
+        "title": "net/mail: golang: Go net/mail: Denial of Service via crafted email inputs"
+      },
+      {
+        "target": "usr/local/bin/gosu",
+        "pkg": "stdlib",
+        "installed": "v1.24.6",
+        "fixed": "1.25.12, 1.26.5, 1.27.0-rc.2",
+        "id": "CVE-2026-39822",
+        "severity": "HIGH",
+        "title": "os: golang: Go os.Root: Symlink following vulnerability allows directory traversal"
+      },
+      {
+        "target": "usr/local/bin/gosu",
+        "pkg": "stdlib",
+        "installed": "v1.24.6",
+        "fixed": "1.25.10, 1.26.3",
+        "id": "CVE-2026-39836",
+        "severity": "HIGH",
+        "title": "net: golang: Go net package: Denial of Service via NUL byte in Dial and LookupPort on Windows"
+      },
+      {
+        "target": "usr/local/bin/gosu",
+        "pkg": "stdlib",
+        "installed": "v1.24.6",
+        "fixed": "1.25.10, 1.26.3",
+        "id": "CVE-2026-42499",
+        "severity": "HIGH",
+        "title": "net/mail: golang: net/mail: Denial of Service via pathological email address parsing"
+      },
+      {
+        "target": "usr/local/bin/gosu",
+        "pkg": "stdlib",
+        "installed": "v1.24.6",
+        "fixed": "1.25.11, 1.26.4",
+        "id": "CVE-2026-42504",
+        "severity": "HIGH",
+        "title": "mime: golang: Golang MIME: Denial of Service via maliciously-crafted MIME header"
+      }
+    ],
+    "trivy_version": 2
+  },
+  "ollama_ollama_latest": {
+    "meta": {
+      "image_id": "sha256:dd1a385ce665aec558256f33e85b56a89583adecbc4f63dac9b4235b0eed7cac",
+      "image_ref": "ollama/ollama:latest"
+    },
+    "counts": {
+      "CRITICAL": 0,
+      "HIGH": 33,
+      "MEDIUM": 78,
+      "LOW": 30,
+      "UNKNOWN": 4
+    },
+    "critical_high": [
+      {
+        "target": "ollama/ollama:latest (ubuntu 24.04)",
+        "pkg": "libssl3t64",
+        "installed": "3.0.13-0ubuntu3.9",
+        "fixed": "3.0.13-0ubuntu3.11",
+        "id": "CVE-2026-45447",
+        "severity": "HIGH",
+        "title": "openssl: Heap Use-After-Free in OpenSSL PKCS7_verify()"
+      },
+      {
+        "target": "ollama/ollama:latest (ubuntu 24.04)",
+        "pkg": "openssl",
+        "installed": "3.0.13-0ubuntu3.9",
+        "fixed": "3.0.13-0ubuntu3.11",
+        "id": "CVE-2026-45447",
+        "severity": "HIGH",
+        "title": "openssl: Heap Use-After-Free in OpenSSL PKCS7_verify()"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "github.com/buger/jsonparser",
+        "installed": "v1.1.1",
+        "fixed": "1.1.2",
+        "id": "CVE-2026-32285",
+        "severity": "HIGH",
+        "title": "github.com/buger/jsonparser: github.com/buger/jsonparser: Denial of Service via malformed JSON input"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "golang.org/x/crypto",
+        "installed": "v0.43.0",
+        "fixed": "0.52.0",
+        "id": "CVE-2026-39828",
+        "severity": "HIGH",
+        "title": "golang.org/x/crypto/ssh: golang.org/x/crypto/ssh: Unauthorized command execution via discarded SSH p"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "golang.org/x/crypto",
+        "installed": "v0.43.0",
+        "fixed": "0.52.0",
+        "id": "CVE-2026-39829",
+        "severity": "HIGH",
+        "title": "golang.org/x/crypto/ssh: golang.org/x/crypto/ssh: Denial of Service via crafted public key with exce"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "golang.org/x/crypto",
+        "installed": "v0.43.0",
+        "fixed": "0.52.0",
+        "id": "CVE-2026-39830",
+        "severity": "HIGH",
+        "title": "golang.org/x/crypto/ssh: golang.org/x/crypto/ssh: Denial of Service via resource leak from unsolicit"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "golang.org/x/crypto",
+        "installed": "v0.43.0",
+        "fixed": "0.52.0",
+        "id": "CVE-2026-39831",
+        "severity": "HIGH",
+        "title": "golang.org/x/crypto/ssh: golang.org/x/crypto/ssh: Security key bypass due to missing user presence c"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "golang.org/x/crypto",
+        "installed": "v0.43.0",
+        "fixed": "0.52.0",
+        "id": "CVE-2026-39832",
+        "severity": "HIGH",
+        "title": "golang.org/x/crypto/ssh/agent: golang.org/x/crypto/ssh/agent: Security bypass due to improper handli"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "golang.org/x/crypto",
+        "installed": "v0.43.0",
+        "fixed": "0.52.0",
+        "id": "CVE-2026-39835",
+        "severity": "HIGH",
+        "title": "golang.org/x/crypto/ssh: golang: golang.org/x/crypto/ssh: Denial of Service via crafted SSH certific"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "golang.org/x/crypto",
+        "installed": "v0.43.0",
+        "fixed": "0.52.0",
+        "id": "CVE-2026-42508",
+        "severity": "HIGH",
+        "title": "golang.org/x/crypto/ssh/knownhosts: golang: golang.org/x/crypto/ssh/knownhosts: Revocation bypass vi"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "golang.org/x/crypto",
+        "installed": "v0.43.0",
+        "fixed": "0.52.0",
+        "id": "CVE-2026-46595",
+        "severity": "HIGH",
+        "title": "golang.org/x/crypto/ssh: golang.org/x/crypto/ssh: Authorization bypass due to skipped source-address"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "golang.org/x/crypto",
+        "installed": "v0.43.0",
+        "fixed": "0.52.0",
+        "id": "CVE-2026-46597",
+        "severity": "HIGH",
+        "title": "golang.org/x/crypto/ssh: golang.org/x/crypto/ssh: Denial of Service via crafted AES-GCM packet decod"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "golang.org/x/image",
+        "installed": "v0.22.0",
+        "fixed": "0.43.0",
+        "id": "CVE-2026-46602",
+        "severity": "HIGH",
+        "title": "The TIFF decoder does not set a limit on the size of tiles in tiled im ..."
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "golang.org/x/image",
+        "installed": "v0.22.0",
+        "fixed": "0.43.0",
+        "id": "CVE-2026-46604",
+        "severity": "HIGH",
+        "title": "The TIFF decoder can panic when decoding an invalid image with an out- ..."
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "golang.org/x/net",
+        "installed": "v0.46.0",
+        "fixed": "0.55.0",
+        "id": "CVE-2026-25681",
+        "severity": "HIGH",
+        "title": "golang.org/x/net/html: golang.org/x/net/html: Arbitrary code execution via Cross-Site Scripting"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "golang.org/x/net",
+        "installed": "v0.46.0",
+        "fixed": "0.55.0",
+        "id": "CVE-2026-27136",
+        "severity": "HIGH",
+        "title": "golang.org/x/net/html: golang: golang.org/x/net/html: Cross-Site Scripting via HTML parsing bypass"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "golang.org/x/net",
+        "installed": "v0.46.0",
+        "fixed": "0.53.0",
+        "id": "CVE-2026-33814",
+        "severity": "HIGH",
+        "title": "net/http/internal/http2: golang: golang.org/x/net: Go HTTP/2: Denial of Service via malformed SETTIN"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "golang.org/x/net",
+        "installed": "v0.46.0",
+        "fixed": "0.55.0",
+        "id": "CVE-2026-39821",
+        "severity": "HIGH",
+        "title": "golang.org/x/net/idna: golang: net/http: golang.org/x/net/idna: Privilege escalation via incorrect P"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "golang.org/x/text",
+        "installed": "v0.30.0",
+        "fixed": "0.39.0",
+        "id": "CVE-2026-56852",
+        "severity": "HIGH",
+        "title": "A norm.Iter can enter an infinite loop when handling input containing  ..."
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "stdlib",
+        "installed": "v1.26.0",
+        "fixed": "1.25.8, 1.26.1",
+        "id": "CVE-2026-25679",
+        "severity": "HIGH",
+        "title": "net/url: Incorrect parsing of IPv6 host literals in net/url"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "stdlib",
+        "installed": "v1.26.0",
+        "fixed": "1.26.1",
+        "id": "CVE-2026-27137",
+        "severity": "HIGH",
+        "title": "crypto/x509: Incorrect enforcement of email constraints in crypto/x509"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "stdlib",
+        "installed": "v1.26.0",
+        "fixed": "1.25.11, 1.26.4",
+        "id": "CVE-2026-27145",
+        "severity": "HIGH",
+        "title": "crypto/x509: golang: golang crypto/x509: Denial of Service via excessive processing of DNS SAN entri"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "stdlib",
+        "installed": "v1.26.0",
+        "fixed": "1.25.9, 1.26.2",
+        "id": "CVE-2026-32280",
+        "severity": "HIGH",
+        "title": "crypto/x509: crypto/tls: golang: Go: Denial of Service vulnerability in certificate chain building"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "stdlib",
+        "installed": "v1.26.0",
+        "fixed": "1.25.9, 1.26.2",
+        "id": "CVE-2026-32281",
+        "severity": "HIGH",
+        "title": "crypto/x509: golang: Go crypto/x509: Denial of Service via inefficient certificate chain validation"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "stdlib",
+        "installed": "v1.26.0",
+        "fixed": "1.25.9, 1.26.2",
+        "id": "CVE-2026-32283",
+        "severity": "HIGH",
+        "title": "crypto/tls: golang: Go crypto/tls: Denial of Service via multiple TLS 1.3 key update messages"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "stdlib",
+        "installed": "v1.26.0",
+        "fixed": "1.26.2",
+        "id": "CVE-2026-33810",
+        "severity": "HIGH",
+        "title": "crypto/x509: golang: Go crypto/x509: Certificate validation bypass due to incorrect DNS constraint a"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "stdlib",
+        "installed": "v1.26.0",
+        "fixed": "1.25.10, 1.26.3",
+        "id": "CVE-2026-33811",
+        "severity": "HIGH",
+        "title": "net: golang: Go net package: Denial of Service via long CNAME response in LookupCNAME"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "stdlib",
+        "installed": "v1.26.0",
+        "fixed": "1.25.10, 1.26.3",
+        "id": "CVE-2026-33814",
+        "severity": "HIGH",
+        "title": "net/http/internal/http2: golang: golang.org/x/net: Go HTTP/2: Denial of Service via malformed SETTIN"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "stdlib",
+        "installed": "v1.26.0",
+        "fixed": "1.25.10, 1.26.3",
+        "id": "CVE-2026-39820",
+        "severity": "HIGH",
+        "title": "net/mail: golang: Go net/mail: Denial of Service via crafted email inputs"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "stdlib",
+        "installed": "v1.26.0",
+        "fixed": "1.25.12, 1.26.5, 1.27.0-rc.2",
+        "id": "CVE-2026-39822",
+        "severity": "HIGH",
+        "title": "os: golang: Go os.Root: Symlink following vulnerability allows directory traversal"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "stdlib",
+        "installed": "v1.26.0",
+        "fixed": "1.25.10, 1.26.3",
+        "id": "CVE-2026-39836",
+        "severity": "HIGH",
+        "title": "net: golang: Go net package: Denial of Service via NUL byte in Dial and LookupPort on Windows"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "stdlib",
+        "installed": "v1.26.0",
+        "fixed": "1.25.10, 1.26.3",
+        "id": "CVE-2026-42499",
+        "severity": "HIGH",
+        "title": "net/mail: golang: net/mail: Denial of Service via pathological email address parsing"
+      },
+      {
+        "target": "usr/bin/ollama",
+        "pkg": "stdlib",
+        "installed": "v1.26.0",
+        "fixed": "1.25.11, 1.26.4",
+        "id": "CVE-2026-42504",
+        "severity": "HIGH",
+        "title": "mime: golang: Golang MIME: Denial of Service via maliciously-crafted MIME header"
+      }
+    ],
+    "trivy_version": 2
+  },
+  "tei_cpu-1.6": {
+    "meta": {
+      "image_id": "sha256:011f81cf9cf62ca53c8228d037d3f88cf3f6e244b5f2bbb57f481084b0b9b2f5",
+      "image_ref": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6"
+    },
+    "counts": {
+      "CRITICAL": 12,
+      "HIGH": 83,
+      "MEDIUM": 161,
+      "LOW": 218,
+      "UNKNOWN": 12
+    },
+    "critical_high": [
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "bsdutils",
+        "installed": "1:2.38.1-5+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "curl",
+        "installed": "7.88.1-10+deb12u12",
+        "fixed": "",
+        "id": "CVE-2026-12064",
+        "severity": "HIGH",
+        "title": "curl: curl: SSH host verification bypass when using schemeless URLs with SFTP/SCP"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "curl",
+        "installed": "7.88.1-10+deb12u12",
+        "fixed": "7.88.1-10+deb12u15",
+        "id": "CVE-2026-5773",
+        "severity": "HIGH",
+        "title": "curl: libcurl: Wrong file transfer due to incorrect SMB connection reuse"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "curl",
+        "installed": "7.88.1-10+deb12u12",
+        "fixed": "",
+        "id": "CVE-2026-6276",
+        "severity": "HIGH",
+        "title": "curl: libcurl: Information disclosure due to cookie leak when reusing connections with custom Host h"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "curl",
+        "installed": "7.88.1-10+deb12u12",
+        "fixed": "",
+        "id": "CVE-2026-8286",
+        "severity": "HIGH",
+        "title": "curl: curl: Insecure connection establishment due to TLS configuration mismatch"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "curl",
+        "installed": "7.88.1-10+deb12u12",
+        "fixed": "",
+        "id": "CVE-2026-8927",
+        "severity": "HIGH",
+        "title": "curl: Information disclosure due to uncleared proxy authentication state"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "gpgv",
+        "installed": "2.2.40-1.1",
+        "fixed": "2.2.40-1.1+deb12u2",
+        "id": "CVE-2025-68973",
+        "severity": "HIGH",
+        "title": "GnuPG: GnuPG: Information disclosure and potential arbitrary code execution via out-of-bounds write"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "gzip",
+        "installed": "1.12-1",
+        "fixed": "",
+        "id": "CVE-2026-41992",
+        "severity": "HIGH",
+        "title": "GNU gzip contains a global buffer overflow vulnerability in the LZH de ..."
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libacl1",
+        "installed": "2.3.1-3",
+        "fixed": "",
+        "id": "CVE-2026-54369",
+        "severity": "HIGH",
+        "title": "acl: Symlink traversal privilege escalation via libacl functions"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libblkid1",
+        "installed": "2.38.1-5+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libcap2",
+        "installed": "1:2.66-4",
+        "fixed": "1:2.66-4+deb12u3",
+        "id": "CVE-2026-4878",
+        "severity": "HIGH",
+        "title": "libcap: libcap: Privilege escalation via TOCTOU race condition in cap_set_file()"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libcurl4",
+        "installed": "7.88.1-10+deb12u12",
+        "fixed": "",
+        "id": "CVE-2026-12064",
+        "severity": "HIGH",
+        "title": "curl: curl: SSH host verification bypass when using schemeless URLs with SFTP/SCP"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libcurl4",
+        "installed": "7.88.1-10+deb12u12",
+        "fixed": "7.88.1-10+deb12u15",
+        "id": "CVE-2026-5773",
+        "severity": "HIGH",
+        "title": "curl: libcurl: Wrong file transfer due to incorrect SMB connection reuse"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libcurl4",
+        "installed": "7.88.1-10+deb12u12",
+        "fixed": "",
+        "id": "CVE-2026-6276",
+        "severity": "HIGH",
+        "title": "curl: libcurl: Information disclosure due to cookie leak when reusing connections with custom Host h"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libcurl4",
+        "installed": "7.88.1-10+deb12u12",
+        "fixed": "",
+        "id": "CVE-2026-8286",
+        "severity": "HIGH",
+        "title": "curl: curl: Insecure connection establishment due to TLS configuration mismatch"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libcurl4",
+        "installed": "7.88.1-10+deb12u12",
+        "fixed": "",
+        "id": "CVE-2026-8927",
+        "severity": "HIGH",
+        "title": "curl: Information disclosure due to uncleared proxy authentication state"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libgnutls30",
+        "installed": "3.7.9-2+deb12u4",
+        "fixed": "3.7.9-2+deb12u7",
+        "id": "CVE-2026-33845",
+        "severity": "CRITICAL",
+        "title": "gnutls: GnuTLS: Denial of Service via DTLS zero-length fragment"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libgnutls30",
+        "installed": "3.7.9-2+deb12u4",
+        "fixed": "3.7.9-2+deb12u7",
+        "id": "CVE-2026-42010",
+        "severity": "CRITICAL",
+        "title": "gnutls: gnutls: Authentication Bypass via NUL Character in Username"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libgnutls30",
+        "installed": "3.7.9-2+deb12u4",
+        "fixed": "3.7.9-2+deb12u5",
+        "id": "CVE-2025-32988",
+        "severity": "HIGH",
+        "title": "gnutls: Vulnerability in GnuTLS otherName SAN export"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libgnutls30",
+        "installed": "3.7.9-2+deb12u4",
+        "fixed": "3.7.9-2+deb12u5",
+        "id": "CVE-2025-32990",
+        "severity": "HIGH",
+        "title": "gnutls: Vulnerability in GnuTLS certtool template parsing"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libgnutls30",
+        "installed": "3.7.9-2+deb12u4",
+        "fixed": "3.7.9-2+deb12u7",
+        "id": "CVE-2026-33846",
+        "severity": "HIGH",
+        "title": "gnutls: GnuTLS: Denial of Service via heap buffer overflow in DTLS handshake fragment reassembly"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libgnutls30",
+        "installed": "3.7.9-2+deb12u4",
+        "fixed": "3.7.9-2+deb12u7",
+        "id": "CVE-2026-3833",
+        "severity": "HIGH",
+        "title": "gnutls: GnuTLS: Policy bypass due to case-sensitive nameConstraints comparison"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libgnutls30",
+        "installed": "3.7.9-2+deb12u4",
+        "fixed": "3.7.9-2+deb12u7",
+        "id": "CVE-2026-42009",
+        "severity": "HIGH",
+        "title": "gnutls: gnutls: Denial of Service via DTLS packet reordering vulnerability"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libgssapi-krb5-2",
+        "installed": "1.20.1-2+deb12u2",
+        "fixed": "1.20.1-2+deb12u5",
+        "id": "CVE-2026-40355",
+        "severity": "HIGH",
+        "title": "krb5: MIT Kerberos 5: Denial of Service via NULL pointer dereference in NegoEx mechanism"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libgssapi-krb5-2",
+        "installed": "1.20.1-2+deb12u2",
+        "fixed": "1.20.1-2+deb12u5",
+        "id": "CVE-2026-40356",
+        "severity": "HIGH",
+        "title": "krb5: MIT Kerberos 5 (krb5): Denial of Service via integer underflow and out-of-bounds read"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libk5crypto3",
+        "installed": "1.20.1-2+deb12u2",
+        "fixed": "1.20.1-2+deb12u5",
+        "id": "CVE-2026-40355",
+        "severity": "HIGH",
+        "title": "krb5: MIT Kerberos 5: Denial of Service via NULL pointer dereference in NegoEx mechanism"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libk5crypto3",
+        "installed": "1.20.1-2+deb12u2",
+        "fixed": "1.20.1-2+deb12u5",
+        "id": "CVE-2026-40356",
+        "severity": "HIGH",
+        "title": "krb5: MIT Kerberos 5 (krb5): Denial of Service via integer underflow and out-of-bounds read"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libkrb5-3",
+        "installed": "1.20.1-2+deb12u2",
+        "fixed": "1.20.1-2+deb12u5",
+        "id": "CVE-2026-40355",
+        "severity": "HIGH",
+        "title": "krb5: MIT Kerberos 5: Denial of Service via NULL pointer dereference in NegoEx mechanism"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libkrb5-3",
+        "installed": "1.20.1-2+deb12u2",
+        "fixed": "1.20.1-2+deb12u5",
+        "id": "CVE-2026-40356",
+        "severity": "HIGH",
+        "title": "krb5: MIT Kerberos 5 (krb5): Denial of Service via integer underflow and out-of-bounds read"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libkrb5support0",
+        "installed": "1.20.1-2+deb12u2",
+        "fixed": "1.20.1-2+deb12u5",
+        "id": "CVE-2026-40355",
+        "severity": "HIGH",
+        "title": "krb5: MIT Kerberos 5: Denial of Service via NULL pointer dereference in NegoEx mechanism"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libkrb5support0",
+        "installed": "1.20.1-2+deb12u2",
+        "fixed": "1.20.1-2+deb12u5",
+        "id": "CVE-2026-40356",
+        "severity": "HIGH",
+        "title": "krb5: MIT Kerberos 5 (krb5): Denial of Service via integer underflow and out-of-bounds read"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libldap-2.5-0",
+        "installed": "2.5.13+dfsg-5",
+        "fixed": "",
+        "id": "CVE-2023-2953",
+        "severity": "HIGH",
+        "title": "openldap: null pointer dereference in  ber_memalloc_x  function"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "liblzma5",
+        "installed": "5.4.1-0.2",
+        "fixed": "5.4.1-1",
+        "id": "CVE-2025-31115",
+        "severity": "HIGH",
+        "title": "xz: XZ has a heap-use-after-free bug in threaded .xz decoder"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libmount1",
+        "installed": "2.38.1-5+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libnghttp2-14",
+        "installed": "1.52.0-1+deb12u2",
+        "fixed": "1.52.0-1+deb12u3",
+        "id": "CVE-2026-27135",
+        "severity": "HIGH",
+        "title": "nghttp2: nghttp2: Denial of Service via malformed HTTP/2 frames after session termination"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libpam-modules",
+        "installed": "1.5.2-6+deb12u1",
+        "fixed": "1.5.2-6+deb12u2",
+        "id": "CVE-2025-6020",
+        "severity": "HIGH",
+        "title": "linux-pam: Linux-pam directory Traversal"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libpam-modules-bin",
+        "installed": "1.5.2-6+deb12u1",
+        "fixed": "1.5.2-6+deb12u2",
+        "id": "CVE-2025-6020",
+        "severity": "HIGH",
+        "title": "linux-pam: Linux-pam directory Traversal"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libpam-runtime",
+        "installed": "1.5.2-6+deb12u1",
+        "fixed": "1.5.2-6+deb12u2",
+        "id": "CVE-2025-6020",
+        "severity": "HIGH",
+        "title": "linux-pam: Linux-pam directory Traversal"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libpam0g",
+        "installed": "1.5.2-6+deb12u1",
+        "fixed": "1.5.2-6+deb12u2",
+        "id": "CVE-2025-6020",
+        "severity": "HIGH",
+        "title": "linux-pam: Linux-pam directory Traversal"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libsmartcols1",
+        "installed": "2.38.1-5+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libssh2-1",
+        "installed": "1.10.0-3+b1",
+        "fixed": "",
+        "id": "CVE-2026-55199",
+        "severity": "HIGH",
+        "title": "libssh2: libssh2: Denial of Service via crafted SSH_MSG_EXT_INFO message"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libssh2-1",
+        "installed": "1.10.0-3+b1",
+        "fixed": "",
+        "id": "CVE-2026-55200",
+        "severity": "HIGH",
+        "title": "libssh2: libssh2 - Out-of-Bounds Write via Unchecked packet_length in transport.c"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libssh2-1",
+        "installed": "1.10.0-3+b1",
+        "fixed": "",
+        "id": "CVE-2026-7598",
+        "severity": "HIGH",
+        "title": "libssh2: integer overflow via large username or password arguments"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libssl-dev",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.19-1~deb12u2",
+        "id": "CVE-2026-31789",
+        "severity": "CRITICAL",
+        "title": "openssl: OpenSSL: Heap buffer overflow on 32-bit systems from large X.509 certificate processing"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libssl-dev",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.18-1~deb12u2",
+        "id": "CVE-2025-15467",
+        "severity": "HIGH",
+        "title": "openssl: OpenSSL: Remote code execution or Denial of Service via oversized Initialization Vector in "
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libssl-dev",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.18-1~deb12u2",
+        "id": "CVE-2025-69421",
+        "severity": "HIGH",
+        "title": "openssl: OpenSSL: Denial of Service via malformed PKCS#12 file processing"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libssl-dev",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.19-1~deb12u2",
+        "id": "CVE-2026-28387",
+        "severity": "HIGH",
+        "title": "openssl: OpenSSL: Arbitrary code execution due to use-after-free in DANE TLSA authentication"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libssl-dev",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.19-1~deb12u2",
+        "id": "CVE-2026-28388",
+        "severity": "HIGH",
+        "title": "openssl: OpenSSL: Denial of Service due to NULL pointer dereference in delta CRL processing"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libssl-dev",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.19-1~deb12u2",
+        "id": "CVE-2026-28389",
+        "severity": "HIGH",
+        "title": "openssl: OpenSSL: Denial of Service vulnerability in CMS processing"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libssl-dev",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.19-1~deb12u2",
+        "id": "CVE-2026-28390",
+        "severity": "HIGH",
+        "title": "openssl: OpenSSL: Denial of Service due to NULL pointer dereference in CMS EnvelopedData processing"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libssl-dev",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.20-1~deb12u2",
+        "id": "CVE-2026-45447",
+        "severity": "HIGH",
+        "title": "openssl: Heap Use-After-Free in OpenSSL PKCS7_verify()"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libssl3",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.19-1~deb12u2",
+        "id": "CVE-2026-31789",
+        "severity": "CRITICAL",
+        "title": "openssl: OpenSSL: Heap buffer overflow on 32-bit systems from large X.509 certificate processing"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libssl3",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.18-1~deb12u2",
+        "id": "CVE-2025-15467",
+        "severity": "HIGH",
+        "title": "openssl: OpenSSL: Remote code execution or Denial of Service via oversized Initialization Vector in "
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libssl3",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.18-1~deb12u2",
+        "id": "CVE-2025-69421",
+        "severity": "HIGH",
+        "title": "openssl: OpenSSL: Denial of Service via malformed PKCS#12 file processing"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libssl3",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.19-1~deb12u2",
+        "id": "CVE-2026-28387",
+        "severity": "HIGH",
+        "title": "openssl: OpenSSL: Arbitrary code execution due to use-after-free in DANE TLSA authentication"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libssl3",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.19-1~deb12u2",
+        "id": "CVE-2026-28388",
+        "severity": "HIGH",
+        "title": "openssl: OpenSSL: Denial of Service due to NULL pointer dereference in delta CRL processing"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libssl3",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.19-1~deb12u2",
+        "id": "CVE-2026-28389",
+        "severity": "HIGH",
+        "title": "openssl: OpenSSL: Denial of Service vulnerability in CMS processing"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libssl3",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.19-1~deb12u2",
+        "id": "CVE-2026-28390",
+        "severity": "HIGH",
+        "title": "openssl: OpenSSL: Denial of Service due to NULL pointer dereference in CMS EnvelopedData processing"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libssl3",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.20-1~deb12u2",
+        "id": "CVE-2026-45447",
+        "severity": "HIGH",
+        "title": "openssl: Heap Use-After-Free in OpenSSL PKCS7_verify()"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libtinfo6",
+        "installed": "6.4-4",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libuuid1",
+        "installed": "2.38.1-5+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libxml2",
+        "installed": "2.9.14+dfsg-1.3~deb12u1",
+        "fixed": "2.9.14+dfsg-1.3~deb12u2",
+        "id": "CVE-2024-56171",
+        "severity": "CRITICAL",
+        "title": "libxml2: Use-After-Free in libxml2"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libxml2",
+        "installed": "2.9.14+dfsg-1.3~deb12u1",
+        "fixed": "",
+        "id": "CVE-2026-6653",
+        "severity": "CRITICAL",
+        "title": "libxml2: mingw-libxml2: libxml2: Denial of Service via crafted XML input due to use-after-free"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libxml2",
+        "installed": "2.9.14+dfsg-1.3~deb12u1",
+        "fixed": "2.9.14+dfsg-1.3~deb12u2",
+        "id": "CVE-2022-49043",
+        "severity": "HIGH",
+        "title": "libxml: use-after-free in xmlXIncludeAddNode"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libxml2",
+        "installed": "2.9.14+dfsg-1.3~deb12u1",
+        "fixed": "2.9.14+dfsg-1.3~deb12u2",
+        "id": "CVE-2024-25062",
+        "severity": "HIGH",
+        "title": "libxml2: use-after-free in XMLReader"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libxml2",
+        "installed": "2.9.14+dfsg-1.3~deb12u1",
+        "fixed": "2.9.14+dfsg-1.3~deb12u2",
+        "id": "CVE-2025-24928",
+        "severity": "HIGH",
+        "title": "libxml2: Stack-based buffer overflow in xmlSnprintfElements of libxml2"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libxml2",
+        "installed": "2.9.14+dfsg-1.3~deb12u1",
+        "fixed": "2.9.14+dfsg-1.3~deb12u2",
+        "id": "CVE-2025-27113",
+        "severity": "HIGH",
+        "title": "libxml2: NULL Pointer Dereference in libxml2 xmlPatMatch"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libxml2",
+        "installed": "2.9.14+dfsg-1.3~deb12u1",
+        "fixed": "2.9.14+dfsg-1.3~deb12u2",
+        "id": "CVE-2025-32414",
+        "severity": "HIGH",
+        "title": "libxml2: Out-of-Bounds Read in libxml2"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libxml2",
+        "installed": "2.9.14+dfsg-1.3~deb12u1",
+        "fixed": "2.9.14+dfsg-1.3~deb12u2",
+        "id": "CVE-2025-32415",
+        "severity": "HIGH",
+        "title": "libxml2: Out-of-bounds Read in xmlSchemaIDCFillNodeTables"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libxml2",
+        "installed": "2.9.14+dfsg-1.3~deb12u1",
+        "fixed": "2.9.14+dfsg-1.3~deb12u3",
+        "id": "CVE-2025-49794",
+        "severity": "HIGH",
+        "title": "libxml: Heap use after free (UAF) leads to Denial of service (DoS)"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "libxml2",
+        "installed": "2.9.14+dfsg-1.3~deb12u1",
+        "fixed": "2.9.14+dfsg-1.3~deb12u3",
+        "id": "CVE-2025-49796",
+        "severity": "HIGH",
+        "title": "libxml: Type confusion leads to Denial of service (DoS)"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "mount",
+        "installed": "2.38.1-5+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "ncurses-base",
+        "installed": "6.4-4",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "ncurses-bin",
+        "installed": "6.4-4",
+        "fixed": "",
+        "id": "CVE-2025-69720",
+        "severity": "HIGH",
+        "title": "ncurses: ncurses: Buffer overflow vulnerability may lead to arbitrary code execution."
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "openssl",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.19-1~deb12u2",
+        "id": "CVE-2026-31789",
+        "severity": "CRITICAL",
+        "title": "openssl: OpenSSL: Heap buffer overflow on 32-bit systems from large X.509 certificate processing"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "openssl",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.18-1~deb12u2",
+        "id": "CVE-2025-15467",
+        "severity": "HIGH",
+        "title": "openssl: OpenSSL: Remote code execution or Denial of Service via oversized Initialization Vector in "
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "openssl",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.18-1~deb12u2",
+        "id": "CVE-2025-69421",
+        "severity": "HIGH",
+        "title": "openssl: OpenSSL: Denial of Service via malformed PKCS#12 file processing"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "openssl",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.19-1~deb12u2",
+        "id": "CVE-2026-28387",
+        "severity": "HIGH",
+        "title": "openssl: OpenSSL: Arbitrary code execution due to use-after-free in DANE TLSA authentication"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "openssl",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.19-1~deb12u2",
+        "id": "CVE-2026-28388",
+        "severity": "HIGH",
+        "title": "openssl: OpenSSL: Denial of Service due to NULL pointer dereference in delta CRL processing"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "openssl",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.19-1~deb12u2",
+        "id": "CVE-2026-28389",
+        "severity": "HIGH",
+        "title": "openssl: OpenSSL: Denial of Service vulnerability in CMS processing"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "openssl",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.19-1~deb12u2",
+        "id": "CVE-2026-28390",
+        "severity": "HIGH",
+        "title": "openssl: OpenSSL: Denial of Service due to NULL pointer dereference in CMS EnvelopedData processing"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "openssl",
+        "installed": "3.0.15-1~deb12u1",
+        "fixed": "3.0.20-1~deb12u2",
+        "id": "CVE-2026-45447",
+        "severity": "HIGH",
+        "title": "openssl: Heap Use-After-Free in OpenSSL PKCS7_verify()"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "perl-base",
+        "installed": "5.36.0-7+deb12u1",
+        "fixed": "",
+        "id": "CVE-2026-13221",
+        "severity": "CRITICAL",
+        "title": "Perl versions through 5.43.9 produce silently incorrect regular expres ..."
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "perl-base",
+        "installed": "5.36.0-7+deb12u1",
+        "fixed": "",
+        "id": "CVE-2026-42496",
+        "severity": "CRITICAL",
+        "title": "perl-archive-tar: perl-archive-tar: Path traversal via crafted symlinks allows arbitrary file access"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "perl-base",
+        "installed": "5.36.0-7+deb12u1",
+        "fixed": "",
+        "id": "CVE-2026-57433",
+        "severity": "CRITICAL",
+        "title": "Storable versions before 3.41 for Perl have a signed integer overflow  ..."
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "perl-base",
+        "installed": "5.36.0-7+deb12u1",
+        "fixed": "",
+        "id": "CVE-2026-8376",
+        "severity": "CRITICAL",
+        "title": "perl: Perl: Heap buffer overflow when compiling regular expressions on 32-bit builds"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "perl-base",
+        "installed": "5.36.0-7+deb12u1",
+        "fixed": "5.36.0-7+deb12u3",
+        "id": "CVE-2023-31484",
+        "severity": "HIGH",
+        "title": "perl: CPAN.pm does not verify TLS certificates when downloading distributions over HTTPS"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "perl-base",
+        "installed": "5.36.0-7+deb12u1",
+        "fixed": "5.36.0-7+deb12u2",
+        "id": "CVE-2024-56406",
+        "severity": "HIGH",
+        "title": "perl: Perl 5.34, 5.36, 5.38 and 5.40 are vulnerable to a heap buffer overflow when transliterating n"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "perl-base",
+        "installed": "5.36.0-7+deb12u1",
+        "fixed": "",
+        "id": "CVE-2026-42497",
+        "severity": "HIGH",
+        "title": "perl-Archive-Tar: perl-Archive-Tar: Arbitrary file modification via crafted hardlinks during archive"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "perl-base",
+        "installed": "5.36.0-7+deb12u1",
+        "fixed": "",
+        "id": "CVE-2026-48962",
+        "severity": "HIGH",
+        "title": "perl-IO-Compress: perl-IO-Compress: Arbitrary code execution via attacker-controlled output glob"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "perl-base",
+        "installed": "5.36.0-7+deb12u1",
+        "fixed": "",
+        "id": "CVE-2026-57432",
+        "severity": "HIGH",
+        "title": "Perl versions through 5.43.10 have an integer overflow in S_measure_st ..."
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "perl-base",
+        "installed": "5.36.0-7+deb12u1",
+        "fixed": "",
+        "id": "CVE-2026-9538",
+        "severity": "HIGH",
+        "title": "perl-Archive-Tar: perl-Archive-Tar: Denial of Service via crafted tar header with large entry size"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "util-linux",
+        "installed": "2.38.1-5+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "util-linux-extra",
+        "installed": "2.38.1-5+deb12u3",
+        "fixed": "",
+        "id": "CVE-2026-53615",
+        "severity": "HIGH",
+        "title": "[Integer Overflow or Wraparound in libblkid/src/partitions/dos.c]"
+      },
+      {
+        "target": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.6 (debian 12.10)",
+        "pkg": "zlib1g",
+        "installed": "1:1.2.13.dfsg-1",
+        "fixed": "",
+        "id": "CVE-2023-45853",
+        "severity": "CRITICAL",
+        "title": "zlib: integer overflow and resultant heap-based buffer overflow in zipOpenNewFileInZip4_6"
+      }
+    ],
+    "trivy_version": 2
+  }
+}
