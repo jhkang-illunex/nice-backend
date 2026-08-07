@@ -10,15 +10,16 @@ trade_rate(from→to, year) = sly_amt(from→to, year) / Σ_out(from, year)
     (source 정규화라 trade_rate 와 동일 공식·동일 값. 이 거래 행 자신이 이미 source 의
     Σ_out 집계에 포함되므로 분모는 항상 >0 — "매입 기록만 있어 계산 안 되는" 경우는
     구조적으로 발생하지 않음. 대칭 fallback 불필요.)
-  buy_rate (=buy_share)  = sly_amt / Σ_out(target)  → target 매출 대비 source 구매 비중.
-    (target 매출로 정규화 → 상한 1 아님. target 이 무매출이면 0.)
+  buy_rate (=buy_share)  = sly_amt / Σ_in(target)  → target 매입총액 대비 source 구매 비중.
+    Σ_in(target) = 그 해 target 으로 들어오는 모든 sly_amt 합(= target 이 사들인 총액).
+    이 거래 행 자신이 Σ_in 집계에 포함되므로 분모 항상 >0, buy_rate 는 항상 [0,1].
+    (데이터가 매출(sly_amt) 하나뿐이어도 "매입"은 to_bizno 로 재집계하면 그대로 나오므로
+    매출-only 데이터로 재현 가능. 매입총액 0 인 행만 baseline 0 유지.)
+    buy_rate_basis='target_purchases' 로 근거를 남긴다.
 
 buy_rate 대안 계산(옵션 fill_buy_fallback=True, 기본 False):
-  target 자체 매출(Σ_out(target))이 없어 buy_rate 가 baseline 0 인 행을, target 매입 총액
-  (Σ_in(target) = 그 target 으로 들어오는 모든 sly_amt 합 — 이 거래 자신도 포함되므로 분모
-  항상 >0)으로 재계산. 의미가 "target 매출 대비"에서 "target 매입 총액 대비"로 바뀌므로
-  buy_rate_basis 컬럼(target_sales/target_purchases)에 근거를 남겨 0(미계산)과 구분한다.
-  CRI 등 하류 계산 결과에 영향을 주는 정의 변경이라 기본값은 off — 명시적으로 켜야 한다.
+  위 정의가 이미 target 매입총액(Σ_in) 기준이므로 사실상 no-op(basis NULL 로 남는 행 없음).
+  하위호환을 위해 인자·3단계 블록만 보존한다.
 
 DB 의존 외부 패키지 없음(sqlalchemy 만) — 독립 CLI 로 배포 가능.
 접속 정보: 인자 우선, 없으면 환경변수(POSTGRES_*) 폴백.
@@ -93,7 +94,7 @@ _VERIFY_SQL = """
 """
 
 # 거래망 공유율(sell_rate/buy_rate) — 컬럼 존재 보장(신규 DB 대비). 이미 있으면 no-op.
-# buy_rate_basis: buy_rate 계산 근거(target_sales=정상/target_purchases=대안 fallback/NULL=baseline 0).
+# buy_rate_basis: buy_rate 계산 근거(target_purchases=Σ_in 정상/NULL=매입총액 0 baseline).
 _ENSURE_SHARE_COLS_SQL = """
     ALTER TABLE {schema}.company_edge
         ADD COLUMN IF NOT EXISTS sell_rate double precision,
@@ -118,19 +119,19 @@ _UPDATE_SELL_SQL = """
       {where_e}
 """
 
-# 2단계: buy_rate = sly_amt/Σ_out(target=to). target 이 판매자(t.tot>0)인 행만 덮어씀.
-#   무매출 target 은 매칭 안 돼 baseline 0/NULL 유지 → 3단계(옵션) fallback 대상으로 남음.
+# 2단계: buy_rate = sly_amt/Σ_in(target=to). target 의 매입총액(그 회사가 산 모든 거래 합) 기준.
+#   이 거래 자신이 분모에 포함되므로 buy_rate 는 항상 [0,1]. 매입총액=0(t.tot>0 미충족)은 baseline 0 유지.
 _UPDATE_BUY_SQL = """
     UPDATE {schema}.company_edge e
     SET buy_rate = e.sly_amt / t.tot,
-        buy_rate_basis = 'target_sales'
+        buy_rate_basis = 'target_purchases'
     FROM (
-        SELECT from_bizno, trade_year, SUM(sly_amt)::numeric AS tot
+        SELECT to_bizno, trade_year, SUM(sly_amt)::numeric AS tot
         FROM {schema}.company_edge
         {where}
-        GROUP BY from_bizno, trade_year
+        GROUP BY to_bizno, trade_year
     ) t
-    WHERE e.to_bizno = t.from_bizno AND e.trade_year = t.trade_year AND t.tot > 0
+    WHERE e.to_bizno = t.to_bizno AND e.trade_year = t.trade_year AND t.tot > 0
       {where_e}
 """
 
@@ -276,9 +277,10 @@ def _fill_shares(
 ) -> dict:
     """sell_rate(=sell_share)/buy_rate(=buy_share) 를 채운다. 호출자 트랜잭션 재사용.
 
-    sell_rate = sly_amt/Σ_out(source)  (trade_rate 와 동일), buy_rate = sly_amt/Σ_out(target).
-    buy_fallback=True: target 무매출로 buy_rate 가 baseline 0 인 행을 target 매입 총액
-      (Σ_in(target))으로 재계산(buy_rate_basis='target_purchases'). 기본 False(미적용).
+    sell_rate = sly_amt/Σ_out(source)  (trade_rate 와 동일), buy_rate = sly_amt/Σ_in(target).
+      buy_rate 는 target 매입총액 기준이라 항상 [0,1]. 매입총액=0 인 행만 baseline 0 유지.
+    buy_fallback=True: 위 정의로 이미 매입총액 기준이므로 사실상 no-op(남은 basis NULL 행이 없음).
+      기본 False. 하위호환 위해 인자·3단계 블록은 보존.
     반환: 검산 지표 dict.
     """
     c.execute(text(_ENSURE_SHARE_COLS_SQL.format(schema=schema)))
@@ -297,7 +299,7 @@ def _fill_shares(
     v = c.execute(text(_VERIFY_SHARES_SQL.format(schema=schema, where=where)), params).fetchone()
     fallback_note = f", buy_rate(target_purchases fallback) {r_buy_fallback.rowcount} 행" if r_buy_fallback else ""
     log.info(
-        "공유율 갱신: sell_rate/baseline %d 행, buy_rate(target_sales) %d 행%s. "
+        "공유율 갱신: sell_rate/baseline %d 행, buy_rate(target_purchases=Σ_in) %d 행%s. "
         "검산 max|sell_rate-trade_rate|=%.2e (≈0), buy_rate min/max/avg=%.4f/%.4f/%.4f, "
         "basis 없음(미계산)=%d, target_sales=%d, target_purchases=%d",
         r_sell.rowcount, r_buy.rowcount, fallback_note,
