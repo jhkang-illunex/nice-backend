@@ -244,8 +244,12 @@ curl -G "http://localhost:18002/api/hsk/agent" \
 검색 텍스트(`children_text`)에 흡수돼 리콜을 담당한다. 예: '반도체' 는
 중분류 26 항목명에 없지만 소분류 261 '반도체 제조업' 경유로 26 이 검색된다.
 
-hsk 라우터의 품목 추출·동의어 확장·CRAG 는 HS 품목 도메인 특화 튜닝이라
-ksic 에는 적용하지 않는다.
+문장형 질의는 **KSIC 전용 업종 추출**(LLM, `ksic_extract`)로 전처리한다 —
+"반도체 만드는 회사는 어떤 산업분류에 속하나요?" → `반도체`. hsk 의 품목
+추출과 프롬프트만 다르고 게이트·환각 차단·폴백 구조는 동일하며,
+`RAG_KSIC_EXTRACT=false` 로 비활성화할 수 있다. 키워드형 질의는 LLM 을
+호출하지 않는다. 동의어 확장·CRAG 는 HS 품목 도메인 특화 튜닝이라 ksic 에는
+적용하지 않는다.
 
 ### Request
 
@@ -459,3 +463,4 @@ ans = client.agent("경주마를 수입할 때 HS 코드는?")
 | 2026-06-05 | 0.1.0 | 초안 — `/health`, `/health/deep`, `/api/hsk/{search,agent}` |
 | 2026-08-18 | 0.2.0 | `/api/ksic/{search,agent}` 추가 — KSIC 제11차 대·중분류 hybrid 검색 |
 | 2026-08-18 | 0.3.0 | `/api/search` 추가 — HSCode + KSIC 통합 검색 (병렬 실행, 부분 실패 허용) |
+| 2026-08-18 | 0.3.1 | ksic 문장형 질의에 KSIC 전용 업종 추출(LLM) 적용 — `RAG_KSIC_EXTRACT` |

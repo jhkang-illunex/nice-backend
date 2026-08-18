@@ -42,16 +42,18 @@ def looks_like_sentence(q_norm: str) -> bool:
     return len(tokens) >= 3 and bool(_NOISE.search(q_norm))
 
 
-def filter_items(items: list[str], q_norm: str) -> list[str]:
+def filter_items(items: list[str], q_norm: str, *, min_len: int = 2) -> list[str]:
     """원 질의에 실제 등장하는 항목만 통과 — LLM 환각 주입 차단.
 
     비교는 공백 제거 후 부분일치 (띄어쓰기 변형 허용). 최대 3개.
+    min_len: 항목 최소 길이. hsk 기본 2 — ksic 는 한글 1자 업종 대상
+    ('옷'·'꽃' 등)이 유효해 1 로 완화해 호출한다.
     """
     flat_q = q_norm.replace(" ", "")
     out: list[str] = []
     for raw in items:
         it = normalize_query(str(raw))
-        if len(it) < 2 or it in out:
+        if len(it) < min_len or it in out:
             continue
         if it.replace(" ", "") in flat_q:
             out.append(it)

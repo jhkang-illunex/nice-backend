@@ -6,8 +6,9 @@
 
 조회 범위는 제11차 대분류(A~U 21개)·중분류(2자리 77개)까지 — 소분류 이하는
 row 로 노출하지 않되 항목명이 검색 텍스트에 흡수돼 리콜을 담당한다
-('반도체' → 중분류 26). hsk 라우터의 품목 추출(extract)·동의어 확장·CRAG 는
-HS 품목 도메인 특화 튜닝이라 여기서는 적용하지 않는다.
+('반도체' → 중분류 26). 문장형 질의는 KSIC 전용 업종 추출(ksic_extract)로
+전처리한다 — hsk 의 품목 추출과 프롬프트만 다르고 폴백 구조는 동일.
+동의어 확장·CRAG 는 HS 품목 도메인 특화 튜닝이라 여기서는 적용하지 않는다.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from nice_rag.api.routers.hsk import ErrorResponse
 from nice_rag.clients import get_llm_client
 from nice_rag.config import get_rag_settings
 from nice_rag.search.hsk_embed import embed_query
+from nice_rag.search.ksic_extract import extract_industry
 from nice_rag.search.ksic_index import KsicHit as IndexHit
 from nice_rag.search.ksic_index import search_hybrid
 
@@ -211,8 +213,11 @@ def search(
         description="계층 제한 — 1=대분류만, 2=중분류만. 생략 시 둘 다.",
     ),
 ) -> list[KsicHit]:
-    qvec = _embed_or_503(q)
-    hits = _search_or_503(q, qvec, limit, level=level)
+    # 문장형이면 업종 표현만 추출(실패 시 원 질의) — 비업종 토큰의 임베딩
+    # 희석·trigram 오염 방지. 키워드형은 LLM 미호출로 레이턴시 그대로.
+    q_search = extract_industry(q) or q
+    qvec = _embed_or_503(q_search)
+    hits = _search_or_503(q_search, qvec, limit, level=level)
     return [_to_hit(h) for h in hits]
 
 
@@ -261,8 +266,9 @@ def agent(
     ),
 ) -> KsicAnswer:
     s = get_rag_settings()
-    qvec = _embed_or_503(q)
-    hits = _search_or_503(q, qvec, k, level=level)
+    q_search = extract_industry(q) or q
+    qvec = _embed_or_503(q_search)
+    hits = _search_or_503(q_search, qvec, k, level=level)
     citations = [_to_hit(h) for h in hits]
 
     if not hits:

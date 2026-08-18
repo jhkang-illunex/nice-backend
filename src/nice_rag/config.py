@@ -60,6 +60,9 @@ class RagSettings(BaseSettings):
     query_extract_enabled: bool = Field(default=True, alias="RAG_QUERY_EXTRACT")
     # CPU 추론(dev)은 prompt eval 만 수~수십 초 — 환경별로 조정.
     query_extract_timeout_s: float = Field(default=15.0, alias="RAG_EXTRACT_TIMEOUT_S")
+    # KSIC 검색용 업종 표현 추출 — 프롬프트만 다르고 게이트/폴백 구조는 동일.
+    # 타임아웃은 query_extract_timeout_s 공유.
+    ksic_extract_enabled: bool = Field(default=True, alias="RAG_KSIC_EXTRACT")
 
     # ── CRAG (검색 결과 1회 평가·보정) ──────────────────────────────────────
     # fit=그대로 / ambiguous=대체 키워드 재검색·병합 / unrelated=즉시 거부.
