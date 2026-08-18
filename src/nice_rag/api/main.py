@@ -9,11 +9,12 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from nice_rag import __version__
-from nice_rag.api.routers import health, hsk, ksic
+from nice_rag.api.routers import health, hsk, ksic, search
 
 _DESCRIPTION = """
 **NICE PoC rag-server** — 관세청 HSCode / KSIC 산업분류 검색 + 자연어 질의 에이전트.
 
+* **/api/search**      — HSCode + KSIC 통합 검색 (두 도메인 병렬 실행, 단일 응답)
 * **/api/hsk/search**  — HSCode 키워드/의미 hybrid 검색 (임베딩 + trigram + tsvector RRF)
 * **/api/hsk/agent**   — 자연어 질의 → 검색 → LLM 한국어 답변
 * **/api/ksic/search** — 한국표준산업분류(11차) 대·중분류 hybrid 검색
@@ -56,8 +57,13 @@ app = FastAPI(
             "name": "ksic",
             "description": "한국표준산업분류(11차) 대·중분류 검색 + 자연어 에이전트.",
         },
+        {
+            "name": "search",
+            "description": "HSCode + KSIC 통합 검색 (병렬 실행, 부분 실패 허용).",
+        },
     ],
 )
 app.include_router(health.router)
 app.include_router(hsk.router)
 app.include_router(ksic.router)
+app.include_router(search.router)

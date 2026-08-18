@@ -37,6 +37,7 @@ Content-Type: application/json; charset=utf-8
 | `GET` | `/api/hsk/agent` | 자연어 질의 → LLM 답변 + 인용 | postgres + embed + llm |
 | `GET` | `/api/ksic/search` | KSIC 11차 대·중분류 검색 (RRF hybrid) | postgres + embed |
 | `GET` | `/api/ksic/agent` | 자연어 질의 → 산업분류 후보 → LLM 답변 | postgres + embed + llm |
+| `GET` | `/api/search` | HSCode + KSIC 통합 검색 (병렬, 부분 실패 허용) | postgres + embed |
 
 ---
 
@@ -341,6 +342,54 @@ curl -G "http://localhost:18002/api/ksic/agent" \
 
 ---
 
+## `GET /api/search` — HSCode + KSIC 통합 검색
+
+키워드 하나로 `/api/hsk/search` 와 `/api/ksic/search` 를 **병렬 실행**
+(asyncio.gather)해 두 결과를 한 응답에 담는다. 각 도메인의 검색 파이프라인
+(hsk: 품목 추출·동의어 확장·CRAG / ksic: raw 질의)은 개별 엔드포인트와
+완전히 동일 — 내부에서 같은 라우터 함수를 호출한다. 벽시계 시간은 느린
+도메인 하나 수준 (실측 ~700 ms, 임베딩 2회 병렬 포함).
+
+### Request
+
+| 파라미터 | 타입 | 필수 | 제약 | 의미 |
+|---|---|---|---|---|
+| `q` | string | ✓ | `1 ≤ len ≤ 200` | 검색 키워드 (품목/업종 자유 표현) |
+| `limit` | integer | | `1 ≤ n ≤ 50`, default 10 | **도메인별** 반환 후보 수 |
+| `hs_prefix` | string | | `^\d{2,8}$` | [hsk 전용] HS prefix 제한 |
+| `active_only` | boolean | | default false | [hsk 전용] 유효 코드만 |
+| `level` | integer | | `1` 또는 `2` | [ksic 전용] 계층 제한 |
+
+### Response 200
+
+```json
+{
+  "hsk":  [ { "hs_code": "8486402010", "name_ko": "반도체 조립용…", "score": 0.033 } ],
+  "ksic": [ { "code": "26", "level": 2, "parent_code": "C",
+              "name_ko": "전자 부품, … 제조업", "division_range": null, "score": 0.044 } ],
+  "errors": {}
+}
+```
+
+| 필드 | 의미 |
+|---|---|
+| `hsk` | `/api/hsk/search` 와 동일 스키마의 후보 배열 |
+| `ksic` | `/api/ksic/search` 와 동일 스키마의 후보 배열 |
+| `errors` | **부분 실패** 시 실패 도메인(`hsk`/`ksic`)→원인. 정상이면 `{}` |
+
+에러 정책: 한 도메인만 실패하면 **200** + 산 쪽 결과 + `errors` 기록.
+두 도메인 모두 실패하면 **503** (`all backends failed — …`).
+
+### curl
+
+```bash
+curl -G "http://localhost:18002/api/search" \
+     --data-urlencode "q=반도체" \
+     --data-urlencode "limit=5"
+```
+
+---
+
 ## Status Code 매트릭스 — 디버깅 가이드
 
 | 코드 | 의미 | 우선 점검 |
@@ -409,3 +458,4 @@ ans = client.agent("경주마를 수입할 때 HS 코드는?")
 |---|---|---|
 | 2026-06-05 | 0.1.0 | 초안 — `/health`, `/health/deep`, `/api/hsk/{search,agent}` |
 | 2026-08-18 | 0.2.0 | `/api/ksic/{search,agent}` 추가 — KSIC 제11차 대·중분류 hybrid 검색 |
+| 2026-08-18 | 0.3.0 | `/api/search` 추가 — HSCode + KSIC 통합 검색 (병렬 실행, 부분 실패 허용) |

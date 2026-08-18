@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "NICE rag-server",
-    "description": "\n**NICE PoC rag-server** — 관세청 HSCode / KSIC 산업분류 검색 + 자연어 질의 에이전트.\n\n* **/api/hsk/search**  — HSCode 키워드/의미 hybrid 검색 (임베딩 + trigram + tsvector RRF)\n* **/api/hsk/agent**   — 자연어 질의 → 검색 → LLM 한국어 답변\n* **/api/ksic/search** — 한국표준산업분류(11차) 대·중분류 hybrid 검색\n* **/api/ksic/agent**  — 자연어 질의 → 산업분류 후보 → LLM 한국어 답변\n\n### 백엔드 추상화\nLLM / 임베딩 백엔드는 OpenAI-호환 base_url 만 바라봅니다. 자체 호스팅\n(ollama / vLLM / TEI) ↔ 외부 API (OpenAI / Anthropic proxy) 전환은\n`.env` 의 `LLM_BASE_URL` / `EMBED_BASE_URL` 1줄 변경.\n\n### 데이터\nPostgreSQL `rag.hsk` 테이블에 12,469 row, `rag.ksic` 테이블에 KSIC 제11차\n대·중분류 98 row + 1024-d 임베딩(BAAI/bge-m3) 적재. NICE 운영 인스턴스의\n기존 31 public 테이블과 schema 격리.\n\n### 명세서\n[`docs/RAG_API.md`](https://github.com/jhkang-illunex/nice-backend/blob/main/docs/RAG_API.md)\n",
+    "description": "\n**NICE PoC rag-server** — 관세청 HSCode / KSIC 산업분류 검색 + 자연어 질의 에이전트.\n\n* **/api/search**      — HSCode + KSIC 통합 검색 (두 도메인 병렬 실행, 단일 응답)\n* **/api/hsk/search**  — HSCode 키워드/의미 hybrid 검색 (임베딩 + trigram + tsvector RRF)\n* **/api/hsk/agent**   — 자연어 질의 → 검색 → LLM 한국어 답변\n* **/api/ksic/search** — 한국표준산업분류(11차) 대·중분류 hybrid 검색\n* **/api/ksic/agent**  — 자연어 질의 → 산업분류 후보 → LLM 한국어 답변\n\n### 백엔드 추상화\nLLM / 임베딩 백엔드는 OpenAI-호환 base_url 만 바라봅니다. 자체 호스팅\n(ollama / vLLM / TEI) ↔ 외부 API (OpenAI / Anthropic proxy) 전환은\n`.env` 의 `LLM_BASE_URL` / `EMBED_BASE_URL` 1줄 변경.\n\n### 데이터\nPostgreSQL `rag.hsk` 테이블에 12,469 row, `rag.ksic` 테이블에 KSIC 제11차\n대·중분류 98 row + 1024-d 임베딩(BAAI/bge-m3) 적재. NICE 운영 인스턴스의\n기존 31 public 테이블과 schema 격리.\n\n### 명세서\n[`docs/RAG_API.md`](https://github.com/jhkang-illunex/nice-backend/blob/main/docs/RAG_API.md)\n",
     "contact": {
       "name": "NICE PoC team (illunex)",
       "email": "jhkang@illunex.com"
@@ -465,6 +465,131 @@
           }
         }
       }
+    },
+    "/api/search": {
+      "get": {
+        "tags": [
+          "search"
+        ],
+        "summary": "HSCode + KSIC 통합 검색 (병렬 hybrid)",
+        "description": "키워드 하나로 HSCode(/api/hsk/search)와 KSIC 11차 대·중분류(/api/ksic/search)를 **병렬** 실행해 두 결과를 한 응답에 담는다. 각 도메인의 검색 파이프라인(hsk: 품목 추출·동의어 확장·CRAG / ksic: raw 질의)은 개별 엔드포인트와 동일. 한 도메인만 실패하면 200 + `errors` 로 부분 결과를 반환하고, 둘 다 실패하면 503.",
+        "operationId": "search_api_search_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "검색 키워드 (품목/업종 자유 표현).",
+              "examples": [
+                "반도체"
+              ],
+              "title": "Q"
+            },
+            "description": "검색 키워드 (품목/업종 자유 표현)."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "description": "도메인별 반환 후보 수 (hsk·ksic 각각 적용).",
+              "default": 10,
+              "title": "Limit"
+            },
+            "description": "도메인별 반환 후보 수 (hsk·ksic 각각 적용)."
+          },
+          {
+            "name": "hs_prefix",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{2,8}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "[hsk 전용] HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리).",
+              "title": "Hs Prefix"
+            },
+            "description": "[hsk 전용] HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리)."
+          },
+          {
+            "name": "active_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "[hsk 전용] true 면 현재 유효한(valid_to >= 오늘) 코드만 검색.",
+              "default": false,
+              "title": "Active Only"
+            },
+            "description": "[hsk 전용] true 면 현재 유효한(valid_to >= 오늘) 코드만 검색."
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 2,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "[ksic 전용] 계층 제한 — 1=대분류만, 2=중분류만. 생략 시 둘 다.",
+              "title": "Level"
+            },
+            "description": "[ksic 전용] 계층 제한 — 1=대분류만, 2=중분류만. 생략 시 둘 다."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnifiedSearchResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "두 도메인 모두 실패 (임베딩 백엔드 또는 PostgreSQL 도달 불가).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "요청 파라미터 검증 실패 (q 길이 등).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -739,6 +864,40 @@
         ],
         "title": "LivenessResponse",
         "description": "K8s liveness probe 호환 — 프로세스가 살아있는지만 확인."
+      },
+      "UnifiedSearchResponse": {
+        "properties": {
+          "hsk": {
+            "items": {
+              "$ref": "#/components/schemas/HskHit"
+            },
+            "type": "array",
+            "title": "Hsk",
+            "description": "HSCode 후보 (RRF 점수 내림차순). /api/hsk/search 와 동일 스키마."
+          },
+          "ksic": {
+            "items": {
+              "$ref": "#/components/schemas/KsicHit"
+            },
+            "type": "array",
+            "title": "Ksic",
+            "description": "KSIC 11차 대·중분류 후보. /api/ksic/search 와 동일 스키마."
+          },
+          "errors": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Errors",
+            "description": "부분 실패 시 실패한 도메인('hsk'/'ksic')과 원인. 정상이면 빈 객체. 두 도메인 모두 실패하면 응답 자체가 503.",
+            "examples": [
+              {}
+            ]
+          }
+        },
+        "type": "object",
+        "title": "UnifiedSearchResponse",
+        "description": "HSCode + KSIC 통합 검색 결과."
       }
     }
   },
@@ -754,6 +913,10 @@
     {
       "name": "ksic",
       "description": "한국표준산업분류(11차) 대·중분류 검색 + 자연어 에이전트."
+    },
+    {
+      "name": "search",
+      "description": "HSCode + KSIC 통합 검색 (병렬 실행, 부분 실패 허용)."
     }
   ]
 }

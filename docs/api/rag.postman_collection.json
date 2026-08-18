@@ -198,6 +198,54 @@
         }
       },
       "response": []
+    },
+    {
+      "name": "HSCode + KSIC 통합 검색 (병렬 hybrid)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/search?q=%EB%B0%98%EB%8F%84%EC%B2%B4&limit=5",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "search"
+          ],
+          "query": [
+            {
+              "key": "q",
+              "value": "반도체",
+              "description": "검색 키워드 (품목/업종 자유 표현)."
+            },
+            {
+              "key": "limit",
+              "value": "5",
+              "description": "도메인별 반환 후보 수 (hsk·ksic 각각 적용)."
+            },
+            {
+              "key": "hs_prefix",
+              "value": "",
+              "disabled": true,
+              "description": "[hsk 전용] HS 코드 prefix 로 검색 범위 제한."
+            },
+            {
+              "key": "active_only",
+              "value": "false",
+              "disabled": true,
+              "description": "[hsk 전용] true 면 현재 유효한 코드만 검색."
+            },
+            {
+              "key": "level",
+              "value": "",
+              "disabled": true,
+              "description": "[ksic 전용] 계층 제한 — 1=대분류만, 2=중분류만."
+            }
+          ]
+        }
+      },
+      "response": []
     }
   ],
   "variable": [
