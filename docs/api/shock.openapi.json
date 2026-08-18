@@ -31,6 +31,9 @@
               }
             }
           },
+          "503": {
+            "description": "backend rate API 미설정 또는 도달 불가 (RATE_API_URL)"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -597,6 +600,14 @@
             },
             "type": "array",
             "title": "Data List"
+          },
+          "excluded_seeds": {
+            "items": {
+              "$ref": "#/components/schemas/ExcludedSeedOut"
+            },
+            "type": "array",
+            "title": "Excluded Seeds",
+            "description": "전파에서 제외된 시드와 사유 (init·depth·total_shock 미포함). 비어 있지 않으면 시드/그래프 조립 불일치 신호."
           }
         },
         "type": "object",
@@ -611,21 +622,22 @@
             {
               "depth": 1,
               "node_id": "b",
-              "shock": 2.27523
+              "shock": 2275230.03
             },
             {
               "depth": 2,
               "node_id": "c",
-              "shock": 1.38106
+              "shock": 1381064.63
             },
             {
               "depth": 2,
               "node_id": "a",
-              "shock": 0.13651
+              "shock": 136513.8
             }
           ],
           "direction": "export",
-          "total_shock": 3.79281
+          "excluded_seeds": [],
+          "total_shock": 3792808.45
         }
       },
       "DirectionOut": {
@@ -690,6 +702,26 @@
           "total_shock": 1.5
         }
       },
+      "ExcludedSeedOut": {
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "title": "Node Id",
+            "description": "제외된 시드 seed_id(사업자번호)"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "제외 사유 — 그래프(from∪to) 미포함 / rate 조회 실패 등"
+          }
+        },
+        "type": "object",
+        "required": [
+          "node_id",
+          "reason"
+        ],
+        "title": "ExcludedSeedOut"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -732,26 +764,6 @@
           "shock"
         ],
         "title": "NodeOut"
-      },
-      "OverrideIn": {
-        "properties": {
-          "p1": {
-            "type": "string",
-            "title": "P1",
-            "description": "변동 대상 기업 node_id"
-          },
-          "delta": {
-            "type": "number",
-            "title": "Delta",
-            "description": "거래량 변동율 (0=무변화, +0.1=+10%, −0.2=−20%). tariff 의 shock_rate 와 동일한 0-기준 편차."
-          }
-        },
-        "type": "object",
-        "required": [
-          "p1",
-          "delta"
-        ],
-        "title": "OverrideIn"
       },
       "PropagateRequest": {
         "properties": {
@@ -843,18 +855,20 @@
             "title": "Triple List",
             "description": "거래쌍·거래비율 엣지 목록"
           },
+          "shock_rate": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Shock Rate",
+            "description": "영향 받는 비중 (전 시드 공통, 0~1 강제). 시드별 주입액 = total_amount × Σrate(backend 조회, 각 0~1) × shock_rate"
+          },
           "seed_list": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/TariffSeedIn"
             },
             "type": "array",
             "title": "Seed List",
-            "description": "외생충격 받는 1차 기업 node_id"
-          },
-          "shock_rate": {
-            "type": "number",
-            "title": "Shock Rate",
-            "description": "시드 주입 충격량 (음수 가능)"
+            "description": "외생충격 받는 1차 기업 [{seed_id, upche_cd, total_amount, hscodes}] — rate 는 hscodes 각각을 (upche_cd, hscode) 로 backend API(RATE_API_URL) 조회"
           },
           "direction": {
             "type": "string",
@@ -870,16 +884,24 @@
         "type": "object",
         "required": [
           "triple_list",
-          "seed_list",
-          "shock_rate"
+          "shock_rate",
+          "seed_list"
         ],
         "title": "TariffRequest",
         "example": {
           "direction": "export",
           "seed_list": [
-            "b"
+            {
+              "hscodes": [
+                "3801300000",
+                "390110"
+              ],
+              "seed_id": "b",
+              "total_amount": 10000000.0,
+              "upche_cd": "184084"
+            }
           ],
-          "shock_rate": 1.0,
+          "shock_rate": 0.1,
           "triple_list": [
             {
               "from": "a",
@@ -903,6 +925,45 @@
             }
           ]
         }
+      },
+      "TariffSeedIn": {
+        "properties": {
+          "seed_id": {
+            "type": "string",
+            "title": "Seed Id",
+            "description": "기업 사업자등록번호(bizno) — triple_list 의 node_id 와 동일 체계"
+          },
+          "upche_cd": {
+            "type": "string",
+            "title": "Upche Cd",
+            "description": "업체코드 — rate(수출입 비중) 조회 키 (hscode 와 함께 사용)"
+          },
+          "total_amount": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Total Amount",
+            "description": "이 기업의 수출입 금액(원)"
+          },
+          "hscodes": {
+            "items": {
+              "type": "string",
+              "maxLength": 10,
+              "minLength": 4
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Hscodes",
+            "description": "품목코드 목록 (HS 4/6/10 digit) — 각 코드를 (upche_cd, hscode) 로 개별 조회해 rate 를 **단순 합산**(Σ). ※ 중복/계층(prefix) 이중계상 제거 정책은 발주처 회신 대기 — 포함관계 코드가 섞이면 과대계상될 수 있음."
+          }
+        },
+        "type": "object",
+        "required": [
+          "seed_id",
+          "upche_cd",
+          "total_amount",
+          "hscodes"
+        ],
+        "title": "TariffSeedIn"
       },
       "TripleIn": {
         "properties": {
@@ -981,18 +1042,11 @@
           },
           "seed_list": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/VolumeSeedIn"
             },
             "type": "array",
-            "title": "Seed List"
-          },
-          "node_overrides": {
-            "items": {
-              "$ref": "#/components/schemas/OverrideIn"
-            },
-            "type": "array",
-            "title": "Node Overrides",
-            "description": "[{p1, delta}] 노드별 거래량 변동율(0=무변화, 음수=감소)"
+            "title": "Seed List",
+            "description": "변동 대상 1차 기업 [{seed_id, total_amount, shock_rate}] — 기업별 변동 비율을 개별 입력"
           },
           "direction": {
             "type": "string",
@@ -1008,20 +1062,17 @@
         "type": "object",
         "required": [
           "triple_list",
-          "seed_list",
-          "node_overrides"
+          "seed_list"
         ],
         "title": "VolumeRequest",
         "example": {
           "direction": "export",
-          "node_overrides": [
-            {
-              "delta": -0.2,
-              "p1": "b"
-            }
-          ],
           "seed_list": [
-            "b"
+            {
+              "seed_id": "b",
+              "shock_rate": 0.2,
+              "total_amount": 1000000.0
+            }
           ],
           "triple_list": [
             {
@@ -1036,6 +1087,35 @@
             }
           ]
         }
+      },
+      "VolumeSeedIn": {
+        "properties": {
+          "seed_id": {
+            "type": "string",
+            "title": "Seed Id",
+            "description": "기업 사업자등록번호(bizno) — triple_list 의 node_id 와 동일 체계"
+          },
+          "total_amount": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Total Amount",
+            "description": "이 기업의 기준 총액(원) — 매출/매입 총액"
+          },
+          "shock_rate": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Shock Rate",
+            "description": "이 기업의 거래량 변동 비율 (0~1 강제, 0=무변화, 예: 0.2=20%). 주입액 = total_amount × shock_rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "seed_id",
+          "total_amount",
+          "shock_rate"
+        ],
+        "title": "VolumeSeedIn"
       }
     }
   }

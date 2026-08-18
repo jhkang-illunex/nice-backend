@@ -2,16 +2,22 @@
 
 입력 그래프를 클라이언트가 제공한다:
   triple_list : [{"from": p1, "to": p2, "rate": w}, ...]  거래쌍·거래비율(trade_rate).
-  seed_list   : [p1, p2, ...]  외생충격을 받는 1차 기업.
+  seed_list   : [{"node_id": p1, "shock_amount": v}, ...]  1차 기업과 노드별
+                주입 충격금액(**원 단위**, 음수=감소).
   directions  : [0|1] 목록. 0=downstream(셀러→바이어, 매출 파급),
                               1=upstream(바이어→셀러, 매입 파급).
                 triple_list 는 저장방향(from=셀러→to=바이어) 기준이고, direction=1 이면
                 전파 시 엣지를 뒤집어 바이어→셀러로 흐른다.
 
-시나리오
-  tariff : 시드에 shock_rate 외생 주입 → 전파.
-  volume : node_overrides 의 노드에 delta(0-기준 변동율) 주입 → 전파 → 결과=변동율
-           (δ=0 노드는 정확히 0=무변화). 조정액 = 기준액×(1+변동율). tariff 와 0-기준 통일.
+시나리오 — 두 시나리오는 shock_amount 의 **해석**만 다르고 계산은 동일하다.
+  tariff : 시드별 shock_amount(외생 충격금액, 원) 주입 → 전파 → 결과=파급 금액.
+  volume : 시드별 shock_amount(거래량 변동금액, 원, 0=무변화) 주입 → 전파 →
+           결과=변동금액. 조정액 = 기준액 + 변동금액. tariff 와 0-기준(0=무변화) 통일.
+
+시드 필터링: triple_list 의 노드 집합(from∪to)에 없는 시드는 전파에서 제외하고
+DirectionResult["excluded"] 로 보고한다 — init·depth·total_shock 어디에도 포함되지 않는다.
+(stateless API 라 시드/그래프를 클라이언트가 따로 조립하므로, node_id 불일치를 조용히
+결과에 남기는 대신 명시적으로 돌려준다.)
 
 pin_seeds(기본 False): 시드 incoming 엣지를 끊지 않고 순환 되먹임 포함(일반균형). 기본 동작이며
 임펄스(True, 시드 고정)는 사용하지 않음 — 결과는 항상 일반균형. (NICE 확정 2026-06-25)
@@ -39,6 +45,7 @@ class DirectionResult(TypedDict):
     direction: int
     result: ShockResult
     depths: dict[str, int]  # 노드별 depth (시드=1, 시드에서 홉당 +1)
+    excluded: list[str]     # triple_list 노드 집합에 없어 전파에서 제외된 시드
 
 
 def _norm_triples(triple_list: Sequence[Mapping]) -> list[tuple[str, str, float]]:
@@ -51,6 +58,18 @@ def _norm_triples(triple_list: Sequence[Mapping]) -> list[tuple[str, str, float]
         if f is None or to is None or r is None:
             raise ValueError(f"triple 형식 오류 (from/to/rate 필요): {dict(t)}")
         out.append((str(f), str(to), float(r)))
+    return out
+
+
+def _norm_seeds(seed_list: Sequence[Mapping]) -> dict[str, float]:
+    """[{node_id, shock_amount}] → {node_id: amount}. 중복 node_id 는 합산."""
+    out: dict[str, float] = {}
+    for s in seed_list:
+        nid = s.get("node_id")
+        amt = s.get("shock_amount")
+        if nid is None or amt is None:
+            raise ValueError(f"seed 형식 오류 (node_id/shock_amount 필요): {dict(s)}")
+        out[str(nid)] = out.get(str(nid), 0.0) + float(amt)
     return out
 
 
@@ -97,69 +116,80 @@ def _propagate_one(
     )
 
 
+def _run_seeded(
+    triple_list: Sequence[Mapping],
+    seed_list: Sequence[Mapping],
+    directions: Sequence[int],
+    *,
+    pin_seeds: bool,
+    method: Method,
+    cycle_damping: float,
+) -> list[DirectionResult]:
+    """공통 러너 — 시드별 shock_amount 주입 후 요청 방향별 전파.
+
+    triple_list 의 노드 집합(from∪to)에 없는 시드는 init·depth 에서 제외하고
+    excluded 로 보고한다. 노드 집합은 방향과 무관(뒤집기만 하므로)해서 한 번만 계산.
+    """
+    triples = _norm_triples(triple_list)
+    amounts = _norm_seeds(seed_list)
+    graph_nodes = {f for f, _, _ in triples} | {t for _, t, _ in triples}
+    excluded = sorted(nid for nid in amounts if nid not in graph_nodes)
+    init = {nid: v for nid, v in amounts.items() if nid in graph_nodes}
+    seeds = list(init)
+    seed_set = set(seeds)
+    out: list[DirectionResult] = []
+    for d in directions:
+        edges = _oriented_edges(triples, int(d))
+        res = _propagate_one(
+            edges, dict(init), seed_set,
+            pin_seeds=pin_seeds, method=method, cycle_damping=cycle_damping,
+        )
+        out.append(
+            DirectionResult(
+                direction=int(d), result=res,
+                depths=_bfs_depth(edges, seeds), excluded=list(excluded),
+            )
+        )
+    return out
+
+
 def run_tariff(
     triple_list: Sequence[Mapping],
-    seed_list: Sequence[str],
-    shock_rate: float,
+    seed_list: Sequence[Mapping],
     directions: Sequence[int],
     *,
     pin_seeds: bool = False,
     method: Method = "scc",
     cycle_damping: float = 0.95,
 ) -> list[DirectionResult]:
-    """관세 충격 — 시드에 shock_rate 외생 주입 후 요청 방향별 전파."""
-    triples = _norm_triples(triple_list)
-    seeds = [str(s) for s in seed_list]
-    seed_set = set(seeds)
-    init = {s: float(shock_rate) for s in seeds}
-    out: list[DirectionResult] = []
-    for d in directions:
-        edges = _oriented_edges(triples, int(d))
-        res = _propagate_one(
-            edges, init, seed_set, pin_seeds=pin_seeds, method=method, cycle_damping=cycle_damping
-        )
-        out.append(
-            DirectionResult(direction=int(d), result=res, depths=_bfs_depth(edges, seeds))
-        )
-    return out
+    """관세 충격 — 시드별 shock_amount(외생 충격금액, 원, 음수 가능) 주입 후 방향별 전파.
+
+    seed_list: [{"node_id": p1, "shock_amount": v}, ...]. 전역 shock_rate(비율) 는 폐기 —
+    충격금액을 시드마다 개별 지정한다. 결과 shock_list 도 금액(원).
+    """
+    return _run_seeded(
+        triple_list, seed_list, directions,
+        pin_seeds=pin_seeds, method=method, cycle_damping=cycle_damping,
+    )
 
 
 def run_volume(
     triple_list: Sequence[Mapping],
-    seed_list: Sequence[str],
-    edge_overrides: Sequence[Mapping],
+    seed_list: Sequence[Mapping],
     directions: Sequence[int],
     *,
     pin_seeds: bool = False,
     method: Method = "scc",
     cycle_damping: float = 0.95,
 ) -> list[DirectionResult]:
-    """거래량 변동 — node_overrides 의 delta(0-기준 변동율) 를 그 노드에 주입 → 전파.
+    """거래량 변동 — 시드별 shock_amount(변동금액, 원) 주입 → 전파 → 결과=변동금액.
 
-    node_overrides: [{"p1": node, "delta": d}, ...]. d = 변동율(0=무변화, +0.1=+10%, 음수=감소).
-                    tariff 의 shock_rate 와 동일한 0-기준 편차를 그 노드 init 에 그대로 주입.
-    결과 shock_list 의 각 값은 **변동율**(0=무변화). 조정액 = 기준액 × (1+변동율).
-    (입·출력 모두 0-기준 — tariff 와 통일. 과거 1-기준 factor(w1)·shock=1+δ 폐기.)
+    seed_list: [{"node_id": p1, "shock_amount": v}, ...]. v = 거래량 변동금액
+    (원, 0=무변화, 음수=감소). 결과 shock_list 의 각 값도 **변동금액**(0=무변화).
+    조정액 = 기준액 + 변동금액. (과거 node_overrides[{p1,delta}] 입력 폐기 —
+    tariff 와 동일하게 seed_list 로 통일. 계산은 tariff 와 동일, 해석만 다름.)
     """
-    triples = _norm_triples(triple_list)
-    seeds = [str(s) for s in seed_list]
-    seed_set = set(seeds)
-    # δ(변동율) 주입 노드 — 0-기준 그대로
-    delta: dict[str, float] = {}
-    for ov in edge_overrides:
-        node = ov.get("p1") or ov.get("node") or ov.get("bizno")
-        dv = ov.get("delta", ov.get("d"))
-        if node is None or dv is None:
-            raise ValueError(f"node_override 형식 오류 (p1/delta 필요): {dict(ov)}")
-        delta[str(node)] = delta.get(str(node), 0.0) + float(dv)
-    out: list[DirectionResult] = []
-    for d in directions:
-        edges = _oriented_edges(triples, int(d))
-        res = _propagate_one(
-            edges, dict(delta), seed_set, pin_seeds=pin_seeds, method=method, cycle_damping=cycle_damping
-        )
-        # 출력 = 전파된 변동율 그대로 (0-기준, δ=0 노드 = 0=무변화)
-        out.append(
-            DirectionResult(direction=int(d), result=res, depths=_bfs_depth(edges, seeds))
-        )
-    return out
+    return _run_seeded(
+        triple_list, seed_list, directions,
+        pin_seeds=pin_seeds, method=method, cycle_damping=cycle_damping,
+    )

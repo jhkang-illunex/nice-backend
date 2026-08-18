@@ -1,22 +1,33 @@
 """nice_shock API 서버 — 순수 쇼크 전파 (DB·LLM 의존 없음).
 
 엔드포인트
-  POST /api/shock/tariff  : 관세(외생) 충격
-  POST /api/shock/volume  : 거래량 변동
+  POST /api/shock/tariff  : 관세(외생) 충격 — 시드별 주입액
+                            = total_amount(수출입 금액, 인자) × Σrate(hscodes 각각을
+                            (upche_cd, hscode) 로 backend API 조회해 합산, 각 0~1) ×
+                            shock_rate(영향 받는 비중, 인자 0~1)
+                            ※ hscode 중복/계층 이중계상 정책은 발주처 회신 대기 — 현재는
+                            입력 전량 단순 합산.
+  POST /api/shock/volume  : 거래량 변동 — 시드별 주입액 = total_amount × shock_rate
+                            (shock_rate 는 기업별 인자, 0~1 강제)
   GET  /health
 
 입력 그래프(triple_list)를 클라이언트가 제공하므로 stateless — 수평 확장 자유.
+(tariff 만 backend rate API 에 의존 — 계약은 nice_shock.rate_client 참고.)
 """
 from __future__ import annotations
 
-from typing import Literal
+import logging
+from typing import Annotated, Literal
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from nice_shock.cri import compute_cri
 from nice_shock.engine import propagate_dispatch
+from nice_shock.rate_client import RateApiUnavailable, RateLookupFailed, fetch_rate
 from nice_shock.scenario import run_tariff, run_volume
+
+log = logging.getLogger(__name__)
 
 app = FastAPI(
     title="NICE shock-propagate",
@@ -32,22 +43,33 @@ _EX_EDGES = [
     {"from": "b", "to": "c", "rate": 0.607},
 ]
 _EX_TARIFF_REQ = {
-    "triple_list": _EX_EDGES, "seed_list": ["b"], "shock_rate": 1.0, "direction": "export",
+    "triple_list": _EX_EDGES,
+    "shock_rate": 0.1,
+    "seed_list": [
+        {
+            "seed_id": "b", "upche_cd": "184084", "total_amount": 10000000.0,
+            "hscodes": ["3801300000", "390110"],
+        }
+    ],
+    "direction": "export",
 }
 _EX_VOLUME_REQ = {
     "triple_list": [{"from": "a", "to": "b", "rate": 0.115}, {"from": "b", "to": "c", "rate": 0.607}],
-    "seed_list": ["b"], "node_overrides": [{"p1": "b", "delta": -0.2}], "direction": "export",
+    "seed_list": [{"seed_id": "b", "total_amount": 1000000.0, "shock_rate": 0.2}],
+    "direction": "export",
 }
 _EX_PROPAGATE_REQ = {"triple_list": [{"from": "a", "to": "b", "rate": 0.5}], "init": {"a": 1.0}}
 # tariff·volume 응답 (외부) — 간소화: direction(import|export)·total_shock·data_list 만.
-# (pin_seeds=False 기준: 시드 b 의 자기순환 되먹임 포함 전파 → b 가 1.0 이상으로 증폭.)
+# (pin_seeds=False 기준: 시드 b 주입 100만원 = total_amount 1천만 × Σrate 1.0(조회 가정) ×
+#  shock_rate 0.1 — 자기순환 되먹임 포함 전파로 b 가 주입액 이상으로 증폭.)
 _EX_DATA_RESP = {
-    "direction": "export", "total_shock": 3.79281,
+    "direction": "export", "total_shock": 3792808.45,
     "data_list": [
-        {"node_id": "b", "shock": 2.27523, "depth": 1},
-        {"node_id": "c", "shock": 1.38106, "depth": 2},
-        {"node_id": "a", "shock": 0.13651, "depth": 2},
+        {"node_id": "b", "shock": 2275230.03, "depth": 1},
+        {"node_id": "c", "shock": 1381064.63, "depth": 2},
+        {"node_id": "a", "shock": 136513.80, "depth": 2},
     ],
+    "excluded_seeds": [],
 }
 # /propagate 응답 (내부 저수준) — 진단값 포함 유지.
 _EX_DIRECTION_OUT = {
@@ -108,17 +130,33 @@ class NodeOut(BaseModel):
     depth: int | None = Field(None, description="시드=1, 시드에서 홉당 +1 (도달 못하면 null)")
 
 
+class ExcludedSeedOut(BaseModel):
+    node_id: str = Field(..., description="제외된 시드 seed_id(사업자번호)")
+    reason: str = Field(..., description="제외 사유 — 그래프(from∪to) 미포함 / rate 조회 실패 등")
+
+
+_GRAPH_MISS_REASON = "triple_list 노드 집합(from∪to)에 없음"
+
+
 class DataResponse(BaseModel):
     direction: Direction = Field(..., description="import=매입 / export=매출 (입력 echo)")
     total_shock: float
     data_list: list[NodeOut]
+    excluded_seeds: list[ExcludedSeedOut] = Field(
+        default_factory=list,
+        description="전파에서 제외된 시드와 사유 (init·depth·total_shock 미포함). "
+        "비어 있지 않으면 시드/그래프 조립 불일치 신호.",
+    )
 
     model_config = {"json_schema_extra": {"example": _EX_DATA_RESP}}
 
 
-def _to_data_response(dr) -> DataResponse:
+def _to_data_response(dr, pre_excluded: list[dict] | None = None) -> DataResponse:
     r = dr["result"]
     depths = dr.get("depths", {})
+    excluded = list(pre_excluded or []) + [
+        {"node_id": nid, "reason": _GRAPH_MISS_REASON} for nid in dr.get("excluded", [])
+    ]
     return DataResponse(
         direction=_INT_TO_DIR[dr["direction"]],
         total_shock=r.total_shock,
@@ -126,6 +164,7 @@ def _to_data_response(dr) -> DataResponse:
             NodeOut(node_id=row["bizno"], shock=row["shock"], depth=depths.get(row["bizno"]))
             for row in r.shock_list
         ],
+        excluded_seeds=[ExcludedSeedOut(**e) for e in excluded],
     )
 
 
@@ -139,44 +178,113 @@ _DEFAULT_METHOD = "scc"
 _DEFAULT_CYCLE_DAMPING = 0.95
 
 
+class TariffSeedIn(BaseModel):
+    seed_id: str = Field(
+        ..., description="기업 사업자등록번호(bizno) — triple_list 의 node_id 와 동일 체계"
+    )
+    upche_cd: str = Field(
+        ..., description="업체코드 — rate(수출입 비중) 조회 키 (hscode 와 함께 사용)"
+    )
+    total_amount: float = Field(
+        ..., ge=0.0, description="이 기업의 수출입 금액(원)"
+    )
+    hscodes: list[Annotated[str, Field(min_length=4, max_length=10)]] = Field(
+        ...,
+        min_length=1,
+        description="품목코드 목록 (HS 4/6/10 digit) — 각 코드를 (upche_cd, hscode) 로 개별 "
+        "조회해 rate 를 **단순 합산**(Σ). ※ 중복/계층(prefix) 이중계상 제거 정책은 발주처 "
+        "회신 대기 — 포함관계 코드가 섞이면 과대계상될 수 있음.",
+    )
+
+
 class TariffRequest(BaseModel):
     triple_list: list[TripleIn] = Field(..., description="거래쌍·거래비율 엣지 목록")
-    seed_list: list[str] = Field(..., description="외생충격 받는 1차 기업 node_id")
-    shock_rate: float = Field(..., description="시드 주입 충격량 (음수 가능)")
+    shock_rate: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="영향 받는 비중 (전 시드 공통, 0~1 강제). 시드별 주입액 = "
+        "total_amount × Σrate(backend 조회, 각 0~1) × shock_rate",
+    )
+    seed_list: list[TariffSeedIn] = Field(
+        ...,
+        description="외생충격 받는 1차 기업 [{seed_id, upche_cd, total_amount, hscodes}] — "
+        "rate 는 hscodes 각각을 (upche_cd, hscode) 로 backend API(RATE_API_URL) 조회",
+    )
     direction: Direction = Field("import", description="import=매입(기본) / export=매출")
 
     model_config = {"json_schema_extra": {"example": _EX_TARIFF_REQ}}
 
 
-@app.post("/api/shock/tariff", response_model=DataResponse, summary="관세(외생) 충격")
+@app.post(
+    "/api/shock/tariff",
+    response_model=DataResponse,
+    summary="관세(외생) 충격",
+    responses={503: {"description": "backend rate API 미설정 또는 도달 불가 (RATE_API_URL)"}},
+)
 def tariff(req: TariffRequest) -> DataResponse:
+    seeds: list[dict] = []
+    pre_excluded: list[dict] = []
+    for s in req.seed_list:
+        # hscodes 전량을 (upche_cd, hscode) 로 개별 조회해 단순 합산 — 이중계상
+        # (중복/prefix) 제거 정책은 발주처 회신 대기. 조회 실패 코드는 합산에서 빠지고
+        # (거래 없음 404 = 그 품목 노출 0 과 동치), 전 코드 실패 시에만 시드 excluded.
+        rate_sum = 0.0
+        n_ok = 0
+        errors: list[str] = []
+        for h in s.hscodes:
+            try:
+                rate_sum += fetch_rate(s.upche_cd, h)
+                n_ok += 1
+            except RateLookupFailed as exc:
+                errors.append(str(exc))
+            except RateApiUnavailable as exc:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
+        if n_ok == 0:
+            pre_excluded.append(
+                {"node_id": s.seed_id, "reason": "rate 전 코드 조회 실패: " + "; ".join(errors)}
+            )
+            continue
+        if errors:
+            log.warning("tariff seed %s: %d/%d hscode 조회 실패 — 부분 합산: %s",
+                        s.seed_id, len(errors), len(s.hscodes), "; ".join(errors))
+        seeds.append(
+            {"node_id": s.seed_id, "shock_amount": s.total_amount * rate_sum * req.shock_rate}
+        )
     results = run_tariff(
         [t.model_dump(by_alias=True) for t in req.triple_list],
-        req.seed_list,
-        req.shock_rate,
+        seeds,
         [_DIR_TO_INT[req.direction]],
         pin_seeds=_DEFAULT_PIN_SEEDS,
         method=_DEFAULT_METHOD,
         cycle_damping=_DEFAULT_CYCLE_DAMPING,
     )
-    return _to_data_response(results[0])
+    return _to_data_response(results[0], pre_excluded)
 
 
 # ── 거래량 변동 ────────────────────────────────────────────────────────────
-class OverrideIn(BaseModel):
-    p1: str = Field(..., description="변동 대상 기업 node_id")
-    delta: float = Field(
+class VolumeSeedIn(BaseModel):
+    seed_id: str = Field(
+        ..., description="기업 사업자등록번호(bizno) — triple_list 의 node_id 와 동일 체계"
+    )
+    total_amount: float = Field(
+        ..., ge=0.0, description="이 기업의 기준 총액(원) — 매출/매입 총액"
+    )
+    shock_rate: float = Field(
         ...,
-        description="거래량 변동율 (0=무변화, +0.1=+10%, −0.2=−20%). "
-        "tariff 의 shock_rate 와 동일한 0-기준 편차.",
+        ge=0.0,
+        le=1.0,
+        description="이 기업의 거래량 변동 비율 (0~1 강제, 0=무변화, 예: 0.2=20%). "
+        "주입액 = total_amount × shock_rate",
     )
 
 
 class VolumeRequest(BaseModel):
     triple_list: list[TripleIn]
-    seed_list: list[str]
-    node_overrides: list[OverrideIn] = Field(
-        ..., description="[{p1, delta}] 노드별 거래량 변동율(0=무변화, 음수=감소)"
+    seed_list: list[VolumeSeedIn] = Field(
+        ...,
+        description="변동 대상 1차 기업 [{seed_id, total_amount, shock_rate}] — "
+        "기업별 변동 비율을 개별 입력",
     )
     direction: Direction = Field("import", description="import=매입(기본) / export=매출")
 
@@ -186,10 +294,13 @@ class VolumeRequest(BaseModel):
 @app.post("/api/shock/volume", response_model=DataResponse, summary="거래량 변동")
 def volume(req: VolumeRequest) -> DataResponse:
     # pin_seeds/method/cycle_damping 은 내부 고정 (tariff 와 동일 정책).
+    seeds = [
+        {"node_id": s.seed_id, "shock_amount": s.total_amount * s.shock_rate}
+        for s in req.seed_list
+    ]
     results = run_volume(
         [t.model_dump(by_alias=True) for t in req.triple_list],
-        req.seed_list,
-        [o.model_dump() for o in req.node_overrides],
+        seeds,
         [_DIR_TO_INT[req.direction]],
         pin_seeds=_DEFAULT_PIN_SEEDS,
         method=_DEFAULT_METHOD,
