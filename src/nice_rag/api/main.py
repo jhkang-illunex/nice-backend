@@ -9,13 +9,15 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from nice_rag import __version__
-from nice_rag.api.routers import health, hsk
+from nice_rag.api.routers import health, hsk, ksic
 
 _DESCRIPTION = """
-**NICE PoC rag-server** — 관세청 HSCode 검색 + 자연어 질의 에이전트.
+**NICE PoC rag-server** — 관세청 HSCode / KSIC 산업분류 검색 + 자연어 질의 에이전트.
 
-* **/api/hsk/search** — 키워드/의미 hybrid 검색 (임베딩 + trigram + tsvector RRF)
-* **/api/hsk/agent**  — 자연어 질의 → 검색 → LLM 한국어 답변
+* **/api/hsk/search**  — HSCode 키워드/의미 hybrid 검색 (임베딩 + trigram + tsvector RRF)
+* **/api/hsk/agent**   — 자연어 질의 → 검색 → LLM 한국어 답변
+* **/api/ksic/search** — 한국표준산업분류(11차) 대·중분류 hybrid 검색
+* **/api/ksic/agent**  — 자연어 질의 → 산업분류 후보 → LLM 한국어 답변
 
 ### 백엔드 추상화
 LLM / 임베딩 백엔드는 OpenAI-호환 base_url 만 바라봅니다. 자체 호스팅
@@ -23,8 +25,9 @@ LLM / 임베딩 백엔드는 OpenAI-호환 base_url 만 바라봅니다. 자체 
 `.env` 의 `LLM_BASE_URL` / `EMBED_BASE_URL` 1줄 변경.
 
 ### 데이터
-PostgreSQL `rag.hsk` 테이블에 12,469 row + 1024-d 임베딩(BAAI/bge-m3)
-적재. NICE 운영 인스턴스의 기존 31 public 테이블과 schema 격리.
+PostgreSQL `rag.hsk` 테이블에 12,469 row, `rag.ksic` 테이블에 KSIC 제11차
+대·중분류 98 row + 1024-d 임베딩(BAAI/bge-m3) 적재. NICE 운영 인스턴스의
+기존 31 public 테이블과 schema 격리.
 
 ### 명세서
 [`docs/RAG_API.md`](https://github.com/jhkang-illunex/nice-backend/blob/main/docs/RAG_API.md)
@@ -49,7 +52,12 @@ app = FastAPI(
             "name": "hsk",
             "description": "관세청 HSCode 검색 + 자연어 에이전트 (RRF hybrid + LLM).",
         },
+        {
+            "name": "ksic",
+            "description": "한국표준산업분류(11차) 대·중분류 검색 + 자연어 에이전트.",
+        },
     ],
 )
 app.include_router(health.router)
 app.include_router(hsk.router)
+app.include_router(ksic.router)

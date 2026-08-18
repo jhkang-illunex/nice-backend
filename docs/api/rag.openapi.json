@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "NICE rag-server",
-    "description": "\n**NICE PoC rag-server** — 관세청 HSCode 검색 + 자연어 질의 에이전트.\n\n* **/api/hsk/search** — 키워드/의미 hybrid 검색 (임베딩 + trigram + tsvector RRF)\n* **/api/hsk/agent**  — 자연어 질의 → 검색 → LLM 한국어 답변\n\n### 백엔드 추상화\nLLM / 임베딩 백엔드는 OpenAI-호환 base_url 만 바라봅니다. 자체 호스팅\n(ollama / vLLM / TEI) ↔ 외부 API (OpenAI / Anthropic proxy) 전환은\n`.env` 의 `LLM_BASE_URL` / `EMBED_BASE_URL` 1줄 변경.\n\n### 데이터\nPostgreSQL `rag.hsk` 테이블에 12,469 row + 1024-d 임베딩(BAAI/bge-m3)\n적재. NICE 운영 인스턴스의 기존 31 public 테이블과 schema 격리.\n\n### 명세서\n[`docs/RAG_API.md`](https://github.com/jhkang-illunex/nice-backend/blob/main/docs/RAG_API.md)\n",
+    "description": "\n**NICE PoC rag-server** — 관세청 HSCode / KSIC 산업분류 검색 + 자연어 질의 에이전트.\n\n* **/api/hsk/search**  — HSCode 키워드/의미 hybrid 검색 (임베딩 + trigram + tsvector RRF)\n* **/api/hsk/agent**   — 자연어 질의 → 검색 → LLM 한국어 답변\n* **/api/ksic/search** — 한국표준산업분류(11차) 대·중분류 hybrid 검색\n* **/api/ksic/agent**  — 자연어 질의 → 산업분류 후보 → LLM 한국어 답변\n\n### 백엔드 추상화\nLLM / 임베딩 백엔드는 OpenAI-호환 base_url 만 바라봅니다. 자체 호스팅\n(ollama / vLLM / TEI) ↔ 외부 API (OpenAI / Anthropic proxy) 전환은\n`.env` 의 `LLM_BASE_URL` / `EMBED_BASE_URL` 1줄 변경.\n\n### 데이터\nPostgreSQL `rag.hsk` 테이블에 12,469 row, `rag.ksic` 테이블에 KSIC 제11차\n대·중분류 98 row + 1024-d 임베딩(BAAI/bge-m3) 적재. NICE 운영 인스턴스의\n기존 31 public 테이블과 schema 격리.\n\n### 명세서\n[`docs/RAG_API.md`](https://github.com/jhkang-illunex/nice-backend/blob/main/docs/RAG_API.md)\n",
     "contact": {
       "name": "NICE PoC team (illunex)",
       "email": "jhkang@illunex.com"
@@ -273,6 +273,198 @@
           }
         }
       }
+    },
+    "/api/ksic/search": {
+      "get": {
+        "tags": [
+          "ksic"
+        ],
+        "summary": "KSIC 11차 대·중분류 키워드/의미 검색 (RRF hybrid)",
+        "description": "업종 키워드를 받아 임베딩 + trigram + tsvector 3 시그널의 Reciprocal Rank Fusion 으로 결합 검색. 결과는 제11차 대분류(A~U)·중분류(2자리)까지 — 소분류 이하 항목명은 검색 텍스트에 흡수돼 리콜에만 기여한다. 정확 매칭 시 score ≈ 0.0492 (이론적 최대).",
+        "operationId": "search_api_ksic_search_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "검색 키워드 (업종명/업태 자유 표현).",
+              "examples": [
+                "반도체 제조"
+              ],
+              "title": "Q"
+            },
+            "description": "검색 키워드 (업종명/업태 자유 표현)."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "description": "반환할 후보 개수. 운영 권장 5~10.",
+              "default": 10,
+              "title": "Limit"
+            },
+            "description": "반환할 후보 개수. 운영 권장 5~10."
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 2,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계층 제한 — 1=대분류만, 2=중분류만. 생략 시 둘 다.",
+              "title": "Level"
+            },
+            "description": "계층 제한 — 1=대분류만, 2=중분류만. 생략 시 둘 다."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KsicHit"
+                  },
+                  "title": "Response Search Api Ksic Search Get"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "임베딩 백엔드 또는 PostgreSQL 도달 불가.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "요청 파라미터 검증 실패 (q 길이 등).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ksic/agent": {
+      "get": {
+        "tags": [
+          "ksic"
+        ],
+        "summary": "자연어 질의 → 검색 → LLM 한국어 답변 (KSIC 11차)",
+        "description": "자연어 질문을 받아 hybrid 검색으로 대·중분류 후보 k 건을 추리고, LLM 이 후보 내에서만 인용해 한국어로 답변. citations 가 항상 ground truth — LLM 답변이 부실해도 citations[0] 이 정답일 확률 높음.",
+        "operationId": "agent_api_ksic_agent_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "description": "자연어 질의 (한국어 권장).",
+              "examples": [
+                "반도체 만드는 회사는 어떤 산업분류에 속하나요?"
+              ],
+              "title": "Q"
+            },
+            "description": "자연어 질의 (한국어 권장)."
+          },
+          {
+            "name": "k",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 20,
+              "minimum": 1,
+              "description": "LLM 에 컨텍스트로 제공할 검색 후보 수. 4~8 권장.",
+              "default": 5,
+              "title": "K"
+            },
+            "description": "LLM 에 컨텍스트로 제공할 검색 후보 수. 4~8 권장."
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 2,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "계층 제한 — 1=대분류만, 2=중분류만. 생략 시 둘 다.",
+              "title": "Level"
+            },
+            "description": "계층 제한 — 1=대분류만, 2=중분류만. 생략 시 둘 다."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KsicAnswer"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "임베딩/LLM 백엔드 또는 PostgreSQL 도달 불가.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "요청 파라미터 검증 실패.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -429,6 +621,107 @@
         "title": "HskHit",
         "description": "검색 후보 1건."
       },
+      "KsicAnswer": {
+        "properties": {
+          "answer": {
+            "type": "string",
+            "title": "Answer",
+            "description": "LLM 이 생성한 한국어 답변. 후보가 없을 때는 '해당 질의에 매칭되는 산업분류 후보를 찾지 못했습니다.' 고정 메시지.",
+            "examples": [
+              "반도체 제조는 중분류 26 (전자 부품, 컴퓨터, 영상, 음향 및 통신장비 제조업) 에 속합니다."
+            ]
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/KsicHit"
+            },
+            "type": "array",
+            "title": "Citations",
+            "description": "LLM 컨텍스트로 제공된 RRF 검색 결과 (k 개). 환각 검증용 ground truth."
+          }
+        },
+        "type": "object",
+        "required": [
+          "answer"
+        ],
+        "title": "KsicAnswer",
+        "description": "자연어 답변 + 근거 인용."
+      },
+      "KsicHit": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "description": "KSIC 코드 — 대분류는 영문 1자(A~U), 중분류는 2자리 숫자.",
+            "examples": [
+              "26"
+            ]
+          },
+          "level": {
+            "type": "integer",
+            "title": "Level",
+            "description": "계층 — 1=대분류, 2=중분류.",
+            "examples": [
+              2
+            ]
+          },
+          "parent_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Code",
+            "description": "중분류의 소속 대분류 코드. 대분류 row 는 null.",
+            "examples": [
+              "C"
+            ]
+          },
+          "name_ko": {
+            "type": "string",
+            "title": "Name Ko",
+            "description": "분류 항목명 (제11차 고시 기준).",
+            "examples": [
+              "전자 부품, 컴퓨터, 영상, 음향 및 통신장비 제조업"
+            ]
+          },
+          "division_range": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Division Range",
+            "description": "대분류만: 포괄하는 중분류 코드 범위 (예: '10~34'). 중분류는 null.",
+            "examples": [
+              null
+            ]
+          },
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "description": "RRF 결합 점수. 3 시그널(임베딩/trigram/tsvector) 모두 rank=1 일 때 이론적 최대 ≈ 0.0492 (= 3/(60+1)).",
+            "examples": [
+              0.0492
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "level",
+          "name_ko",
+          "score"
+        ],
+        "title": "KsicHit",
+        "description": "검색 후보 1건."
+      },
       "LivenessResponse": {
         "properties": {
           "status": {
@@ -457,6 +750,10 @@
     {
       "name": "hsk",
       "description": "관세청 HSCode 검색 + 자연어 에이전트 (RRF hybrid + LLM)."
+    },
+    {
+      "name": "ksic",
+      "description": "한국표준산업분류(11차) 대·중분류 검색 + 자연어 에이전트."
     }
   ]
 }

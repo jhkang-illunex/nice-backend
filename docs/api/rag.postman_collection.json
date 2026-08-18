@@ -124,6 +124,80 @@
         }
       },
       "response": []
+    },
+    {
+      "name": "KSIC 11차 대·중분류 검색 (RRF hybrid)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/ksic/search?q=%EB%B0%98%EB%8F%84%EC%B2%B4%20%EC%A0%9C%EC%A1%B0&limit=10",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "ksic",
+            "search"
+          ],
+          "query": [
+            {
+              "key": "q",
+              "value": "반도체 제조",
+              "description": "검색 키워드 (업종명/업태 자유 표현)."
+            },
+            {
+              "key": "limit",
+              "value": "10",
+              "description": "반환할 후보 개수. 운영 권장 5~10."
+            },
+            {
+              "key": "level",
+              "value": "",
+              "disabled": true,
+              "description": "계층 제한 — 1=대분류만, 2=중분류만. 생략 시 둘 다."
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "자연어 질의 → 산업분류 후보 → LLM 답변 (KSIC)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/ksic/agent?q=%EB%B0%98%EB%8F%84%EC%B2%B4%20%EB%A7%8C%EB%93%9C%EB%8A%94%20%ED%9A%8C%EC%82%AC%EB%8A%94%20%EC%96%B4%EB%96%A4%20%EC%82%B0%EC%97%85%EB%B6%84%EB%A5%98%EC%97%90%20%EC%86%8D%ED%95%98%EB%82%98%EC%9A%94%3F&k=5",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "ksic",
+            "agent"
+          ],
+          "query": [
+            {
+              "key": "q",
+              "value": "반도체 만드는 회사는 어떤 산업분류에 속하나요?",
+              "description": "자연어 질의 (한국어 권장)."
+            },
+            {
+              "key": "k",
+              "value": "5",
+              "description": "LLM 에 컨텍스트로 제공할 검색 후보 수. 4~8 권장."
+            },
+            {
+              "key": "level",
+              "value": "",
+              "disabled": true,
+              "description": "계층 제한 — 1=대분류만, 2=중분류만. 생략 시 둘 다."
+            }
+          ]
+        }
+      },
+      "response": []
     }
   ],
   "variable": [

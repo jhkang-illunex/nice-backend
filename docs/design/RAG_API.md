@@ -33,8 +33,10 @@ Content-Type: application/json; charset=utf-8
 |---|---|---|---|
 | `GET` | `/health` | 라이브니스 | (없음) |
 | `GET` | `/health/deep` | 의존성 3종 도달성 | postgres + llm + embed |
-| `GET` | `/api/hsk/search` | 키워드/의미 검색 (RRF hybrid) | postgres + embed |
+| `GET` | `/api/hsk/search` | HSCode 키워드/의미 검색 (RRF hybrid) | postgres + embed |
 | `GET` | `/api/hsk/agent` | 자연어 질의 → LLM 답변 + 인용 | postgres + embed + llm |
+| `GET` | `/api/ksic/search` | KSIC 11차 대·중분류 검색 (RRF hybrid) | postgres + embed |
+| `GET` | `/api/ksic/agent` | 자연어 질의 → 산업분류 후보 → LLM 답변 | postgres + embed + llm |
 
 ---
 
@@ -233,6 +235,112 @@ curl -G "http://localhost:18002/api/hsk/agent" \
 
 ---
 
+## `GET /api/ksic/search` — KSIC 11차 대·중분류 hybrid 검색
+
+한국표준산업분류(제11차, 2024-07-01 시행) **대분류(A~U, 21개)·중분류(2자리,
+77개)** 를 hsk 와 동일한 3 시그널 RRF 로 검색한다. 데이터는 `rag.ksic`
+98 row — 소분류(3자리) 이하는 row 로 노출하지 않되, 항목명(소·세·세세분류)이
+검색 텍스트(`children_text`)에 흡수돼 리콜을 담당한다. 예: '반도체' 는
+중분류 26 항목명에 없지만 소분류 261 '반도체 제조업' 경유로 26 이 검색된다.
+
+hsk 라우터의 품목 추출·동의어 확장·CRAG 는 HS 품목 도메인 특화 튜닝이라
+ksic 에는 적용하지 않는다.
+
+### Request
+
+| 파라미터 | 타입 | 필수 | 제약 | 의미 |
+|---|---|---|---|---|
+| `q` | string | ✓ | `1 ≤ len ≤ 200` | 업종 키워드 (자유 표현) |
+| `limit` | integer | | `1 ≤ n ≤ 50`, default 10 | 반환 후보 수 |
+| `level` | integer | | `1` 또는 `2` | 1=대분류만, 2=중분류만. 생략 시 둘 다 |
+
+### Response 200
+
+```json
+[
+  {
+    "code": "56",
+    "level": 2,
+    "parent_code": "I",
+    "name_ko": "음식점 및 주점업",
+    "division_range": null,
+    "score": 0.0492
+  },
+  {
+    "code": "I",
+    "level": 1,
+    "parent_code": null,
+    "name_ko": "숙박 및 음식점업",
+    "division_range": "55~56",
+    "score": 0.0484
+  }
+]
+```
+
+응답 필드:
+
+| 필드 | 타입 | 의미 |
+|---|---|---|
+| `code` | string | KSIC 코드 — 대분류 영문 1자(A~U) / 중분류 2자리 숫자 |
+| `level` | integer | 1=대분류, 2=중분류 |
+| `parent_code` | string\|null | 중분류의 소속 대분류. 대분류 row 는 null |
+| `name_ko` | string | 분류 항목명 (제11차 고시 기준) |
+| `division_range` | string\|null | 대분류만: 포괄 중분류 범위 (예: `"10~34"`) |
+| `score` | float | RRF 결합 점수. **0.0492 ≈ 정확 매칭 신호** (hsk 와 동일 스케일) |
+
+### Response 422 / 503
+
+`/api/hsk/search` 와 동일 (503 detail 은 `ksic search failed — ...`).
+
+### curl
+
+```bash
+curl -G "http://localhost:18002/api/ksic/search" \
+     --data-urlencode "q=반도체 제조" \
+     --data-urlencode "limit=5"
+```
+
+---
+
+## `GET /api/ksic/agent` — 자연어 질의 + LLM 답변 (KSIC)
+
+자연어 질의 → ksic hybrid 검색 (`k` 건) → LLM 이 후보 내에서만 인용해
+한국어 답변. `citations` 가 항상 ground truth.
+
+### Request
+
+| 파라미터 | 타입 | 필수 | 제약 | 의미 |
+|---|---|---|---|---|
+| `q` | string | ✓ | `1 ≤ len ≤ 500` | 자연어 질의 (한국어 권장) |
+| `k` | integer | | `1 ≤ n ≤ 20`, default 5 | LLM 컨텍스트 후보 수 |
+| `level` | integer | | `1` 또는 `2` | 계층 제한. 생략 시 둘 다 |
+
+### Response 200
+
+```json
+{
+  "answer": "26 (중분류) — 전자 부품, 컴퓨터, 영상, 음향 및 통신장비 제조업",
+  "citations": [
+    { "code": "26", "level": 2, "parent_code": "C",
+      "name_ko": "전자 부품, 컴퓨터, 영상, 음향 및 통신장비 제조업",
+      "division_range": null, "score": 0.0444 }
+  ]
+}
+```
+
+후보가 없으면 고정 메시지 `"해당 질의에 매칭되는 산업분류 후보를 찾지
+못했습니다."` + 빈 `citations`.
+
+### curl
+
+```bash
+curl -G "http://localhost:18002/api/ksic/agent" \
+     --data-urlencode "q=반도체 만드는 회사는 어떤 산업분류에 속하나요?" \
+     --data-urlencode "k=5"
+```
+
+---
+
 ## Status Code 매트릭스 — 디버깅 가이드
 
 | 코드 | 의미 | 우선 점검 |
@@ -242,6 +350,7 @@ curl -G "http://localhost:18002/api/hsk/agent" \
 | `503` + `embed backend unreachable` | TEI / vLLM / OpenAI 임베딩 도달 실패 | `EMBED_BASE_URL`, embed 컨테이너 |
 | `503` + `llm backend unreachable` | ollama / vLLM / OpenAI LLM 도달 실패 | `LLM_BASE_URL`, llm 컨테이너 |
 | `503` + `hsk search failed ...` | PG 도달 또는 마이그레이션 누락 | `POSTGRES_*`, `alembic upgrade head` |
+| `503` + `ksic search failed ...` | PG 도달 또는 `rag.ksic` 마이그레이션 누락 | `POSTGRES_*`, `alembic upgrade head` |
 
 `/health/deep` 로 어느 의존성인지 즉시 분간 가능.
 
@@ -256,6 +365,7 @@ curl -G "http://localhost:18002/api/hsk/agent" \
 | `/api/hsk/agent` p50 | 1~3 s | LLM 응답 latency 지배 (모델 크기에 따라) |
 | 임베딩 dim | 1024 | BAAI/bge-m3 |
 | 적재 row 수 | 12,469 | `rag.hsk` (관세청 HS 부호 2026-01-01 기준) |
+| 적재 row 수 (KSIC) | 98 | `rag.ksic` 대분류 21 + 중분류 77 (제11차, 2024-07-01 시행) |
 | 정확 매칭 score | ≈ 0.0492 | 3 시그널 모두 rank=1 결과 |
 
 ## 클라이언트 SDK 예시 (Python)
@@ -298,3 +408,4 @@ ans = client.agent("경주마를 수입할 때 HS 코드는?")
 | Date (UTC) | Version | 변경 |
 |---|---|---|
 | 2026-06-05 | 0.1.0 | 초안 — `/health`, `/health/deep`, `/api/hsk/{search,agent}` |
+| 2026-08-18 | 0.2.0 | `/api/ksic/{search,agent}` 추가 — KSIC 제11차 대·중분류 hybrid 검색 |
