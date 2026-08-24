@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "nice-shock-propagate-0001",
     "name": "NICE shock-propagate 1.0.0",
-    "description": "triple_list 입력 순수 쇼크 전파 — 관세충격 / 거래량변동.",
+    "description": "NICE shock-propagate API — triple_list 입력 순수 쇼크 전파 (DB·LLM 의존 없음, stateless).\n\n- 구현: src/nice_shock/api/main.py / 산출 근거: docs/충격금액_산출_로직_v2.pdf\n- tariff 만 backend `POST /trade/weight`(RATE_API_URL) 에 의존 — 계약: src/nice_shock/rate_client.py,\n  실스펙 근거: docs/20260820_[NICE] 관계망.postman_collection.json \"거래비중\".\n- baseUrl 기본 18004 = 에어갭 배포 표준(.env.deploy.example SHOCK_API_PORT). 로컬 compose 기본은 8004.\n- 예시 응답은 rate-mock(개발용 목업 backend) 연동 실측값 — 실 backend 연결 시 rate 값에 따라 금액이 달라진다.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -27,9 +27,10 @@
             "tariff"
           ]
         },
+        "description": "수출입(외생) 관세 충격 전파 — \"1차 기업 충격 금액 산출 로직 v2\" 기준.\n\n시드별 주입액 = total_amount(손익계산서 ab01·ac01 매출액) × Σrate × shock_rate\n- Σrate: 전 시드의 (upche_cd × hscodes) 를 backend `POST {RATE_API_URL}`(/trade/weight) 로\n  **일괄 조회**해 얻은 HS10 품목별 수출입 비중(각 0~1)의 합.\n- direction 이 전파 방향과 rate 조회 방향(tseximdivcd — export=0, import=3)에 공통 적용.\n\n요청 필드\n| 필드 | 설명 |\n| --- | --- |\n| triple_list | 거래 엣지 [{from: 셀러 bizno, to: 바이어 bizno, rate: 거래비율(source 정규화)}] |\n| bse_yr | 수출입 비중 조회 기준연도, `\\d{4}` (기본 2025 — 2026 데이터 불충분) |\n| shock_rate | 충격 비율 0~1 (전 시드 공통) |\n| seed_list | 1차 기업 [{seed_id: bizno, upche_cd: 업체코드(rate 조회 키), total_amount: 매출액(원), hscodes: HS **10자리** 목록}] |\n| direction | import=매입(기본) / export=매출 |\n\n동작 규칙\n- hscodes 는 10자리 digit 강제(4/6자리 422). 요청 내 중복 코드는 dedup — backend 가\n  H10 단일 계층만 반환하므로 이중계상 여지 없음.\n- 실적 없는 품목(응답 행 부재) = 비중 0 으로 부분 합산. **전 품목** 실적 없음이면 그 시드는\n  excluded_seeds 로 제외(오류 아님).\n- backend 미설정·연결 실패·status≠0 → 503.\n- 내부 고정값: pin_seeds=False(자기순환 되먹임 포함, NICE 확정 2026-06-24), method=scc,\n  cycle_damping=0.95.",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"bse_yr\": \"2025\",\n  \"direction\": \"export\",\n  \"seed_list\": [\n    {\n      \"hscodes\": [\n        \"3801300000\",\n        \"3901100000\"\n      ],\n      \"seed_id\": \"b\",\n      \"total_amount\": 10000000.0,\n      \"upche_cd\": \"184084\"\n    }\n  ],\n  \"shock_rate\": 0.1,\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"rate\": 0.115,\n      \"to\": \"b\"\n    },\n    {\n      \"from\": \"b\",\n      \"rate\": 0.06,\n      \"to\": \"a\"\n    },\n    {\n      \"from\": \"c\",\n      \"rate\": 0.912,\n      \"to\": \"b\"\n    },\n    {\n      \"from\": \"b\",\n      \"rate\": 0.607,\n      \"to\": \"c\"\n    }\n  ]\n}",
+          "raw": "{\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"to\": \"b\",\n      \"rate\": 0.115\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"a\",\n      \"rate\": 0.06\n    },\n    {\n      \"from\": \"c\",\n      \"to\": \"b\",\n      \"rate\": 0.912\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"c\",\n      \"rate\": 0.607\n    }\n  ],\n  \"bse_yr\": \"2025\",\n  \"shock_rate\": 0.1,\n  \"seed_list\": [\n    {\n      \"seed_id\": \"b\",\n      \"upche_cd\": \"184084\",\n      \"total_amount\": 10000000.0,\n      \"hscodes\": [\n        \"3801300000\",\n        \"3901100000\"\n      ]\n    }\n  ],\n  \"direction\": \"export\"\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -37,7 +38,137 @@
           }
         }
       },
-      "response": []
+      "response": [
+        {
+          "name": "200 성공 (rate-mock 실측)",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/shock/tariff",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "shock",
+                "tariff"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"to\": \"b\",\n      \"rate\": 0.115\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"a\",\n      \"rate\": 0.06\n    },\n    {\n      \"from\": \"c\",\n      \"to\": \"b\",\n      \"rate\": 0.912\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"c\",\n      \"rate\": 0.607\n    }\n  ],\n  \"bse_yr\": \"2025\",\n  \"shock_rate\": 0.1,\n  \"seed_list\": [\n    {\n      \"seed_id\": \"b\",\n      \"upche_cd\": \"184084\",\n      \"total_amount\": 10000000.0,\n      \"hscodes\": [\n        \"3801300000\",\n        \"3901100000\"\n      ]\n    }\n  ],\n  \"direction\": \"export\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"direction\": \"export\",\n  \"total_shock\": 2855692.7188088717,\n  \"data_list\": [\n    {\n      \"node_id\": \"b\",\n      \"shock\": 1713073.0166819866,\n      \"depth\": 1\n    },\n    {\n      \"node_id\": \"c\",\n      \"shock\": 1039835.3211259657,\n      \"depth\": 2\n    },\n    {\n      \"node_id\": \"a\",\n      \"shock\": 102784.3810009192,\n      \"depth\": 2\n    }\n  ],\n  \"excluded_seeds\": []\n}"
+        },
+        {
+          "name": "200 시드 제외 — 전 품목 실적 없음",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/shock/tariff",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "shock",
+                "tariff"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"to\": \"b\",\n      \"rate\": 0.115\n    }\n  ],\n  \"bse_yr\": \"2025\",\n  \"shock_rate\": 0.1,\n  \"seed_list\": [\n    {\n      \"seed_id\": \"b\",\n      \"upche_cd\": \"184084\",\n      \"total_amount\": 10000000.0,\n      \"hscodes\": [\n        \"0000000001\"\n      ]\n    }\n  ],\n  \"direction\": \"import\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"direction\": \"import\",\n  \"total_shock\": 0.0,\n  \"data_list\": [],\n  \"excluded_seeds\": [\n    {\n      \"node_id\": \"b\",\n      \"reason\": \"기준연도 2025 전 품목(1건) 수출입 실적 없음 (/trade/weight 비중 부재, upche_cd=184084)\"\n    }\n  ]\n}"
+        },
+        {
+          "name": "503 backend rate API 미설정/도달 불가",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/shock/tariff",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "shock",
+                "tariff"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"to\": \"b\",\n      \"rate\": 0.115\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"a\",\n      \"rate\": 0.06\n    },\n    {\n      \"from\": \"c\",\n      \"to\": \"b\",\n      \"rate\": 0.912\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"c\",\n      \"rate\": 0.607\n    }\n  ],\n  \"bse_yr\": \"2025\",\n  \"shock_rate\": 0.1,\n  \"seed_list\": [\n    {\n      \"seed_id\": \"b\",\n      \"upche_cd\": \"184084\",\n      \"total_amount\": 10000000.0,\n      \"hscodes\": [\n        \"3801300000\",\n        \"3901100000\"\n      ]\n    }\n  ],\n  \"direction\": \"export\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Service Unavailable",
+          "code": 503,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"detail\": \"RATE_API_URL 미설정 — backend /trade/weight 주소가 필요합니다\"\n}"
+        }
+      ]
     },
     {
       "name": "거래량 변동",
@@ -60,9 +191,10 @@
             "volume"
           ]
         },
+        "description": "거래량 변동(국내 충격) 전파 — backend rate 조회 없음.\n\n시드별 주입액 = total_amount(총매출; 매입 기준이면 매입 총액) × shock_rate(기업별 0~1).\n\n요청 필드\n| 필드 | 설명 |\n| --- | --- |\n| triple_list | 거래 엣지 (tariff 와 동일 형식) |\n| seed_list | 변동 대상 1차 기업 [{seed_id, total_amount, shock_rate}] — 기업별 비율 개별 입력 |\n| direction | import=매입(기본) / export=매출 |\n\n내부 고정값은 tariff 와 동일 (pin_seeds=False, method=scc, cycle_damping=0.95).",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"direction\": \"export\",\n  \"seed_list\": [\n    {\n      \"seed_id\": \"b\",\n      \"shock_rate\": 0.2,\n      \"total_amount\": 1000000.0\n    }\n  ],\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"rate\": 0.115,\n      \"to\": \"b\"\n    },\n    {\n      \"from\": \"b\",\n      \"rate\": 0.607,\n      \"to\": \"c\"\n    }\n  ]\n}",
+          "raw": "{\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"to\": \"b\",\n      \"rate\": 0.115\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"c\",\n      \"rate\": 0.607\n    }\n  ],\n  \"seed_list\": [\n    {\n      \"seed_id\": \"b\",\n      \"total_amount\": 1000000.0,\n      \"shock_rate\": 0.2\n    }\n  ],\n  \"direction\": \"export\"\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -70,7 +202,51 @@
           }
         }
       },
-      "response": []
+      "response": [
+        {
+          "name": "200 성공",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/shock/volume",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "shock",
+                "volume"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"to\": \"b\",\n      \"rate\": 0.115\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"c\",\n      \"rate\": 0.607\n    }\n  ],\n  \"seed_list\": [\n    {\n      \"seed_id\": \"b\",\n      \"total_amount\": 1000000.0,\n      \"shock_rate\": 0.2\n    }\n  ],\n  \"direction\": \"export\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"direction\": \"export\",\n  \"total_shock\": 321400.0,\n  \"data_list\": [\n    {\n      \"node_id\": \"b\",\n      \"shock\": 200000.0,\n      \"depth\": 1\n    },\n    {\n      \"node_id\": \"c\",\n      \"shock\": 121400.0,\n      \"depth\": 2\n    }\n  ],\n  \"excluded_seeds\": []\n}"
+        }
+      ]
     },
     {
       "name": "저수준 전파(edges+init)",
@@ -93,9 +269,10 @@
             "propagate"
           ]
         },
+        "description": "저수준 전파 (내부용) — 이미 전파 방향으로 정향·정규화된 edges 와 노드별\n초기값 init 을 그대로 받아 전파만 수행. pin·방향·δ 산출은 호출자 책임.\n응답은 진단값(converged, iterations, damped_cycles) 포함.",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"init\": {\n    \"a\": 1.0\n  },\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"rate\": 0.5,\n      \"to\": \"b\"\n    }\n  ]\n}",
+          "raw": "{\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"to\": \"b\",\n      \"rate\": 0.5\n    }\n  ],\n  \"init\": {\n    \"a\": 1.0\n  }\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -103,7 +280,51 @@
           }
         }
       },
-      "response": []
+      "response": [
+        {
+          "name": "200 성공",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/shock/propagate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "shock",
+                "propagate"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"to\": \"b\",\n      \"rate\": 0.5\n    }\n  ],\n  \"init\": {\n    \"a\": 1.0\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"direction\": -1,\n  \"converged\": true,\n  \"iterations\": 0,\n  \"total_shock\": 1.5,\n  \"shock_list\": [\n    {\n      \"bizno\": \"a\",\n      \"shock\": 1.0,\n      \"depth\": null\n    },\n    {\n      \"bizno\": \"b\",\n      \"shock\": 0.5,\n      \"depth\": null\n    }\n  ],\n  \"damped_cycles\": []\n}"
+        }
+      ]
     },
     {
       "name": "CRI(신용위험지표) 판매/구매망",
@@ -125,9 +346,10 @@
             "cri"
           ]
         },
+        "description": "CRI(신용위험지표) — 누적 거래망 T=Σ_k λ^k W^k 위에서 거래상대 신용등급을\n거래비중 가중평균 (판매망/구매망 각각, DB 의존 없음).\n\n요청 필드\n| 필드 | 설명 |\n| --- | --- |\n| nodes | [{id, grade: 등급(AAA~D·NR, 노치 포함 가능) 또는 score: 1=AAA…10=D 직접 지정, sales: 매출액(Network Risk Index 가중)}] |\n| edges | [{source: 셀러, target: 바이어, sell_share: 거래액/셀러 매출, buy_share: 거래액/바이어 매출}] |\n| lamb | 단계 감쇠 λ, 0<λ≤1 (기본 1.0=무감쇠) |\n\n응답: 노드별 sell/buy {total_weight, valid_weight, coverage, avg_cri, exposure} +\n네트워크 전체 {risk_index, coverage}. 무등급(NR)·거래처 없음은 null 처리.",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"edges\": [\n    {\n      \"buy_share\": 0.375,\n      \"sell_share\": 0.3,\n      \"source\": \"A\",\n      \"target\": \"B\"\n    },\n    {\n      \"buy_share\": 0.333,\n      \"sell_share\": 0.2,\n      \"source\": \"A\",\n      \"target\": \"D\"\n    },\n    {\n      \"buy_share\": 0.225,\n      \"sell_share\": 0.3,\n      \"source\": \"D\",\n      \"target\": \"B\"\n    },\n    {\n      \"buy_share\": 0.6,\n      \"sell_share\": 0.4,\n      \"source\": \"D\",\n      \"target\": \"E\"\n    },\n    {\n      \"buy_share\": 0.8,\n      \"sell_share\": 0.5,\n      \"source\": \"B\",\n      \"target\": \"C\"\n    },\n    {\n      \"buy_share\": 0.16,\n      \"sell_share\": 0.2,\n      \"source\": \"B\",\n      \"target\": \"A\"\n    }\n  ],\n  \"nodes\": [\n    {\n      \"grade\": \"AA\",\n      \"id\": \"A\",\n      \"sales\": 1000\n    },\n    {\n      \"grade\": \"NR\",\n      \"id\": \"B\",\n      \"sales\": 800\n    },\n    {\n      \"grade\": \"BBB\",\n      \"id\": \"C\",\n      \"sales\": 500\n    },\n    {\n      \"grade\": \"A\",\n      \"id\": \"D\",\n      \"sales\": 600\n    },\n    {\n      \"grade\": \"BB\",\n      \"id\": \"E\",\n      \"sales\": 400\n    }\n  ]\n}",
+          "raw": "{\n  \"nodes\": [\n    {\n      \"id\": \"A\",\n      \"grade\": \"AA\",\n      \"sales\": 1000\n    },\n    {\n      \"id\": \"B\",\n      \"grade\": \"NR\",\n      \"sales\": 800\n    },\n    {\n      \"id\": \"C\",\n      \"grade\": \"BBB\",\n      \"sales\": 500\n    },\n    {\n      \"id\": \"D\",\n      \"grade\": \"A\",\n      \"sales\": 600\n    },\n    {\n      \"id\": \"E\",\n      \"grade\": \"BB\",\n      \"sales\": 400\n    }\n  ],\n  \"edges\": [\n    {\n      \"source\": \"A\",\n      \"target\": \"B\",\n      \"sell_share\": 0.3,\n      \"buy_share\": 0.375\n    },\n    {\n      \"source\": \"A\",\n      \"target\": \"D\",\n      \"sell_share\": 0.2,\n      \"buy_share\": 0.333\n    },\n    {\n      \"source\": \"D\",\n      \"target\": \"B\",\n      \"sell_share\": 0.3,\n      \"buy_share\": 0.225\n    },\n    {\n      \"source\": \"D\",\n      \"target\": \"E\",\n      \"sell_share\": 0.4,\n      \"buy_share\": 0.6\n    },\n    {\n      \"source\": \"B\",\n      \"target\": \"C\",\n      \"sell_share\": 0.5,\n      \"buy_share\": 0.8\n    },\n    {\n      \"source\": \"B\",\n      \"target\": \"A\",\n      \"sell_share\": 0.2,\n      \"buy_share\": 0.16\n    }\n  ]\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -135,7 +357,50 @@
           }
         }
       },
-      "response": []
+      "response": [
+        {
+          "name": "200 성공",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/cri",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "cri"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nodes\": [\n    {\n      \"id\": \"A\",\n      \"grade\": \"AA\",\n      \"sales\": 1000\n    },\n    {\n      \"id\": \"B\",\n      \"grade\": \"NR\",\n      \"sales\": 800\n    },\n    {\n      \"id\": \"C\",\n      \"grade\": \"BBB\",\n      \"sales\": 500\n    },\n    {\n      \"id\": \"D\",\n      \"grade\": \"A\",\n      \"sales\": 600\n    },\n    {\n      \"id\": \"E\",\n      \"grade\": \"BB\",\n      \"sales\": 400\n    }\n  ],\n  \"edges\": [\n    {\n      \"source\": \"A\",\n      \"target\": \"B\",\n      \"sell_share\": 0.3,\n      \"buy_share\": 0.375\n    },\n    {\n      \"source\": \"A\",\n      \"target\": \"D\",\n      \"sell_share\": 0.2,\n      \"buy_share\": 0.333\n    },\n    {\n      \"source\": \"D\",\n      \"target\": \"B\",\n      \"sell_share\": 0.3,\n      \"buy_share\": 0.225\n    },\n    {\n      \"source\": \"D\",\n      \"target\": \"E\",\n      \"sell_share\": 0.4,\n      \"buy_share\": 0.6\n    },\n    {\n      \"source\": \"B\",\n      \"target\": \"C\",\n      \"sell_share\": 0.5,\n      \"buy_share\": 0.8\n    },\n    {\n      \"source\": \"B\",\n      \"target\": \"A\",\n      \"sell_share\": 0.2,\n      \"buy_share\": 0.16\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"data_list\": [\n    {\n      \"id\": \"A\",\n      \"sell\": {\n        \"total_weight\": 0.883621,\n        \"valid_weight\": 0.49569,\n        \"coverage\": 0.560976,\n        \"avg_cri\": 3.73913,\n        \"exposure\": 1.853448\n      },\n      \"buy\": {\n        \"total_weight\": 0.211204,\n        \"valid_weight\": 0.038793,\n        \"coverage\": 0.183673,\n        \"avg_cri\": 3.0,\n        \"exposure\": 0.116378\n      }\n    },\n    {\n      \"id\": \"B\",\n      \"sell\": {\n        \"total_weight\": 0.814655,\n        \"valid_weight\": 0.814655,\n        \"coverage\": 1.0,\n        \"avg_cri\": 3.439153,\n        \"exposure\": 2.801724\n      },\n      \"buy\": {\n        \"total_weight\": 0.72728,\n        \"valid_weight\": 0.72728,\n        \"coverage\": 1.0,\n        \"avg_cri\": 2.33337,\n        \"exposure\": 1.697015\n      }\n    },\n    {\n      \"id\": \"C\",\n      \"sell\": {\n        \"total_weight\": 0.0,\n        \"valid_weight\": 0.0,\n        \"coverage\": null,\n        \"avg_cri\": null,\n        \"exposure\": 0.0\n      },\n      \"buy\": {\n        \"total_weight\": 1.443882,\n        \"valid_weight\": 0.581824,\n        \"coverage\": 0.402958,\n        \"avg_cri\": 2.33337,\n        \"exposure\": 1.357612\n      }\n    },\n    {\n      \"id\": \"D\",\n      \"sell\": {\n        \"total_weight\": 0.954741,\n        \"valid_weight\": 0.631466,\n        \"coverage\": 0.6614,\n        \"avg_cri\": 4.43686,\n        \"exposure\": 2.801724\n      },\n      \"buy\": {\n        \"total_weight\": 0.416245,\n        \"valid_weight\": 0.358832,\n        \"coverage\": 0.862069,\n        \"avg_cri\": 2.0,\n        \"exposure\": 0.717663\n      }\n    },\n    {\n      \"id\": \"E\",\n      \"sell\": {\n        \"total_weight\": 0.0,\n        \"valid_weight\": 0.0,\n        \"coverage\": null,\n        \"avg_cri\": null,\n        \"exposure\": 0.0\n      },\n      \"buy\": {\n        \"total_weight\": 0.857498,\n        \"valid_weight\": 0.82305,\n        \"coverage\": 0.959827,\n        \"avg_cri\": 2.738413,\n        \"exposure\": 2.25385\n      }\n    }\n  ],\n  \"network\": {\n    \"sell\": {\n      \"risk_index\": 3.784242,\n      \"coverage\": 0.723983\n    },\n    \"buy\": {\n      \"risk_index\": 2.393419,\n      \"coverage\": 0.690818\n    }\n  }\n}"
+        }
+      ]
     },
     {
       "name": "헬스체크",
@@ -152,7 +417,35 @@
           ]
         }
       },
-      "response": []
+      "response": [
+        {
+          "name": "200 성공",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"status\": \"ok\",\n  \"service\": \"shock-propagate\"\n}"
+        }
+      ]
     }
   ],
   "variable": [
