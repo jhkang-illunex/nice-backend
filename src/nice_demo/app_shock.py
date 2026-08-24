@@ -139,12 +139,13 @@ def sidebar() -> dict:
         help="company_edge.trade_year 기준. '전체'=전 연도 합산. 데이터: 2024·2026.",
     )
     depth = st.sidebar.slider("확장 depth", 1, 6, value=3)
-    shock_amount = st.sidebar.slider(
-        "충격량 (시드 초기충격)", -2.0, 2.0, value=1.0, step=0.05,
-        help="시드에 주입하는 외생충격. 음수=감소/역방향 충격. 0 은 사용 불가.",
+    shock_rate = st.sidebar.slider(
+        "충격 비율 shock_rate (전 시드 공통)", 0.0, 1.0, value=0.1, step=0.05,
+        help="영향 받는 비중 (0~1 강제). 0 은 사용 불가. "
+        "tariff 주입액 = total_amount × rate(backend 조회, 0~1) × shock_rate.",
     )
-    if shock_amount == 0.0:
-        st.sidebar.error("충격량은 0 을 쓸 수 없습니다 — −2~2 범위에서 0 이 아닌 값을 선택하세요.")
+    if shock_rate == 0.0:
+        st.sidebar.error("충격 비율은 0 을 쓸 수 없습니다 — 0~1 범위에서 0 이 아닌 값을 선택하세요.")
         st.stop()
     st.sidebar.caption(
         f"전파는 공개 API({SHOCK_API_URL})에 위임 — 정규화=전파소스(Σ_out=1)·시드 고정(pin)·"
@@ -168,14 +169,14 @@ def sidebar() -> dict:
         preset_side = preset.get("side")
         st.sidebar.caption(
             f"→ `{scenario}` · 방향={directions}"
-            + (" · 변동율은 본문에서 시드별 입력" if scenario == "volume" else "")
+            + (" · 변동금액(원)은 본문에서 시드별 입력" if scenario == "volume" else "")
         )
     else:  # 사용자 정의 — tariff / volume 직접 구성
         scenario_label = st.sidebar.radio(
             "시나리오 유형",
             ["외생충격 (tariff)", "거래량 변동 (volume)"],
             index=0,
-            help="tariff=W불변·시드 외생주입 / volume=거래량 변동(시드별 변동율 δ 주입·전파)",
+            help="tariff=W불변·시드 외생주입 / volume=거래량 변동(시드별 변동금액 주입·전파)",
         )
         scenario = "tariff" if scenario_label.startswith("외생충격") else "volume"
         dir_labels = st.sidebar.multiselect(
@@ -186,7 +187,7 @@ def sidebar() -> dict:
         )
         directions = [_DIR_MAP[d] for d in dir_labels] or ["upstream", "downstream"]
         if scenario == "volume":
-            st.sidebar.caption("거래량 변동율은 본문에서 시드 회사별로 입력합니다 (−1~1).")
+            st.sidebar.caption("거래량 변동금액(원)은 본문에서 시드 회사별로 입력합니다.")
     # 정규화/엔진/조건부 damping/pin 은 공개 API 내부 고정(전파소스·SCC·0.95·pin=True) —
     # UI 제거. 데모는 거래소스 정규화(Σ_out=1)로 조립해 triple_list 만 넘긴다.
     return {
@@ -197,7 +198,7 @@ def sidebar() -> dict:
         "top_k": int(top_k),
         "min_ratio": float(min_ratio),
         "depth": int(depth),
-        "shock_amount": float(shock_amount),
+        "shock_rate": float(shock_rate),
         "viz_top": int(viz_top),
         "scenario": scenario,
         "directions": directions,
@@ -327,52 +328,92 @@ def _assemble_oriented(seed_pairs, direction: str, cfg: dict, seed_shock):
     )
 
 
-def _run_public_scenario(cfg, seed_pairs, seed_biznos, seed_deltas) -> ScenarioResult:
+def _run_public_scenario(cfg, seed_pairs, seed_biznos, seed_deltas, hscode) -> ScenarioResult:
     """방향별로 조립→공개 API 호출→DirectionResult 구성. ScenarioResult 반환.
 
-    volume: seed_deltas({bizno: 변동율}) 를 그 시드 노드의 node_overrides 로 **직접** 주입한다
-            (firm_partner_shares 분배 없이 사용자가 시드별 슬라이더로 입력한 값 그대로).
+    tariff: seed_list=[{seed_id, upche_cd, total_amount, hscodes(HS10)}] + bse_yr +
+            전역 shock_rate(0~1) — rate(HS10 수출입 비중)는 shock 서버가 backend
+            (RATE_API_URL, POST /trade/weight)로 일괄 조회,
+            주입액 = total_amount × Σrate × shock_rate.
+    volume: seed_list=[{seed_id, total_amount, shock_rate}] — seed_deltas({bizno: 변동비율})
+            를 시드별 shock_rate(0~1) 로 전달, 주입액 = total_amount × shock_rate.
+    total_amount 는 방향별 기준 총액(downstream=매출 Σ_out / upstream=매입 Σ_in)을 DB 에서 조회.
     """
     scenario = cfg["scenario"]
     out: list[DirectionResult] = []
     warnings: list[str] = []
+    # tariff hscodes 는 HS10 강제 (backend /trade/weight 가 H10 만 반환) — 4/6자리
+    # 입력은 zero-pad 전송. 해당 H10 행이 없으면 시드가 excluded 로 명시된다.
+    hs10 = (hscode or "").ljust(10, "0")
+    if scenario == "tariff" and hs10 != hscode:
+        warnings.append(
+            f"tariff hscodes 는 HS 10자리 강제 — '{hscode}' → '{hs10}' zero-pad 전송 "
+            "(backend 에 해당 H10 실적이 없으면 시드 excluded)."
+        )
     if scenario == "volume":
         warnings.append(
-            "거래량 변동(volume): 시드별 변동율(delta, 0=무변화)을 node_overrides 로 직접 주입·전파. "
-            "결과=변동율, 조정액=기준액×(1+변동율). (tariff 와 0-기준 통일)"
+            "거래량 변동(volume): 시드별 변동비율(shock_rate, 0=무변화)을 seed_list 로 전달 — "
+            "주입액=총액×비율(서버 계산). 결과=변동금액(원), 조정액=기준액+변동금액."
         )
     for d in cfg["directions"]:
-        seed_shock = cfg["shock_amount"] if scenario == "tariff" else 0.0
+        seed_shock = cfg["shock_rate"] if scenario == "tariff" else 0.0
         asm = _assemble_oriented(seed_pairs, d, cfg, seed_shock)
         warnings.extend(f"[{d}] {m}" for m in asm.warnings)
         triple_list = [
             {"from": e["from_bizno"], "to": e["to_bizno"], "rate": e["rate"]} for e in asm.edges
         ]
-        seed_list = [n.node_id for n in asm.nodes if n.is_seed]
+        seed_nodes = [n for n in asm.nodes if n.is_seed]
         if not triple_list:
-            warnings.append(f"[{d}] 조립된 엣지가 없어 전파 생략(서브그래프 비었음).")
-            base = cfg["shock_amount"] if scenario == "tariff" else 0.0  # volume 0-기준(무변화=0)
-            stub = {"direction": _DIR_TO_API[d], "total_shock": base * len(seed_list),
-                    "data_list": [{"node_id": s, "shock": base, "depth": 1} for s in seed_list]}
+            warnings.append(
+                f"[{d}] 조립된 엣지가 없어 전파 생략 — 서버 기준으로는 시드 전원이 "
+                "excluded_seeds 처리되는 입력(빈 결과)."
+            )
+            stub = {"direction": _DIR_TO_API[d], "total_shock": 0.0, "data_list": []}
             out.append(DirectionResult(d, EFFECT_LABEL[d], 1.0, asm, _data_to_result(stub)))
             continue
+        # 방향별 기준 총액 — downstream=매출(Σ_out) / upstream=매입(Σ_in)
+        side_key = "sales" if d == "downstream" else "buy"
+        try:
+            amt = _fetch_firm_amounts(
+                tuple(sorted({n.bizno for n in seed_nodes})), cfg.get("trade_year")
+            )
+        except Exception as exc:  # noqa: BLE001
+            amt = {}
+            warnings.append(
+                f"[{d}] 기준 총액 조회 실패({exc.__class__.__name__}) — total_amount=0 전송"
+            )
+        totals = {
+            n.node_id: float((amt.get(n.bizno) or {}).get(side_key, 0.0)) for n in seed_nodes
+        }
         if scenario == "tariff":
-            d_resp = _post_shock("/api/shock/tariff", {
-                "triple_list": triple_list, "seed_list": seed_list,
-                "shock_rate": cfg["shock_amount"], "direction": "export",
-            })
+            seed_payload = [
+                {"seed_id": n.node_id, "upche_cd": n.upchecd or "",
+                 "total_amount": totals[n.node_id], "hscodes": [hs10]}
+                for n in seed_nodes
+            ]
+            body = {
+                "triple_list": triple_list, "shock_rate": float(cfg["shock_rate"]),
+                "seed_list": seed_payload, "direction": "export",
+            }
+            if cfg.get("trade_year"):  # 기준연도 — 미지정 시 서버 기본(2025)
+                body["bse_yr"] = str(cfg["trade_year"])
+            d_resp = _post_shock("/api/shock/tariff", body)
         else:
-            # 시드 슬라이더 값(변동율)을 그 시드 노드에 그대로 node_overrides 로 주입
-            biz2nid = {n.bizno: n.node_id for n in asm.nodes}
-            node_overrides = [
-                {"p1": biz2nid[b], "delta": float(v)}
-                for b, v in seed_deltas.items()
-                if b in biz2nid and abs(float(v)) > 1e-12
+            # 시드별 입력 변동비율을 shock_rate 로 전달 (미입력=0=무변화)
+            seed_payload = [
+                {"seed_id": n.node_id, "total_amount": totals[n.node_id],
+                 "shock_rate": float(seed_deltas.get(n.bizno, 0.0))}
+                for n in seed_nodes
             ]
             d_resp = _post_shock("/api/shock/volume", {
-                "triple_list": triple_list, "seed_list": seed_list,
-                "node_overrides": node_overrides, "direction": "export",
+                "triple_list": triple_list, "seed_list": seed_payload, "direction": "export",
             })
+        if d_resp.get("excluded_seeds"):
+            warnings.append(
+                f"[{d}] 전파 제외 시드: " + ", ".join(
+                    f"{e['node_id']} ({e['reason']})" for e in d_resp["excluded_seeds"]
+                )
+            )
         out.append(DirectionResult(d, EFFECT_LABEL[d], 1.0, asm, _data_to_result(d_resp)))
     return ScenarioResult(scenario, out, warnings)
 
@@ -391,36 +432,42 @@ def step_scenario(cfg: dict) -> None:
     seed_pairs = [(b, u) for b, u, _ in seeds]
     seed_biznos = {b for b, _, _ in seeds}
 
+    hscode = getattr(res, "hscode", None) or st.session_state.get("hscode") or ""
+    shock_desc = (
+        f"충격비율={cfg['shock_rate']:.2f} (주입액=총액×rate(조회)×비율)"
+        if cfg["scenario"] == "tariff"
+        else "변동비율=본문 시드별 입력"
+    )
     st.caption(
-        f"시나리오=**{cfg['scenario']}** · 방향={cfg['directions']} · "
-        f"충격량={cfg['shock_amount']} · depth={cfg['depth']} · "
+        f"시나리오=**{cfg['scenario']}** · 방향={cfg['directions']} · HS={hscode or '-'} · "
+        f"{shock_desc} · depth={cfg['depth']} · "
         f"거래연도={cfg['trade_year'] or '전체'} · 전파=공개 API({SHOCK_API_URL}) "
         "[pin·정규화·조건부 damping·depth 내부 고정]"
     )
 
-    # 거래량 변동(volume): 시드 회사별 변동율(−1~1) 슬라이더 → 그 값을 node_overrides 로 직접 주입
+    # 거래량 변동(volume): 시드 회사별 변동비율(−1~1) 입력 → seed_list 의 shock_rate 로 전달
     seed_deltas: dict[str, float] = {}
     if cfg["scenario"] == "volume":
         name_by_bizno = {f.bizno: (f.korentrnm or f.bizno) for f in res.firms if f.bizno}
         side_kr = "·".join(
             ("매출" if d == "downstream" else "매입") for d in cfg["directions"]
         )
-        st.markdown(f"**시드 회사별 거래량 변동율 입력 ({side_kr}) — −1 ~ 1, 0=무변화**")
+        st.markdown(f"**시드 회사별 거래량 변동 비율 입력 ({side_kr}) — 0 ~ 1, 0=무변화**")
         st.caption(
-            "각 시드 회사의 거래량 변동율을 직접 입력합니다. 입력값이 그대로 node_overrides 로 "
-            "전달돼 그 시드 노드에 주입·전파됩니다. (시나리오를 바꾸면 입력이 초기화됩니다.)"
+            "각 시드 회사의 거래량 변동 비율을 입력합니다. seed_list 의 shock_rate 로 전달돼 "
+            "서버가 주입액=기준 총액(DB 조회)×비율 로 계산·전파합니다. (시나리오를 바꾸면 초기화)"
         )
         ordered = sorted(seed_biznos)
         ncol = min(3, len(ordered)) or 1
         cols = st.columns(ncol)
         for i, b in enumerate(ordered):
             with cols[i % ncol]:
-                # 키에 preset_label 포함 → 시나리오 선택 시 슬라이더 전체 초기화(전체 갱신)
+                # 키에 preset_label 포함 → 시나리오 선택 시 입력 전체 초기화(전체 갱신)
                 seed_deltas[b] = st.slider(
                     f"{name_by_bizno.get(b, b)}",
-                    -1.0, 1.0, value=0.0, step=0.05,
-                    key=f"voldelta_{cfg['preset_label']}_{b}",
-                    help=f"bizno={b} · +0.1=+10%, 음수=감소, 0=무변화.",
+                    0.0, 1.0, value=0.0, step=0.05,
+                    key=f"volrate_{cfg['preset_label']}_{b}",
+                    help=f"bizno={b} · 0~1 강제, 0=무변화. 주입액=총액×비율.",
                 )
         nz = {b: v for b, v in seed_deltas.items() if abs(v) > 1e-12}
         st.caption(
@@ -432,7 +479,7 @@ def step_scenario(cfg: dict) -> None:
     if st.button("시나리오 전파 실행", type="primary"):
         st.session_state["_shock_raw"] = []  # 이번 실행의 공개 API 원본 응답 stash 초기화
         try:
-            sres = _run_public_scenario(cfg, seed_pairs, seed_biznos, seed_deltas)
+            sres = _run_public_scenario(cfg, seed_pairs, seed_biznos, seed_deltas, hscode)
         except httpx.HTTPError as exc:
             st.error(f"공개 shock API({SHOCK_API_URL}) 호출 실패: {exc.__class__.__name__} — {exc}")
             return
@@ -561,7 +608,7 @@ def _graph_payload(asm, shock_by_node: dict[str, float], top_n: int) -> tuple[li
             "size": 24 if n.is_seed else 12 + 12 * (abs(sv) / hi if hi > 0 else 0),
             "color": _color_for(nid, sv, hi, n.is_seed),
             "title": f"{n.korentrnm or '-'} | bizno={n.bizno} | upchecd={n.upchecd} | "
-                     f"shock={sv:.4f}{' [SEED]' if n.is_seed else ''}",
+                     f"shock={sv:,.0f}원{' [SEED]' if n.is_seed else ''}",
         })
     edges = [
         {"from": e["from_bizno"], "to": e["to_bizno"], "label": f"{e['rate']:.3f}", "arrows": "to"}
@@ -699,7 +746,7 @@ def _render_graph_directed(asm, shock_by_node: dict[str, float], *, top_n: int) 
     if len(asm.nodes) > top_n:
         st.caption(
             f"시드에서 depth {asm.depth} 확장 그래프 — 노드 {len(asm.nodes)}개 중 시드 기점 BFS {len(show)}개 표시. "
-            "화살표=전파 방향(매출=셀러→바이어 / 매입=바이어→셀러), 엣지 라벨=거래 비율(rate), 노드=기업명+충격량."
+            "화살표=전파 방향(매출=셀러→바이어 / 매입=바이어→셀러), 엣지 라벨=거래 비율(rate), 노드=기업명+충격금액(원)."
         )
 
     def esc(s: str) -> str:
@@ -729,7 +776,7 @@ def _render_direction(dr, scenario: str, cfg: dict) -> None:
     """한 방향(매출/매입)의 노드·에지·값 그리드 + 네트워크 그래프."""
     asm = dr.assembled
     shock_by_node = {r["bizno"]: r["shock"] for r in dr.result.shock_list}
-    val_label = "변동율(0=무변화)" if scenario == "volume" else "shock"
+    val_label = "변동금액(원, 0=무변화)" if scenario == "volume" else "파급금액(원)"
 
     # 공개 API 는 수렴/반복/damped 진단을 숨김(간소화) — 표시용 메트릭은 그래프 규모·depth 중심.
     depths = [r.get("depth") for r in dr.result.shock_list if r.get("depth") is not None]
@@ -738,7 +785,7 @@ def _render_direction(dr, scenario: str, cfg: dict) -> None:
     c1.metric("노드", len(asm.nodes))
     c2.metric("엣지", len(asm.edges))
     c3.metric("최대 depth", max_depth)
-    c4.metric(f"Σ {val_label}", f"{dr.result.total_shock:.3f}")
+    c4.metric(f"Σ {val_label}", f"{dr.result.total_shock:,.0f}")
     st.caption(
         f"effect={dr.effect_label} · direction={asm.direction}(전송 export·서버 정향) · "
         f"rate_kind={asm.rate_kind} · normalize=source(Σ_out=1) · "
@@ -818,9 +865,10 @@ def _fetch_firm_amounts(biznos: tuple, trade_year: str | None) -> dict:
 
 
 def _render_amount_grid(asm, shock_by_node: dict[str, float], val_label: str, cfg: dict) -> None:
-    """문서 STEP6 금액 결과표 — 기준 거래액 × 변화율(shock/Δ) → 변화액(원) + 기업속성.
+    """문서 STEP6 금액 결과표 — 전파된 shock(원 단위 변화액) 그대로 + 기준 거래액·기업속성.
 
-    ※ 기능 실증용: shock/Δ 를 변화율(분수)로 해석. 실 충격강도(%) 입력은 본 프론트(Spring)에서.
+    주입액(총액×비율)이 원 단위 금액이라 변화액=전파값 그대로 (기준액 곱셈 없음).
+    변화율(%)은 방향별 기준액(downstream=매출·upstream=매입) 대비 참고 지표.
     """
     biznos = tuple(sorted({n.bizno for n in asm.nodes}))
     try:
@@ -828,11 +876,14 @@ def _render_amount_grid(asm, shock_by_node: dict[str, float], val_label: str, cf
     except Exception as exc:  # noqa: BLE001
         st.error(f"기준 거래액 조회 실패: {exc.__class__.__name__} — {exc}")
         return
+    side_sales = str(asm.direction) == "downstream"  # 매출 파급이면 매출액 기준
+    base_label = "매출액(기준)" if side_sales else "매입액(기준)"
     rows = []
     for n in asm.nodes:
-        rate = shock_by_node.get(n.node_id, 0.0)  # 변화율(분수)로 해석
+        sv = shock_by_node.get(n.node_id, 0.0)  # 변화액(원) — 전파값 그대로
         a = amt.get(n.bizno, {})
         bs, bb = a.get("sales", 0.0), a.get("buy", 0.0)
+        base = bs if side_sales else bb
         rows.append(
             {
                 "구분": "1차" if n.is_seed else "2차",
@@ -845,28 +896,27 @@ def _render_amount_grid(asm, shock_by_node: dict[str, float], val_label: str, cf
                     else "일반"
                 ),
                 "매출액(기준)": round(bs),
-                "매출변화": round(bs * rate),
-                "매출액(결과)": round(bs * (1 + rate)),
-                "매출변화율": f"{rate * 100:.1f}%",
                 "매입액(기준)": round(bb),
-                "매입변화": round(bb * rate),
-                "매입액(결과)": round(bb * (1 + rate)),
+                "변화액(원)": round(sv),
+                "조정액(기준+변화)": round(base + sv),
+                "변화율(기준대비)": f"{sv / base * 100:.2f}%" if base else "-",
             }
         )
     df = pd.DataFrame(rows)
     if df.empty:
         st.info("표시할 기업이 없습니다.")
         return
-    df = df.sort_values("매출변화", key=lambda s: s.abs(), ascending=False).reset_index(drop=True)
-    tot = int(df["매출변화"].sum() + df["매입변화"].sum())
-    n_aff = int(((df["매출변화"].abs() + df["매입변화"].abs()) > 0).sum())
+    df = df.sort_values("변화액(원)", key=lambda s: s.abs(), ascending=False).reset_index(drop=True)
+    tot = int(df["변화액(원)"].sum())
+    n_aff = int((df["변화액(원)"].abs() > 0).sum())
     c1, c2 = st.columns(2)
     c1.metric("총 파급효과(원)", f"{tot:,}")
     c2.metric("영향 기업 수", f"{n_aff}")
     st.caption(
-        f"기준 매출액=Σ_out(sly_amt)·매입액=Σ_in · 변화액=기준×{val_label}(변화율 해석) · "
-        "기업규모(scaledivcd)/유형=em001 · 공공은 eprdtldivcd로 공기업·준정부·정부기관·기타공공 "
-        "세분류. ※ 기능 실증용(실 충격강도 입력은 Spring 프론트)."
+        f"변화액=전파된 {val_label} 그대로(원 단위 직접 전파, 기준액 곱셈 없음) · "
+        f"조정액·변화율 기준={base_label}(방향별: downstream=매출·upstream=매입, "
+        "매출액=Σ_out(sly_amt)·매입액=Σ_in) · 기업규모(scaledivcd)/유형=em001 · "
+        "공공은 eprdtldivcd로 공기업·준정부·정부기관·기타공공 세분류."
     )
     st.dataframe(df, height=420, use_container_width=True)
     _dl(df, "금액 결과표 CSV", f"amount_{asm.direction}.csv", f"dl_amt_{asm.direction}")
@@ -932,7 +982,7 @@ def _render_result_grid(asm, shock_by_node: dict[str, float], val_label: str, dr
             }
         )
     df = pd.DataFrame(rows).sort_values(val_label, ascending=False).reset_index(drop=True)
-    st.write(f"{val_label} 노드 {len(df)}곳 · Σ={dr.result.total_shock:.4f}")
+    st.write(f"{val_label} 노드 {len(df)}곳 · Σ={dr.result.total_shock:,.0f}원")
     st.dataframe(df, height=420, use_container_width=True)
     _dl(df, f"{val_label} CSV", f"result_{asm.direction}.csv", f"dl_res_{asm.direction}")
 

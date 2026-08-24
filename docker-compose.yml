@@ -107,8 +107,31 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-local}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # tariff 거래비중 조회 backend (POST /trade/weight 전체 URL) — 실 backend 연결 시
+      # RATE_API_URL 을 {network-nice-rest-api-url}/trade/weight 로 지정.
+      RATE_API_URL: ${RATE_API_URL:-http://rate-mock:8000/trade/weight}
     ports:
       - "${SHOCK_API_PORT:-8004}:8000"
+    restart: unless-stopped
+    networks: [nice-net]
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # rate-mock — backend /trade/weight 목업 (실스펙 형상, 개발/시연용).
+  #   POST /trade/weight {bseYr,upchecdList,hskcodeList} → {status,data[{upchecd,weightList
+  #   [{tseximdivcd,tscdvl,tstrdwgt}]}]} 결정적 가짜 값 / '0000' 접두 hskcode·upchecd → 행 부재.
+  #   shock-server 이미지 재사용, command 만 교체. 실 API 가동 시 이 서비스 제거하고
+  #   RATE_API_URL 만 실주소(/trade/weight)로 변경.
+  # ─────────────────────────────────────────────────────────────────────────────
+  rate-mock:
+    profiles: ["shock"]
+    image: nice/shock-server:${APP_TAG:-dev}
+    container_name: nice-rate-mock
+    command: ["uvicorn", "nice_shock.mock_rate_api:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${RATE_MOCK_PORT:-8010}:8000"
     restart: unless-stopped
     networks: [nice-net]
 

@@ -31,6 +31,9 @@
               }
             }
           },
+          "503": {
+            "description": "backend rate API 미설정 또는 도달 불가 (RATE_API_URL)"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -597,6 +600,14 @@
             },
             "type": "array",
             "title": "Data List"
+          },
+          "excluded_seeds": {
+            "items": {
+              "$ref": "#/components/schemas/ExcludedSeedOut"
+            },
+            "type": "array",
+            "title": "Excluded Seeds",
+            "description": "전파에서 제외된 시드와 사유 (init·depth·total_shock 미포함). 비어 있지 않으면 시드/그래프 조립 불일치 신호."
           }
         },
         "type": "object",
@@ -611,21 +622,22 @@
             {
               "depth": 1,
               "node_id": "b",
-              "shock": 2.27523
+              "shock": 2275230.03
             },
             {
               "depth": 2,
               "node_id": "c",
-              "shock": 1.38106
+              "shock": 1381064.63
             },
             {
               "depth": 2,
               "node_id": "a",
-              "shock": 0.13651
+              "shock": 136513.8
             }
           ],
           "direction": "export",
-          "total_shock": 3.79281
+          "excluded_seeds": [],
+          "total_shock": 3792808.45
         }
       },
       "DirectionOut": {
@@ -690,6 +702,26 @@
           "total_shock": 1.5
         }
       },
+      "ExcludedSeedOut": {
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "title": "Node Id",
+            "description": "제외된 시드 seed_id(사업자번호)"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "제외 사유 — 그래프(from∪to) 미포함 / rate 조회 실패 등"
+          }
+        },
+        "type": "object",
+        "required": [
+          "node_id",
+          "reason"
+        ],
+        "title": "ExcludedSeedOut"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -732,26 +764,6 @@
           "shock"
         ],
         "title": "NodeOut"
-      },
-      "OverrideIn": {
-        "properties": {
-          "p1": {
-            "type": "string",
-            "title": "P1",
-            "description": "변동 대상 기업 node_id"
-          },
-          "delta": {
-            "type": "number",
-            "title": "Delta",
-            "description": "거래량 변동율 (0=무변화, +0.1=+10%, −0.2=−20%). tariff 의 shock_rate 와 동일한 0-기준 편차."
-          }
-        },
-        "type": "object",
-        "required": [
-          "p1",
-          "delta"
-        ],
-        "title": "OverrideIn"
       },
       "PropagateRequest": {
         "properties": {
@@ -843,18 +855,27 @@
             "title": "Triple List",
             "description": "거래쌍·거래비율 엣지 목록"
           },
-          "seed_list": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Seed List",
-            "description": "외생충격 받는 1차 기업 node_id"
+          "bse_yr": {
+            "type": "string",
+            "pattern": "^\\d{4}$",
+            "title": "Bse Yr",
+            "description": "기준 연도 — 수출입 비중(/trade/weight) 조회 기준. 기본 2025 (2026 데이터 불충분).",
+            "default": "2025"
           },
           "shock_rate": {
             "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
             "title": "Shock Rate",
-            "description": "시드 주입 충격량 (음수 가능)"
+            "description": "충격 비율 (전 시드 공통, 0~1 강제). 시드별 주입액 = total_amount(손익계산서 매출액) × Σrate(backend 조회, 각 0~1) × shock_rate"
+          },
+          "seed_list": {
+            "items": {
+              "$ref": "#/components/schemas/TariffSeedIn"
+            },
+            "type": "array",
+            "title": "Seed List",
+            "description": "외생충격 받는 1차 기업 [{seed_id, upche_cd, total_amount, hscodes}] — rate 는 전 시드의 (upche_cd × hscodes) 를 backend API(RATE_API_URL, POST /trade/weight) 로 **일괄 조회**"
           },
           "direction": {
             "type": "string",
@@ -863,23 +884,32 @@
               "export"
             ],
             "title": "Direction",
-            "description": "import=매입(기본) / export=매출",
+            "description": "import=매입(기본) / export=매출 — 전파 방향과 rate 조회 방향(tseximdivcd 3/0)에 공통 적용",
             "default": "import"
           }
         },
         "type": "object",
         "required": [
           "triple_list",
-          "seed_list",
-          "shock_rate"
+          "shock_rate",
+          "seed_list"
         ],
         "title": "TariffRequest",
         "example": {
+          "bse_yr": "2025",
           "direction": "export",
           "seed_list": [
-            "b"
+            {
+              "hscodes": [
+                "3801300000",
+                "3901100000"
+              ],
+              "seed_id": "b",
+              "total_amount": 10000000.0,
+              "upche_cd": "184084"
+            }
           ],
-          "shock_rate": 1.0,
+          "shock_rate": 0.1,
           "triple_list": [
             {
               "from": "a",
@@ -903,6 +933,44 @@
             }
           ]
         }
+      },
+      "TariffSeedIn": {
+        "properties": {
+          "seed_id": {
+            "type": "string",
+            "title": "Seed Id",
+            "description": "기업 사업자등록번호(bizno) — triple_list 의 node_id 와 동일 체계"
+          },
+          "upche_cd": {
+            "type": "string",
+            "title": "Upche Cd",
+            "description": "업체코드 — rate(수출입 비중) 조회 키 (hscode 와 함께 사용)"
+          },
+          "total_amount": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Total Amount",
+            "description": "이 기업의 총매출(원) — 손익계산서(ab01·ac01) 매출액"
+          },
+          "hscodes": {
+            "items": {
+              "type": "string",
+              "pattern": "^\\d{10}$"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Hscodes",
+            "description": "품목코드 목록 (HS 10자리 digit) — backend /trade/weight 일괄 조회로 품목별 수출(입) 비중을 받아 **합산**(Σ). 중복 코드는 dedup 후 합산하고 backend 가 H10 단일 계층만 반환하므로 이중계상 여지 없음. 실적 없는 품목은 비중 0 취급, 전 품목 실적 없음이면 시드 excluded."
+          }
+        },
+        "type": "object",
+        "required": [
+          "seed_id",
+          "upche_cd",
+          "total_amount",
+          "hscodes"
+        ],
+        "title": "TariffSeedIn"
       },
       "TripleIn": {
         "properties": {
@@ -981,18 +1049,11 @@
           },
           "seed_list": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/VolumeSeedIn"
             },
             "type": "array",
-            "title": "Seed List"
-          },
-          "node_overrides": {
-            "items": {
-              "$ref": "#/components/schemas/OverrideIn"
-            },
-            "type": "array",
-            "title": "Node Overrides",
-            "description": "[{p1, delta}] 노드별 거래량 변동율(0=무변화, 음수=감소)"
+            "title": "Seed List",
+            "description": "변동 대상 1차 기업 [{seed_id, total_amount, shock_rate}] — 기업별 변동 비율을 개별 입력"
           },
           "direction": {
             "type": "string",
@@ -1008,20 +1069,17 @@
         "type": "object",
         "required": [
           "triple_list",
-          "seed_list",
-          "node_overrides"
+          "seed_list"
         ],
         "title": "VolumeRequest",
         "example": {
           "direction": "export",
-          "node_overrides": [
-            {
-              "delta": -0.2,
-              "p1": "b"
-            }
-          ],
           "seed_list": [
-            "b"
+            {
+              "seed_id": "b",
+              "shock_rate": 0.2,
+              "total_amount": 1000000.0
+            }
           ],
           "triple_list": [
             {
@@ -1036,6 +1094,35 @@
             }
           ]
         }
+      },
+      "VolumeSeedIn": {
+        "properties": {
+          "seed_id": {
+            "type": "string",
+            "title": "Seed Id",
+            "description": "기업 사업자등록번호(bizno) — triple_list 의 node_id 와 동일 체계"
+          },
+          "total_amount": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Total Amount",
+            "description": "이 기업의 총매출(원) — 손익계산서(ab01·ac01) 매출액 (매입 기준이면 매입 총액)"
+          },
+          "shock_rate": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Shock Rate",
+            "description": "이 기업의 충격 비율 (0~1 강제, 0=무변화, 예: 0.2=20%). 주입액(충격 금액) = total_amount(총매출) × shock_rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "seed_id",
+          "total_amount",
+          "shock_rate"
+        ],
+        "title": "VolumeSeedIn"
       }
     }
   }
