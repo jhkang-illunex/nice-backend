@@ -55,6 +55,9 @@ def test_tariff_pinned_convex_combination() -> None:
     assert res[0]["excluded"] == []
 
 
+_HS = "3901100000"  # 테스트 공통 HS10
+
+
 def _tariff_body(seed_ids: list[str], shock_rate: float = 0.2) -> dict:
     """공통 tariff 요청 — total_amount=1.0 · rate 모킹 1.0 → 주입액 = shock_rate 그대로.
 
@@ -65,20 +68,27 @@ def _tariff_body(seed_ids: list[str], shock_rate: float = 0.2) -> dict:
         "triple_list": [{"from": x["from"], "to": x["to"], "rate": x["rate"]} for x in _TRIPLES],
         "shock_rate": shock_rate,
         "seed_list": [
-            {"seed_id": s, "upche_cd": f"{s}_up", "total_amount": 1.0, "hscodes": ["390110"]}
+            {"seed_id": s, "upche_cd": f"{s}_up", "total_amount": 1.0, "hscodes": [_HS]}
             for s in seed_ids
         ],
         "direction": "export",  # 매출(downstream) — 엣지 그대로
     }
 
 
+def _grid_weights(rate: float = 1.0):
+    """fetch_weights 대체 — 요청된 전 (upchecd × hskcode) 셀에 같은 rate."""
+    def fake(bse_yr, upchecd_list, hskcode_list, exim):
+        return {(u, h): rate for u in upchecd_list for h in hskcode_list}
+    return fake
+
+
 def test_tariff_api_endpoint(monkeypatch) -> None:
-    # 입력: shock_rate(영향 비중, 0~1)+seed_list[{seed_id,total_amount,hscode}].
-    # rate(HS 수출입 비중)는 backend API 조회 — 테스트에선 1.0 모킹.
-    # 주입 = total_amount × rate × shock_rate.
+    # 입력: shock_rate(충격 비율, 0~1)+seed_list[{seed_id,upche_cd,total_amount,hscodes}].
+    # rate(HS10 수출입 비중)는 backend /trade/weight 일괄 조회 — 테스트에선 1.0 모킹.
+    # 주입 = total_amount(손익계산서 매출액) × Σrate × shock_rate.
     import nice_shock.api.main as m
 
-    monkeypatch.setattr(m, "fetch_rate", lambda seed_id, hscode: 1.0)
+    monkeypatch.setattr(m, "fetch_weights", _grid_weights(1.0))
     r = client.post("/api/shock/tariff", json=_tariff_body(["포스코", "현대모비스"]))
     assert r.status_code == 200
     d = r.json()
@@ -94,63 +104,101 @@ def test_tariff_api_endpoint(monkeypatch) -> None:
 
 
 def test_tariff_multi_hscode_rates_summed(monkeypatch) -> None:
-    """hscodes 전량 조회·단순 합산 — total 100만 × (0.3+0.2) × shock_rate 0.2 = 10만.
+    """품목별 비중 합산 — total 100만 × (0.3+0.2) × shock_rate 0.2 = 10만.
 
-    이중계상(중복/prefix) 제거 정책은 발주처 회신 대기 — 현재 계약은 Σ 그대로.
+    v2 로직: 품목별 금액(매출액×비중)을 더한 뒤 충격 비율을 1회 곱함 —
+    선형이라 매출액 × Σ비중 × 충격비율과 동일.
     """
     import nice_shock.api.main as m
 
-    rates = {"390110": 0.3, "840999": 0.2}
-    monkeypatch.setattr(m, "fetch_rate", lambda upche_cd, hscode: rates[hscode])
+    hs2 = "8409990000"
+    rates = {_HS: 0.3, hs2: 0.2}
+
+    def fake(bse_yr, upchecd_list, hskcode_list, exim):
+        return {(u, h): rates[h] for u in upchecd_list for h in hskcode_list}
+
+    monkeypatch.setattr(m, "fetch_weights", fake)
     body = _tariff_body(["포스코"])
     body["seed_list"][0]["total_amount"] = 1_000_000.0
-    body["seed_list"][0]["hscodes"] = ["390110", "840999"]
+    body["seed_list"][0]["hscodes"] = [_HS, hs2]
     d = client.post("/api/shock/tariff", json=body).json()
     sm = {x["node_id"]: x["shock"] for x in d["data_list"]}
     assert abs(sm["포스코"] - 100_000.0) < 1e-6
     assert abs(sm["지오"] - 100_000.0) < 1e-6  # 포스코→지오 rate 1.0 전파
 
 
-def test_tariff_partial_hscode_failure_partial_sum(monkeypatch) -> None:
-    """일부 hscode 조회 실패(404 등)면 그 코드만 빼고 부분 합산 — 시드는 excluded 아님.
-
-    전 코드 실패 시에만 시드 excluded (test_tariff_rate_lookup_failure_excluded).
-    """
-    from nice_shock.rate_client import RateLookupFailed
-
+def test_tariff_duplicate_hscode_deduped(monkeypatch) -> None:
+    """요청에 같은 HS10 이 중복돼도 1회만 합산 — 이중계상 방지."""
     import nice_shock.api.main as m
 
-    def fake_rate(upche_cd: str, hscode: str) -> float:
-        if hscode == "0000999999":
-            raise RateLookupFailed(f"(upche_cd={upche_cd}, hscode={hscode}) 거래 없음 (404)")
-        return 0.5
-
-    monkeypatch.setattr(m, "fetch_rate", fake_rate)
+    monkeypatch.setattr(m, "fetch_weights", _grid_weights(0.5))
     body = _tariff_body(["포스코"])
     body["seed_list"][0]["total_amount"] = 1_000_000.0
-    body["seed_list"][0]["hscodes"] = ["390110", "0000999999"]
+    body["seed_list"][0]["hscodes"] = [_HS, _HS]
     d = client.post("/api/shock/tariff", json=body).json()
-    assert d["excluded_seeds"] == []  # 부분 실패는 제외 아님
     sm = {x["node_id"]: x["shock"] for x in d["data_list"]}
-    assert abs(sm["포스코"] - 100_000.0) < 1e-6  # 1e6 × 0.5(성공분만) × 0.2
+    assert abs(sm["포스코"] - 100_000.0) < 1e-6  # 1e6 × 0.5(1회) × 0.2
 
 
-def test_tariff_default_direction_is_import(monkeypatch) -> None:
-    """direction 미입력 시 import(매입) 기본."""
+def test_tariff_missing_hscode_partial_sum(monkeypatch) -> None:
+    """일부 품목이 응답에 없으면(실적 없음) 그 코드만 비중 0 취급, 부분 합산 — excluded 아님.
+
+    전 품목 부재 시에만 시드 excluded (test_tariff_no_trade_record_excluded).
+    """
     import nice_shock.api.main as m
 
-    monkeypatch.setattr(m, "fetch_rate", lambda seed_id, hscode: 1.0)
+    missing = "0000999999"
+
+    def fake(bse_yr, upchecd_list, hskcode_list, exim):
+        return {(u, h): 0.5 for u in upchecd_list for h in hskcode_list if h != missing}
+
+    monkeypatch.setattr(m, "fetch_weights", fake)
+    body = _tariff_body(["포스코"])
+    body["seed_list"][0]["total_amount"] = 1_000_000.0
+    body["seed_list"][0]["hscodes"] = [_HS, missing]
+    d = client.post("/api/shock/tariff", json=body).json()
+    assert d["excluded_seeds"] == []  # 부분 부재는 제외 아님
+    sm = {x["node_id"]: x["shock"] for x in d["data_list"]}
+    assert abs(sm["포스코"] - 100_000.0) < 1e-6  # 1e6 × 0.5(보유분만) × 0.2
+
+
+def test_tariff_direction_maps_exim_and_default_year(monkeypatch) -> None:
+    """direction 미입력 시 import(매입) 기본 — rate 조회도 tseximdivcd '3'(수입).
+
+    bse_yr 미입력 시 기본 2025 로 backend 조회 (v2 §0 기준 연도).
+    """
+    import nice_shock.api.main as m
+
+    seen: dict = {}
+
+    def fake(bse_yr, upchecd_list, hskcode_list, exim):
+        seen.update(bse_yr=bse_yr, exim=exim)
+        return {(u, h): 1.0 for u in upchecd_list for h in hskcode_list}
+
+    monkeypatch.setattr(m, "fetch_weights", fake)
     body = _tariff_body(["포스코"])
     del body["direction"]
     d = client.post("/api/shock/tariff", json=body).json()
     assert d["direction"] == "import"
+    assert seen == {"bse_yr": "2025", "exim": "3"}  # 수입=3 / 기본연도 2025
+    body["direction"] = "export"
+    body["bse_yr"] = "2023"
+    client.post("/api/shock/tariff", json=body)
+    assert seen == {"bse_yr": "2023", "exim": "0"}  # 수출=0 / 사용자 지정 연도
+
+
+def test_tariff_hscode_must_be_10_digits() -> None:
+    """hscodes 는 HS 10자리 digit 강제 — backend /trade/weight 가 H10 만 반환 (v2 §3)."""
+    body = _tariff_body(["포스코"])
+    body["seed_list"][0]["hscodes"] = ["390110"]  # 6자리 → 422
+    assert client.post("/api/shock/tariff", json=body).status_code == 422
 
 
 def test_shock_rate_forced_0_to_1(monkeypatch) -> None:
-    """shock_rate(영향 비중)는 0~1 강제 — 범위 밖(음수·1 초과)은 422."""
+    """shock_rate(충격 비율)는 0~1 강제 — 범위 밖(음수·1 초과)은 422."""
     import nice_shock.api.main as m
 
-    monkeypatch.setattr(m, "fetch_rate", lambda seed_id, hscode: 1.0)
+    monkeypatch.setattr(m, "fetch_weights", _grid_weights(1.0))
     assert client.post("/api/shock/tariff", json=_tariff_body(["포스코"], shock_rate=-0.2)).status_code == 422
     assert client.post("/api/shock/tariff", json=_tariff_body(["포스코"], shock_rate=1.5)).status_code == 422
     vol = {
@@ -172,7 +220,7 @@ def test_tariff_input_schema() -> None:
     )
 
     assert set(TariffRequest.model_fields) == {
-        "triple_list", "shock_rate", "seed_list", "direction",
+        "triple_list", "bse_yr", "shock_rate", "seed_list", "direction",
     }
     assert set(TariffSeedIn.model_fields) == {"seed_id", "upche_cd", "total_amount", "hscodes"}
     assert set(VolumeRequest.model_fields) == {"triple_list", "seed_list", "direction"}
@@ -188,7 +236,7 @@ def test_tariff_isolated_seed_excluded(monkeypatch) -> None:
     """
     import nice_shock.api.main as m
 
-    monkeypatch.setattr(m, "fetch_rate", lambda seed_id, hscode: 1.0)
+    monkeypatch.setattr(m, "fetch_weights", _grid_weights(1.0))
     d = client.post("/api/shock/tariff", json=_tariff_body(["포스코", "유령기업"])).json()
     assert [e["node_id"] for e in d["excluded_seeds"]] == ["유령기업"]
     assert "노드 집합" in d["excluded_seeds"][0]["reason"]
@@ -198,24 +246,24 @@ def test_tariff_isolated_seed_excluded(monkeypatch) -> None:
     assert abs(d["total_shock"] - sum(x["shock"] for x in d["data_list"])) < 1e-9
 
 
-def test_tariff_rate_lookup_failure_excluded(monkeypatch) -> None:
-    """rate 조회 실패(404·형식·0~1 범위 위반) 시드는 excluded_seeds 로 보고, 나머지는 정상 전파.
+def test_tariff_no_trade_record_excluded(monkeypatch) -> None:
+    """전 품목 실적 없는 시드는 excluded_seeds 로 보고, 나머지는 정상 전파.
 
     조회 키가 upche_cd 임을 함께 검증 — mock 이 upche_cd("현대모비스_up") 로 분기.
     """
-    from nice_shock.rate_client import RateLookupFailed
-
     import nice_shock.api.main as m
 
-    def fake_rate(upche_cd: str, hscode: str) -> float:
-        if upche_cd == "현대모비스_up":
-            raise RateLookupFailed(f"(upche_cd={upche_cd}, hscode={hscode}) 거래 없음 (404)")
-        return 1.0
+    def fake(bse_yr, upchecd_list, hskcode_list, exim):
+        return {
+            (u, h): 1.0
+            for u in upchecd_list if u != "현대모비스_up"
+            for h in hskcode_list
+        }
 
-    monkeypatch.setattr(m, "fetch_rate", fake_rate)
+    monkeypatch.setattr(m, "fetch_weights", fake)
     d = client.post("/api/shock/tariff", json=_tariff_body(["포스코", "현대모비스"])).json()
     assert [e["node_id"] for e in d["excluded_seeds"]] == ["현대모비스"]
-    assert "거래 없음" in d["excluded_seeds"][0]["reason"]
+    assert "실적 없음" in d["excluded_seeds"][0]["reason"]
     sm = {x["node_id"]: x["shock"] for x in d["data_list"]}
     assert "현대모비스" not in sm and "포스코" in sm  # 포스코 경로만 전파
 
@@ -228,8 +276,50 @@ def test_tariff_rate_api_unconfigured_503(monkeypatch) -> None:
     assert "RATE_API_URL" in r.json()["detail"]
 
 
-def test_rate_client_validates_range(monkeypatch) -> None:
-    """backend 응답 rate 가 0~1 밖이면 RateLookupFailed (강제 검증)."""
+def test_rate_client_parses_and_filters(monkeypatch) -> None:
+    """rate_client — 실계약 응답 파싱: 방향(exim) 필터·문자열 rate 변환·범위 위반 셀 버림."""
+    import nice_shock.rate_client as rc
+
+    payload = {
+        "status": 0,
+        "data": [
+            {"bseYr": "2025", "tscdcg": "H10", "upchecd": "380130",
+             "weightList": [
+                 {"tseximdivcd": "0", "tscdvl": "7318160000", "tstrdwgt": "0.272135"},
+                 {"tseximdivcd": "3", "tscdvl": "7318160000", "tstrdwgt": "0.002382"},
+                 {"tseximdivcd": "0", "tscdvl": "8534009000", "tstrdwgt": "1.500000"},  # 위반
+             ]},
+        ],
+        "message": None,
+    }
+
+    class _Resp:
+        status_code = 200
+
+        @staticmethod
+        def json() -> dict:
+            return payload
+
+    sent: dict = {}
+
+    def fake_post(url, json, timeout):
+        sent.update(url=url, body=json)
+        return _Resp()
+
+    monkeypatch.setenv("RATE_API_URL", "http://backend.test/trade/weight")
+    monkeypatch.setattr(rc.httpx, "post", fake_post)
+    w = rc.fetch_weights("2025", ["380130"], ["7318160000", "8534009000"], exim=rc.EXIM_EXPORT)
+    assert sent["url"] == "http://backend.test/trade/weight"
+    assert sent["body"] == {"bseYr": "2025", "upchecdList": ["380130"],
+                            "hskcodeList": ["7318160000", "8534009000"]}
+    # 수출("0") 행만 + 범위 위반 셀 제외
+    assert w == {("380130", "7318160000"): 0.272135}
+    w_imp = rc.fetch_weights("2025", ["380130"], ["7318160000"], exim=rc.EXIM_IMPORT)
+    assert w_imp == {("380130", "7318160000"): 0.002382}
+
+
+def test_rate_client_status_nonzero_unavailable(monkeypatch) -> None:
+    """backend status≠0 은 서비스 수준 문제 — RateApiUnavailable (요청 전체 503)."""
     import pytest
 
     import nice_shock.rate_client as rc
@@ -239,49 +329,62 @@ def test_rate_client_validates_range(monkeypatch) -> None:
 
         @staticmethod
         def json() -> dict:
-            return {"rate": 1.5}
+            return {"status": -1, "data": None, "message": "internal"}
 
-    monkeypatch.setenv("RATE_API_URL", "http://rate-api.test/rate")
-    monkeypatch.setattr(rc.httpx, "get", lambda *a, **k: _Resp())
-    with pytest.raises(rc.RateLookupFailed, match="범위 위반"):
-        rc.fetch_rate("포스코_up", "390110")
-
-
-# ── rate-mock (backend rate API 목업) ─────────────────────────────────────────
+    monkeypatch.setenv("RATE_API_URL", "http://backend.test/trade/weight")
+    monkeypatch.setattr(rc.httpx, "post", lambda *a, **k: _Resp())
+    with pytest.raises(rc.RateApiUnavailable, match="status=-1"):
+        rc.fetch_weights("2025", ["380130"], ["7318160000"], exim=rc.EXIM_EXPORT)
 
 
-def test_rate_mock_deterministic_and_bounded() -> None:
-    """목업 rate — 같은 (upche_cd, hscode) 는 항상 같은 값, 0~1 범위."""
+# ── rate-mock (backend /trade/weight 목업) ────────────────────────────────────
+
+
+def test_rate_mock_shape_deterministic_and_bounded() -> None:
+    """목업 — 실계약 응답 형상, 같은 입력엔 항상 같은 값, 0~1 범위, 방향별 상이."""
     from nice_shock.mock_rate_api import app as mock_app
 
     mc = TestClient(mock_app)
-    r1 = mc.get("/rate", params={"upche_cd": "184084", "hscode": "3801300000"})
-    r2 = mc.get("/rate", params={"upche_cd": "184084", "hscode": "3801300000"})
+    body = {"bseYr": "2025", "upchecdList": ["184084"], "hskcodeList": ["3801300000"]}
+    r1 = mc.post("/trade/weight", json=body)
+    r2 = mc.post("/trade/weight", json=body)
     assert r1.status_code == 200
     assert r1.json() == r2.json()  # 결정적
-    assert 0.0 <= r1.json()["rate"] <= 1.0
-    # 다른 키 → (거의 확실히) 다른 값
-    r3 = mc.get("/rate", params={"upche_cd": "184084", "hscode": "390110"})
-    assert r3.json()["rate"] != r1.json()["rate"]
+    d = r1.json()
+    assert d["status"] == 0
+    row = d["data"][0]
+    assert row["upchecd"] == "184084" and row["tscdcg"] == "H10"
+    by_exim = {w["tseximdivcd"]: float(w["tstrdwgt"]) for w in row["weightList"]}
+    assert set(by_exim) == {"0", "3"}  # 수출·수입 두 방향
+    assert all(0.0 <= v <= 1.0 for v in by_exim.values())
+    assert by_exim["0"] != by_exim["3"]  # 방향별 다른 값
 
 
-def test_rate_mock_404_convention() -> None:
-    """목업 규약 — hscode '0000' 접두는 거래 없음(404)."""
+def test_rate_mock_no_record_convention() -> None:
+    """목업 규약 — '0000' 접두 hskcode 는 행 부재, '0000' 접두 upchecd 는 weightList 빈 배열."""
     from nice_shock.mock_rate_api import app as mock_app
 
     mc = TestClient(mock_app)
-    assert mc.get("/rate", params={"upche_cd": "184084", "hscode": "0000999999"}).status_code == 404
+    d = mc.post("/trade/weight", json={
+        "bseYr": "2025", "upchecdList": ["184084", "0000_none"],
+        "hskcodeList": ["3801300000", "0000999999"],
+    }).json()
+    rows = {r["upchecd"]: r["weightList"] for r in d["data"]}
+    assert {w["tscdvl"] for w in rows["184084"]} == {"3801300000"}  # '0000' 품목 부재
+    assert rows["0000_none"] == []  # 실적 없는 업체
     assert mc.get("/health").json()["status"] == "ok"
 
 
 def test_tariff_end_to_end_with_rate_mock(monkeypatch) -> None:
-    """shock-server rate_client → rate-mock 실호출 경로 검증 (httpx.get 을 목업 앱으로 우회)."""
+    """shock-server rate_client → rate-mock 실호출 경로 검증 (httpx.post 를 목업 앱으로 우회)."""
     import nice_shock.rate_client as rc
     from nice_shock.mock_rate_api import app as mock_app
 
     mc = TestClient(mock_app)
-    monkeypatch.setenv("RATE_API_URL", "http://rate-mock.test/rate")
-    monkeypatch.setattr(rc.httpx, "get", lambda url, params, timeout: mc.get("/rate", params=params))
+    monkeypatch.setenv("RATE_API_URL", "http://rate-mock.test/trade/weight")
+    monkeypatch.setattr(
+        rc.httpx, "post", lambda url, json, timeout: mc.post("/trade/weight", json=json)
+    )
     body = _tariff_body(["포스코"])
     d = client.post("/api/shock/tariff", json=body)
     assert d.status_code == 200

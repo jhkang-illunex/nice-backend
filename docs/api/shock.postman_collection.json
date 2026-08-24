@@ -29,7 +29,7 @@
         },
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"direction\": \"export\",\n  \"seed_list\": [\n    {\n      \"hscodes\": [\n        \"3801300000\",\n        \"390110\"\n      ],\n      \"seed_id\": \"b\",\n      \"total_amount\": 10000000.0,\n      \"upche_cd\": \"184084\"\n    }\n  ],\n  \"shock_rate\": 0.1,\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"rate\": 0.115,\n      \"to\": \"b\"\n    },\n    {\n      \"from\": \"b\",\n      \"rate\": 0.06,\n      \"to\": \"a\"\n    },\n    {\n      \"from\": \"c\",\n      \"rate\": 0.912,\n      \"to\": \"b\"\n    },\n    {\n      \"from\": \"b\",\n      \"rate\": 0.607,\n      \"to\": \"c\"\n    }\n  ]\n}",
+          "raw": "{\n  \"bse_yr\": \"2025\",\n  \"direction\": \"export\",\n  \"seed_list\": [\n    {\n      \"hscodes\": [\n        \"3801300000\",\n        \"3901100000\"\n      ],\n      \"seed_id\": \"b\",\n      \"total_amount\": 10000000.0,\n      \"upche_cd\": \"184084\"\n    }\n  ],\n  \"shock_rate\": 0.1,\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"rate\": 0.115,\n      \"to\": \"b\"\n    },\n    {\n      \"from\": \"b\",\n      \"rate\": 0.06,\n      \"to\": \"a\"\n    },\n    {\n      \"from\": \"c\",\n      \"rate\": 0.912,\n      \"to\": \"b\"\n    },\n    {\n      \"from\": \"b\",\n      \"rate\": 0.607,\n      \"to\": \"c\"\n    }\n  ]\n}",
           "options": {
             "raw": {
               "language": "json"

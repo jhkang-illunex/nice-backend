@@ -1,18 +1,19 @@
 """nice_shock API 서버 — 순수 쇼크 전파 (DB·LLM 의존 없음).
 
-엔드포인트
-  POST /api/shock/tariff  : 관세(외생) 충격 — 시드별 주입액
-                            = total_amount(수출입 금액, 인자) × Σrate(hscodes 각각을
-                            (upche_cd, hscode) 로 backend API 조회해 합산, 각 0~1) ×
-                            shock_rate(영향 받는 비중, 인자 0~1)
-                            ※ hscode 중복/계층 이중계상 정책은 발주처 회신 대기 — 현재는
-                            입력 전량 단순 합산.
-  POST /api/shock/volume  : 거래량 변동 — 시드별 주입액 = total_amount × shock_rate
-                            (shock_rate 는 기업별 인자, 0~1 강제)
+엔드포인트 ("1차 기업 충격 금액 산출 로직 v2" — docs/충격금액_산출_로직_v2.pdf)
+  POST /api/shock/tariff  : 수출입(외생) 충격 — 시드별 주입액
+                            = total_amount(손익계산서 매출액, 인자)
+                            × Σrate(HS10 품목별 수출입 비중 — bse_yr 기준으로 backend
+                              POST /trade/weight 일괄 조회, 각 0~1, direction 방향분만)
+                            × shock_rate(충격 비율, 인자 0~1)
+                            ※ backend 가 H10 단일 계층만 반환하고 요청 내 중복 코드는
+                            dedup 하므로 이중계상(중복/prefix) 여지 없음.
+  POST /api/shock/volume  : 거래량 변동(국내 충격) — 시드별 주입액
+                            = total_amount(총매출) × shock_rate (기업별 인자, 0~1 강제)
   GET  /health
 
 입력 그래프(triple_list)를 클라이언트가 제공하므로 stateless — 수평 확장 자유.
-(tariff 만 backend rate API 에 의존 — 계약은 nice_shock.rate_client 참고.)
+(tariff 만 backend /trade/weight API 에 의존 — 계약은 nice_shock.rate_client 참고.)
 """
 from __future__ import annotations
 
@@ -24,7 +25,12 @@ from pydantic import BaseModel, Field
 
 from nice_shock.cri import compute_cri
 from nice_shock.engine import propagate_dispatch
-from nice_shock.rate_client import RateApiUnavailable, RateLookupFailed, fetch_rate
+from nice_shock.rate_client import (
+    EXIM_EXPORT,
+    EXIM_IMPORT,
+    RateApiUnavailable,
+    fetch_weights,
+)
 from nice_shock.scenario import run_tariff, run_volume
 
 log = logging.getLogger(__name__)
@@ -44,11 +50,12 @@ _EX_EDGES = [
 ]
 _EX_TARIFF_REQ = {
     "triple_list": _EX_EDGES,
+    "bse_yr": "2025",
     "shock_rate": 0.1,
     "seed_list": [
         {
             "seed_id": "b", "upche_cd": "184084", "total_amount": 10000000.0,
-            "hscodes": ["3801300000", "390110"],
+            "hscodes": ["3801300000", "3901100000"],
         }
     ],
     "direction": "export",
@@ -121,6 +128,8 @@ _METHODS = ("scc", "iterative")
 Direction = Literal["import", "export"]
 _DIR_TO_INT = {"import": 1, "export": 0}
 _INT_TO_DIR = {1: "import", 0: "export"}
+# tariff rate 조회 방향 — backend tseximdivcd(0=전체수출/3=전체수입)와 매핑.
+_DIR_TO_EXIM = {"export": EXIM_EXPORT, "import": EXIM_IMPORT}
 
 
 # ── 외부 응답 (간소화) ───────────────────────────────────────────────────────
@@ -186,32 +195,44 @@ class TariffSeedIn(BaseModel):
         ..., description="업체코드 — rate(수출입 비중) 조회 키 (hscode 와 함께 사용)"
     )
     total_amount: float = Field(
-        ..., ge=0.0, description="이 기업의 수출입 금액(원)"
+        ..., ge=0.0, description="이 기업의 총매출(원) — 손익계산서(ab01·ac01) 매출액"
     )
-    hscodes: list[Annotated[str, Field(min_length=4, max_length=10)]] = Field(
+    hscodes: list[Annotated[str, Field(pattern=r"^\d{10}$")]] = Field(
         ...,
         min_length=1,
-        description="품목코드 목록 (HS 4/6/10 digit) — 각 코드를 (upche_cd, hscode) 로 개별 "
-        "조회해 rate 를 **단순 합산**(Σ). ※ 중복/계층(prefix) 이중계상 제거 정책은 발주처 "
-        "회신 대기 — 포함관계 코드가 섞이면 과대계상될 수 있음.",
+        description="품목코드 목록 (HS 10자리 digit) — backend /trade/weight 일괄 조회로 "
+        "품목별 수출(입) 비중을 받아 **합산**(Σ). 중복 코드는 dedup 후 합산하고 backend 가 "
+        "H10 단일 계층만 반환하므로 이중계상 여지 없음. 실적 없는 품목은 비중 0 취급, "
+        "전 품목 실적 없음이면 시드 excluded.",
     )
 
 
 class TariffRequest(BaseModel):
     triple_list: list[TripleIn] = Field(..., description="거래쌍·거래비율 엣지 목록")
+    bse_yr: str = Field(
+        "2025",
+        pattern=r"^\d{4}$",
+        description="기준 연도 — 수출입 비중(/trade/weight) 조회 기준. 기본 2025 "
+        "(2026 데이터 불충분).",
+    )
     shock_rate: float = Field(
         ...,
         ge=0.0,
         le=1.0,
-        description="영향 받는 비중 (전 시드 공통, 0~1 강제). 시드별 주입액 = "
-        "total_amount × Σrate(backend 조회, 각 0~1) × shock_rate",
+        description="충격 비율 (전 시드 공통, 0~1 강제). 시드별 주입액 = "
+        "total_amount(손익계산서 매출액) × Σrate(backend 조회, 각 0~1) × shock_rate",
     )
     seed_list: list[TariffSeedIn] = Field(
         ...,
         description="외생충격 받는 1차 기업 [{seed_id, upche_cd, total_amount, hscodes}] — "
-        "rate 는 hscodes 각각을 (upche_cd, hscode) 로 backend API(RATE_API_URL) 조회",
+        "rate 는 전 시드의 (upche_cd × hscodes) 를 backend API(RATE_API_URL, "
+        "POST /trade/weight) 로 **일괄 조회**",
     )
-    direction: Direction = Field("import", description="import=매입(기본) / export=매출")
+    direction: Direction = Field(
+        "import",
+        description="import=매입(기본) / export=매출 — 전파 방향과 rate 조회 방향"
+        "(tseximdivcd 3/0)에 공통 적용",
+    )
 
     model_config = {"json_schema_extra": {"example": _EX_TARIFF_REQ}}
 
@@ -223,31 +244,35 @@ class TariffRequest(BaseModel):
     responses={503: {"description": "backend rate API 미설정 또는 도달 불가 (RATE_API_URL)"}},
 )
 def tariff(req: TariffRequest) -> DataResponse:
+    # 전 시드의 (upche_cd × hscodes) 를 backend /trade/weight 로 한 번에 조회한 뒤
+    # 시드별 Σrate 를 만든다. 응답에 행이 없는 (업체, 품목) 셀 = 그 품목 실적 없음
+    # = 비중 0 취급(부분 합산). 전 품목 실적 없음일 때만 시드 excluded.
+    exim = _DIR_TO_EXIM[req.direction]
+    upchecds = sorted({s.upche_cd for s in req.seed_list})
+    hscodes = sorted({h for s in req.seed_list for h in s.hscodes})
+    try:
+        weights = (
+            fetch_weights(req.bse_yr, upchecds, hscodes, exim=exim) if req.seed_list else {}
+        )
+    except RateApiUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     seeds: list[dict] = []
     pre_excluded: list[dict] = []
     for s in req.seed_list:
-        # hscodes 전량을 (upche_cd, hscode) 로 개별 조회해 단순 합산 — 이중계상
-        # (중복/prefix) 제거 정책은 발주처 회신 대기. 조회 실패 코드는 합산에서 빠지고
-        # (거래 없음 404 = 그 품목 노출 0 과 동치), 전 코드 실패 시에만 시드 excluded.
-        rate_sum = 0.0
-        n_ok = 0
-        errors: list[str] = []
-        for h in s.hscodes:
-            try:
-                rate_sum += fetch_rate(s.upche_cd, h)
-                n_ok += 1
-            except RateLookupFailed as exc:
-                errors.append(str(exc))
-            except RateApiUnavailable as exc:
-                raise HTTPException(status_code=503, detail=str(exc)) from exc
-        if n_ok == 0:
-            pre_excluded.append(
-                {"node_id": s.seed_id, "reason": "rate 전 코드 조회 실패: " + "; ".join(errors)}
-            )
+        codes = list(dict.fromkeys(s.hscodes))  # 요청 내 중복 코드 dedup (이중계상 방지)
+        found = {h: weights[(s.upche_cd, h)] for h in codes if (s.upche_cd, h) in weights}
+        if not found:
+            pre_excluded.append({
+                "node_id": s.seed_id,
+                "reason": f"기준연도 {req.bse_yr} 전 품목({len(codes)}건) 수출입 실적 없음 "
+                f"(/trade/weight 비중 부재, upche_cd={s.upche_cd})",
+            })
             continue
-        if errors:
-            log.warning("tariff seed %s: %d/%d hscode 조회 실패 — 부분 합산: %s",
-                        s.seed_id, len(errors), len(s.hscodes), "; ".join(errors))
+        if len(found) < len(codes):
+            missing = [h for h in codes if h not in found]
+            log.warning("tariff seed %s: %d/%d hscode 실적 없음 — 부분 합산: %s",
+                        s.seed_id, len(missing), len(codes), ", ".join(missing))
+        rate_sum = sum(found.values())
         seeds.append(
             {"node_id": s.seed_id, "shock_amount": s.total_amount * rate_sum * req.shock_rate}
         )
@@ -268,14 +293,15 @@ class VolumeSeedIn(BaseModel):
         ..., description="기업 사업자등록번호(bizno) — triple_list 의 node_id 와 동일 체계"
     )
     total_amount: float = Field(
-        ..., ge=0.0, description="이 기업의 기준 총액(원) — 매출/매입 총액"
+        ..., ge=0.0,
+        description="이 기업의 총매출(원) — 손익계산서(ab01·ac01) 매출액 (매입 기준이면 매입 총액)"
     )
     shock_rate: float = Field(
         ...,
         ge=0.0,
         le=1.0,
-        description="이 기업의 거래량 변동 비율 (0~1 강제, 0=무변화, 예: 0.2=20%). "
-        "주입액 = total_amount × shock_rate",
+        description="이 기업의 충격 비율 (0~1 강제, 0=무변화, 예: 0.2=20%). "
+        "주입액(충격 금액) = total_amount(총매출) × shock_rate",
     )
 
 

@@ -331,9 +331,10 @@ def _assemble_oriented(seed_pairs, direction: str, cfg: dict, seed_shock):
 def _run_public_scenario(cfg, seed_pairs, seed_biznos, seed_deltas, hscode) -> ScenarioResult:
     """방향별로 조립→공개 API 호출→DirectionResult 구성. ScenarioResult 반환.
 
-    tariff: seed_list=[{seed_id, total_amount, hscode}] + 전역 shock_rate(0~1) —
-            rate(HS 수출입 비중)는 shock 서버가 backend API(RATE_API_URL)로 조회,
-            주입액 = total_amount × rate × shock_rate.
+    tariff: seed_list=[{seed_id, upche_cd, total_amount, hscodes(HS10)}] + bse_yr +
+            전역 shock_rate(0~1) — rate(HS10 수출입 비중)는 shock 서버가 backend
+            (RATE_API_URL, POST /trade/weight)로 일괄 조회,
+            주입액 = total_amount × Σrate × shock_rate.
     volume: seed_list=[{seed_id, total_amount, shock_rate}] — seed_deltas({bizno: 변동비율})
             를 시드별 shock_rate(0~1) 로 전달, 주입액 = total_amount × shock_rate.
     total_amount 는 방향별 기준 총액(downstream=매출 Σ_out / upstream=매입 Σ_in)을 DB 에서 조회.
@@ -341,6 +342,14 @@ def _run_public_scenario(cfg, seed_pairs, seed_biznos, seed_deltas, hscode) -> S
     scenario = cfg["scenario"]
     out: list[DirectionResult] = []
     warnings: list[str] = []
+    # tariff hscodes 는 HS10 강제 (backend /trade/weight 가 H10 만 반환) — 4/6자리
+    # 입력은 zero-pad 전송. 해당 H10 행이 없으면 시드가 excluded 로 명시된다.
+    hs10 = (hscode or "").ljust(10, "0")
+    if scenario == "tariff" and hs10 != hscode:
+        warnings.append(
+            f"tariff hscodes 는 HS 10자리 강제 — '{hscode}' → '{hs10}' zero-pad 전송 "
+            "(backend 에 해당 H10 실적이 없으면 시드 excluded)."
+        )
     if scenario == "volume":
         warnings.append(
             "거래량 변동(volume): 시드별 변동비율(shock_rate, 0=무변화)을 seed_list 로 전달 — "
@@ -379,13 +388,16 @@ def _run_public_scenario(cfg, seed_pairs, seed_biznos, seed_deltas, hscode) -> S
         if scenario == "tariff":
             seed_payload = [
                 {"seed_id": n.node_id, "upche_cd": n.upchecd or "",
-                 "total_amount": totals[n.node_id], "hscodes": [hscode]}
+                 "total_amount": totals[n.node_id], "hscodes": [hs10]}
                 for n in seed_nodes
             ]
-            d_resp = _post_shock("/api/shock/tariff", {
+            body = {
                 "triple_list": triple_list, "shock_rate": float(cfg["shock_rate"]),
                 "seed_list": seed_payload, "direction": "export",
-            })
+            }
+            if cfg.get("trade_year"):  # 기준연도 — 미지정 시 서버 기본(2025)
+                body["bse_yr"] = str(cfg["trade_year"])
+            d_resp = _post_shock("/api/shock/tariff", body)
         else:
             # 시드별 입력 변동비율을 shock_rate 로 전달 (미입력=0=무변화)
             seed_payload = [
