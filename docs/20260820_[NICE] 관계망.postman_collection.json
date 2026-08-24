@@ -1,0 +1,3214 @@
+{
+  "info": {
+    "_postman_id": "cb00d9c7-33c0-48f3-9386-55768a2ffd52",
+    "name": "[NICE] 관계망",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "6924474"
+  },
+  "item": [
+    {
+      "name": "자동완성",
+      "item": [
+        {
+          "name": "자동완성 조회",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "// {\r\n//     \"keyword\":\"842139\",\r\n//     \"searchType\":\"hskcode\"      // hskcode:hsk코드, hskcodeDesc:hsk코드 설명, companyName:기업명, bizno:사업자번호, crpno:법인번호\r\n// }\r\n// {\r\n//     \"keyword\":\"말\",\r\n//     \"searchType\":\"hskcodeDesc\"      // hskcode:hsk코드, hskcodeDesc:hsk코드 설명, companyName:기업명, bizno:사업자번호, crpno:법인번호\r\n// }\r\n// {\r\n//     \"keyword\":\"삼성\",\r\n//     \"searchType\":\"companyName\"      // hskcode:hsk코드, hskcodeDesc:hsk코드 설명, companyName:기업명, bizno:사업자번호, crpno:법인번호\r\n// }\r\n// {\r\n//     \"keyword\":\"7478601664\",\r\n//     \"searchType\":\"bizno\"      // hskcode:hsk코드, hskcodeDesc:hsk코드 설명, companyName:기업명, bizno:사업자번호, crpno:법인번호\r\n// }\r\n{\r\n    \"keyword\":\"1101114908904\",\r\n    \"searchType\":\"crpno\"      // hskcode:hsk코드, hskcodeDesc:hsk코드 설명, companyName:기업명, bizno:사업자번호, crpno:법인번호\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{network-nice-rest-api-url}}/autocomplete?page=1&size=10&sort=crpno,ASC",
+              "host": [
+                "{{network-nice-rest-api-url}}"
+              ],
+              "path": [
+                "autocomplete"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "페이지번호"
+                },
+                {
+                  "key": "size",
+                  "value": "10",
+                  "description": "응답개수"
+                },
+                {
+                  "key": "sort",
+                  "value": "hsitemcfccd,ASC",
+                  "description": "hsk코드 정렬(searchType = hskcode)",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "korHsItemCfcDscCont,ASC",
+                  "description": "hsk코드 설명 정렬(searchType = hskcodeDesc)",
+                  "type": "text",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "upchecd,ASC",
+                  "description": "기업명 정렬(searchType = companyName)",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "bizno,ASC",
+                  "description": "사업자번호 정렬(searchType = bizno)",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "crpno,ASC",
+                  "description": "법인번호 정렬(searchType = crpno)",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "자동완성 조회",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "// {\r\n//     \"keyword\":\"842139\",\r\n//     \"searchType\":\"hskcode\"      // hskcode:hsk코드, hskcodeDesc:hsk코드 설명, companyName:기업명, bizno:사업자번호, crpno:법인번호\r\n// }\r\n// {\r\n//     \"keyword\":\"말\",\r\n//     \"searchType\":\"hskcodeDesc\"      // hskcode:hsk코드, hskcodeDesc:hsk코드 설명, companyName:기업명, bizno:사업자번호, crpno:법인번호\r\n// }\r\n// {\r\n//     \"keyword\":\"삼성\",\r\n//     \"searchType\":\"companyName\"      // hskcode:hsk코드, hskcodeDesc:hsk코드 설명, companyName:기업명, bizno:사업자번호, crpno:법인번호\r\n// }\r\n// {\r\n//     \"keyword\":\"7478601664\",\r\n//     \"searchType\":\"bizno\"      // hskcode:hsk코드, hskcodeDesc:hsk코드 설명, companyName:기업명, bizno:사업자번호, crpno:법인번호\r\n// }\r\n{\r\n    \"keyword\":\"1101114908904\",\r\n    \"searchType\":\"crpno\"      // hskcode:hsk코드, hskcodeDesc:hsk코드 설명, companyName:기업명, bizno:사업자번호, crpno:법인번호\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{network-nice-rest-api-url}}/autocomplete?page=1&size=10&sort=crpno,ASC",
+                  "host": [
+                    "{{network-nice-rest-api-url}}"
+                  ],
+                  "path": [
+                    "autocomplete"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "description": "페이지번호"
+                    },
+                    {
+                      "key": "size",
+                      "value": "10",
+                      "description": "응답개수"
+                    },
+                    {
+                      "key": "sort",
+                      "value": "hsitemcfccd,ASC",
+                      "description": "hsk코드 정렬(searchType = hskcode)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort",
+                      "value": "korHsItemCfcDscCont,ASC",
+                      "description": "hsk코드 설명 정렬(searchType = hskcodeDesc)",
+                      "type": "text",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort",
+                      "value": "upchecd,ASC",
+                      "description": "기업명 정렬(searchType = companyName)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort",
+                      "value": "bizno,ASC",
+                      "description": "사업자번호 정렬(searchType = bizno)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "sort",
+                      "value": "crpno,ASC",
+                      "description": "법인번호 정렬(searchType = crpno)"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Vary",
+                  "value": "Origin"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Method"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Headers"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "X-XSS-Protection",
+                  "value": "0"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-cache, no-store, max-age=0, must-revalidate"
+                },
+                {
+                  "key": "Pragma",
+                  "value": "no-cache"
+                },
+                {
+                  "key": "Expires",
+                  "value": "0"
+                },
+                {
+                  "key": "X-Frame-Options",
+                  "value": "DENY"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json",
+                  "description": "",
+                  "type": "text"
+                },
+                {
+                  "key": "Content-Length",
+                  "value": "171"
+                },
+                {
+                  "key": "Date",
+                  "value": "Tue, 23 Jun 2026 02:15:09 GMT"
+                },
+                {
+                  "key": "Keep-Alive",
+                  "value": "timeout=60"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                }
+              ],
+              "cookie": [
+                {
+                  "expires": "Invalid Date",
+                  "domain": "",
+                  "path": ""
+                }
+              ],
+              "body": "{\n    \"status\": 0,\n    \"data\": [\n        {\n            \"upchecd\": \"945133\",                        // 업체코드\n            \"korCompanyName\": \"（주）원창하드웨어\",         // 업체명\n            \"engCompanyName\": null,                     // (영문) 업체명\n            \"bizno\": \"1138692585\",                      // 사업자번호\n            \"crpno\": \"1101114908904\"                    // 법인번호\n        }\n    ],\n    \"message\": null\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "추천",
+      "item": [
+        {
+          "name": "추천기업 조회(hskcode로 조회)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"hskcodeList\":[\r\n        \"8481800000\",\r\n        \"8421390000\",\r\n        \"9018900000\",\r\n        \"2601111000\",\r\n        \"8527219090\"\r\n    ],\r\n    \"tradeType\":\"ALL\",          // ALL:전체, IMPORT:수입, EXPORT:수출\r\n    \"bseYr\":\"2025\",             // 조회할 거래년도\r\n    \"companySize\":\"ALL\"         // ALL:전체, LARGE:대기업, MEDIUM:중견기업, SMALL:중소기업\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{network-nice-rest-api-url}}/recommend/company/search?page=1&size=10&sort=tstrdwgt,DESC&sort=tstotusdamtstncd,DESC",
+              "host": [
+                "{{network-nice-rest-api-url}}"
+              ],
+              "path": [
+                "recommend",
+                "company",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "페이지번호"
+                },
+                {
+                  "key": "size",
+                  "value": "10",
+                  "description": "데이터 개수"
+                },
+                {
+                  "key": "sort",
+                  "value": "tstrdwgt,DESC",
+                  "description": "거래구성비율 내림차순"
+                },
+                {
+                  "key": "sort",
+                  "value": "tstotusdamtstncd,DESC",
+                  "description": "무역통계미화금액구간코드 내림차순"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "추천기업 조회(hskcode로 조회)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"hskcodeList\":[\r\n        \"8481800000\",\r\n        \"8421390000\",\r\n        \"9018900000\",\r\n        \"2601111000\",\r\n        \"8527219090\"\r\n    ],\r\n    \"tradeType\":\"ALL\",          // ALL:전체, IMPORT:수입, EXPORT:수출\r\n    \"bseYr\":\"2025\",             // 조회할 거래년도\r\n    \"companySize\":\"ALL\"         // ALL:전체, LARGE:대기업, MEDIUM:중견기업, SMALL:중소기업\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{network-nice-rest-api-url}}/recommend/company/search?page=1&size=10&sort=tstrdwgt,DESC&sort=tstotusdamtstncd,DESC",
+                  "host": [
+                    "{{network-nice-rest-api-url}}"
+                  ],
+                  "path": [
+                    "recommend",
+                    "company",
+                    "search"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "description": "페이지번호"
+                    },
+                    {
+                      "key": "size",
+                      "value": "10",
+                      "description": "데이터 개수"
+                    },
+                    {
+                      "key": "sort",
+                      "value": "tstrdwgt,DESC",
+                      "description": "거래구성비율 내림차순"
+                    },
+                    {
+                      "key": "sort",
+                      "value": "tstotusdamtstncd,DESC",
+                      "description": "무역통계미화금액구간코드 내림차순"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Vary",
+                  "value": "Origin"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Method"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Headers"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "X-XSS-Protection",
+                  "value": "0"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-cache, no-store, max-age=0, must-revalidate"
+                },
+                {
+                  "key": "Pragma",
+                  "value": "no-cache"
+                },
+                {
+                  "key": "Expires",
+                  "value": "0"
+                },
+                {
+                  "key": "X-Frame-Options",
+                  "value": "DENY"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json",
+                  "description": "",
+                  "type": "text"
+                },
+                {
+                  "key": "Content-Length",
+                  "value": "2274"
+                },
+                {
+                  "key": "Date",
+                  "value": "Tue, 23 Jun 2026 01:21:43 GMT"
+                },
+                {
+                  "key": "Keep-Alive",
+                  "value": "timeout=60"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                }
+              ],
+              "cookie": [
+                {
+                  "expires": "Invalid Date",
+                  "domain": "",
+                  "path": ""
+                }
+              ],
+              "body": "{\n    \"status\": 0,\n    \"data\": {\n        \"content\": [\n            {\n                \"hskcode\": \"8421390000\",                // hsk코드\n                \"upchecd\": \"177511\",                    // 업체코드\n                \"tstrdwgt\": \"95.188018\",                // 거래비중(%)\n                \"tstotusdamtstncd\": \"7\",                // 무역통계미화금액구간코드(0:실적없음, 1:1만 이하, 2:1만~10만, 3:10만~30만, 4:30만~100만, 5:100만~500만, 6:500만~1000만, 7:1000만 초과)\n                \"bizno\": \"1418120344\",                  // 사업자번호\n                \"crpno\": \"1101115518617\",               // 법인번호\n                \"korentrnm\": \"주식회사 주비푸드\",           // 기업명\n                \"engentrnm\": null,                      // (영문)기업명\n                \"korreprnm\": \"권서희\"                    // 대표자명\n            },\n            {\n                \"hskcode\": \"8481800000\",\n                \"upchecd\": \"184084\",\n                \"tstrdwgt\": \"92.359617\",\n                \"tstotusdamtstncd\": \"7\",\n                \"bizno\": \"5948801875\",\n                \"crpno\": \"1101113294147\",\n                \"korentrnm\": \"주식회사 디아이에이치\",\n                \"engentrnm\": null,\n                \"korreprnm\": \"서영철\"\n            },\n            {\n                \"hskcode\": \"8421390000\",\n                \"upchecd\": \"809772\",\n                \"tstrdwgt\": \"92.079780\",\n                \"tstotusdamtstncd\": \"7\",\n                \"bizno\": \"7478601664\",\n                \"crpno\": \"1101115262446\",\n                \"korentrnm\": \"주식회사 제이제이글로벌\",\n                \"engentrnm\": null,\n                \"korreprnm\": \"장지진\"\n            },\n            {\n                \"hskcode\": \"8421390000\",\n                \"upchecd\": \"945133\",\n                \"tstrdwgt\": \"92.005594\",\n                \"tstotusdamtstncd\": \"7\",\n                \"bizno\": \"1138692585\",\n                \"crpno\": \"1101114908904\",\n                \"korentrnm\": \"（주）원창하드웨어\",\n                \"engentrnm\": null,\n                \"korreprnm\": \"서태민\"\n            },\n            {\n                \"hskcode\": \"8481800000\",\n                \"upchecd\": \"305052\",\n                \"tstrdwgt\": \"88.912808\",\n                \"tstotusdamtstncd\": \"7\",\n                \"bizno\": \"4138106081\",\n                \"crpno\": \"1101112346450\",\n                \"korentrnm\": \"（주）한국폴리테크\",\n                \"engentrnm\": null,\n                \"korreprnm\": \"안서영\"\n            },\n            {\n                \"hskcode\": \"8421390000\",\n                \"upchecd\": \"487705\",\n                \"tstrdwgt\": \"84.992262\",\n                \"tstotusdamtstncd\": \"7\",\n                \"bizno\": \"2178127343\",\n                \"crpno\": \"1101118825963\",\n                \"korentrnm\": \"주식회사에스제이파츠\",\n                \"engentrnm\": null,\n                \"korreprnm\": \"장희진\"\n            },\n            {\n                \"hskcode\": \"8421390000\",\n                \"upchecd\": \"354168\",\n                \"tstrdwgt\": \"82.473494\",\n                \"tstotusdamtstncd\": \"6\",\n                \"bizno\": \"1548700900\",\n                \"crpno\": \"1101119799054\",\n                \"korentrnm\": \"주식회사 계명전자\",\n                \"engentrnm\": null,\n                \"korreprnm\": \"장지석\"\n            },\n            {\n                \"hskcode\": \"8421390000\",\n                \"upchecd\": \"257163\",\n                \"tstrdwgt\": \"81.795381\",\n                \"tstotusdamtstncd\": \"6\",\n                \"bizno\": \"6178628931\",\n                \"crpno\": \"1101116129656\",\n                \"korentrnm\": \"주식회사 유앤아이켐\",\n                \"engentrnm\": null,\n                \"korreprnm\": \"정우준\"\n            },\n            {\n                \"hskcode\": \"9018900000\",\n                \"upchecd\": \"577634\",\n                \"tstrdwgt\": \"81.267197\",\n                \"tstotusdamtstncd\": \"6\",\n                \"bizno\": \"6138131410\",\n                \"crpno\": \"1101117850017\",\n                \"korentrnm\": \"（주）성광\",\n                \"engentrnm\": null,\n                \"korreprnm\": \"임준우\"\n            },\n            {\n                \"hskcode\": \"8421390000\",\n                \"upchecd\": \"182415\",\n                \"tstrdwgt\": \"80.508278\",\n                \"tstotusdamtstncd\": \"6\",\n                \"bizno\": \"2018168693\",\n                \"crpno\": \"1101118752131\",\n                \"korentrnm\": \"（주）국민은행\",\n                \"engentrnm\": null,\n                \"korreprnm\": \"윤희민\"\n            }\n        ],\n        \"page\": 1,\n        \"size\": 10,\n        \"totalElements\": 24,\n        \"totalPages\": 3\n    },\n    \"message\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "HSK 추천 코드(퀵버튼) 조회",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{network-nice-rest-api-url}}/recommend/quick/hskcode/:bseYr?page=1&size=10&sort=avgTstrdwgt,DESC",
+              "host": [
+                "{{network-nice-rest-api-url}}"
+              ],
+              "path": [
+                "recommend",
+                "quick",
+                "hskcode",
+                ":bseYr"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "페이지번호"
+                },
+                {
+                  "key": "size",
+                  "value": "10",
+                  "description": "데이터 개수"
+                },
+                {
+                  "key": "sort",
+                  "value": "avgTstrdwgt,DESC",
+                  "description": "수입/수출 거래비중 평균값 내림차순"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "bseYr",
+                  "value": "2023",
+                  "description": "기준년도"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "HSK 추천 코드(퀵버튼) 조회",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{network-nice-rest-api-url}}/recommend/quick/hskcode/:bseYr?page=1&size=10&sort=avgTstrdwgt,DESC",
+                  "host": [
+                    "{{network-nice-rest-api-url}}"
+                  ],
+                  "path": [
+                    "recommend",
+                    "quick",
+                    "hskcode",
+                    ":bseYr"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1",
+                      "description": "페이지번호"
+                    },
+                    {
+                      "key": "size",
+                      "value": "10",
+                      "description": "데이터 개수"
+                    },
+                    {
+                      "key": "sort",
+                      "value": "avgTstrdwgt,DESC"
+                    }
+                  ],
+                  "variable": [
+                    {
+                      "key": "bseYr",
+                      "value": "2023",
+                      "description": "기준년도"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Vary",
+                  "value": "Origin"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Method"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Headers"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "X-XSS-Protection",
+                  "value": "0"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-cache, no-store, max-age=0, must-revalidate"
+                },
+                {
+                  "key": "Pragma",
+                  "value": "no-cache"
+                },
+                {
+                  "key": "Expires",
+                  "value": "0"
+                },
+                {
+                  "key": "X-Frame-Options",
+                  "value": "DENY"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json",
+                  "description": "",
+                  "type": "text"
+                },
+                {
+                  "key": "Content-Length",
+                  "value": "1651"
+                },
+                {
+                  "key": "Date",
+                  "value": "Tue, 28 Jul 2026 04:54:58 GMT"
+                },
+                {
+                  "key": "Keep-Alive",
+                  "value": "timeout=60"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                }
+              ],
+              "cookie": [
+                {
+                  "expires": "Invalid Date",
+                  "domain": "",
+                  "path": ""
+                }
+              ],
+              "body": "{\n    \"status\": 0,\n    \"data\": {\n        \"content\": [\n            {\n                \"avgTstrdwgt\": 39.840596,               // 수출/수입 거래비중 평균\n                \"bseYr\": \"2023\",                        // 기준년도\n                \"tscdcg\": \"H6\",                         // H6: 무역코드 6차, H10: 무역코드 10차\n                \"tscdvl\": \"2701120000\",                 // 거래대금 합산\n                \"tstotusdamtstncd\": \"7\",                // 미화금액구간(7:1000만 초과)\n                \"upchecd\": \"OX9158\"                     // 업체코드\n            },\n            {\n                \"avgTstrdwgt\": 34.342298,\n                \"bseYr\": \"2023\",\n                \"tscdcg\": \"H6\",\n                \"tscdvl\": \"2601110000\",\n                \"tstotusdamtstncd\": \"7\",\n                \"upchecd\": \"OX9158\"\n            },\n            {\n                \"avgTstrdwgt\": 25.730117,\n                \"bseYr\": \"2023\",\n                \"tscdcg\": \"H10\",\n                \"tscdvl\": \"2601119000\",\n                \"tstotusdamtstncd\": \"7\",\n                \"upchecd\": \"OX9158\"\n            },\n            {\n                \"avgTstrdwgt\": 22.053993,\n                \"bseYr\": \"2023\",\n                \"tscdcg\": \"H6\",\n                \"tscdvl\": \"8708990000\",\n                \"tstotusdamtstncd\": \"7\",\n                \"upchecd\": \"380130\"\n            },\n            {\n                \"avgTstrdwgt\": 22.0513505,\n                \"bseYr\": \"2023\",\n                \"tscdcg\": \"H10\",\n                \"tscdvl\": \"8708999000\",\n                \"tstotusdamtstncd\": \"7\",\n                \"upchecd\": \"380130\"\n            },\n            {\n                \"avgTstrdwgt\": 18.180908,\n                \"bseYr\": \"2023\",\n                \"tscdcg\": \"H6\",\n                \"tscdvl\": \"8542390000\",\n                \"tstotusdamtstncd\": \"7\",\n                \"upchecd\": \"380130\"\n            },\n            {\n                \"avgTstrdwgt\": 17.581497,\n                \"bseYr\": \"2023\",\n                \"tscdcg\": \"H10\",\n                \"tscdvl\": \"8542391000\",\n                \"tstotusdamtstncd\": \"7\",\n                \"upchecd\": \"380130\"\n            },\n            {\n                \"avgTstrdwgt\": 17.23655,\n                \"bseYr\": \"2023\",\n                \"tscdcg\": \"H6\",\n                \"tscdvl\": \"7208380000\",\n                \"tstotusdamtstncd\": \"7\",\n                \"upchecd\": \"OX9158\"\n            },\n            {\n                \"avgTstrdwgt\": 16.148238,\n                \"bseYr\": \"2023\",\n                \"tscdcg\": \"H10\",\n                \"tscdvl\": \"7208389000\",\n                \"tstotusdamtstncd\": \"7\",\n                \"upchecd\": \"OX9158\"\n            },\n            {\n                \"avgTstrdwgt\": 16.045023,\n                \"bseYr\": \"2023\",\n                \"tscdcg\": \"H6\",\n                \"tscdvl\": \"7219130000\",\n                \"tstotusdamtstncd\": \"7\",\n                \"upchecd\": \"OX9158\"\n            }\n        ],\n        \"empty\": false,\n        \"first\": true,\n        \"last\": false,\n        \"number\": 0,\n        \"numberOfElements\": 10,\n        \"pageable\": {\n            \"offset\": 0,\n            \"pageNumber\": 0,\n            \"pageSize\": 10,\n            \"paged\": true,\n            \"sort\": {\n                \"empty\": false,\n                \"sorted\": true,\n                \"unsorted\": false\n            },\n            \"unpaged\": false\n        },\n        \"size\": 10,\n        \"sort\": {\n            \"empty\": false,\n            \"sorted\": true,\n            \"unsorted\": false\n        },\n        \"totalElements\": 229,\n        \"totalPages\": 23\n    },\n    \"message\": null\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "관계망",
+      "item": [
+        {
+          "name": "관계망 조회",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"searchType\": \"bizno\",      // upchecd:업체코드, companyName:기업명, bizno:사업자번호, crpno:법인번호\r\n    \"searchList\": [\r\n        \"3018702315\",\r\n        \"1018116406\",\r\n        \"1318609217\",\r\n        \"4138106081\",\r\n        \"1198611917\",\r\n        \"4038181763\",\r\n        \"1358105450\",\r\n        \"1418120344\",\r\n        \"1138655163\",\r\n        \"2018168693\"\r\n    ],\r\n    \"tradeYear\": \"2025\",        // 조회할 거래년도\r\n    \"extendDepth\": 3,           // 관계망 뎁스\r\n    \"relationType\": \"ALL\"       // 관계 구분(ALL:연결된 모든 관계, KISC_MID:표준산업분류 중분류가 같은 관계)\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{network-nice-rest-api-url}}/network/search",
+              "host": [
+                "{{network-nice-rest-api-url}}"
+              ],
+              "path": [
+                "network",
+                "search"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "관계망 조회",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"searchType\": \"bizno\",      // upchecd:업체코드, companyName:기업명, bizno:사업자번호, crpno:법인번호\r\n    \"searchList\": [\r\n        \"2178127343\",\r\n        \"6178628931\",\r\n        \"1318609217\",\r\n        \"4138106081\",\r\n        \"1198611917\",\r\n        \"4038181763\",\r\n        \"1358105450\",\r\n        \"1418120344\",\r\n        \"1138655163\",\r\n        \"2018168693\"\r\n    ],\r\n    \"tradeYear\": \"2026\",        // 조회할 거래년도\r\n    \"extendDepth\": 3,           // 관계망 뎁스\r\n    \"relationType\": \"ALL\"       // 관계 구분(ALL:연결된 모든 관계, KISC_MID:표준산업분류 중분류가 같은 관계)\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{network-nice-rest-api-url}}/network/search",
+                  "host": [
+                    "{{network-nice-rest-api-url}}"
+                  ],
+                  "path": [
+                    "network",
+                    "search"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Vary",
+                  "value": "Origin"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Method"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Headers"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "X-XSS-Protection",
+                  "value": "0"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-cache, no-store, max-age=0, must-revalidate"
+                },
+                {
+                  "key": "Pragma",
+                  "value": "no-cache"
+                },
+                {
+                  "key": "Expires",
+                  "value": "0"
+                },
+                {
+                  "key": "X-Frame-Options",
+                  "value": "DENY"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json",
+                  "description": "",
+                  "type": "text"
+                },
+                {
+                  "key": "Transfer-Encoding",
+                  "value": "chunked"
+                },
+                {
+                  "key": "Date",
+                  "value": "Tue, 23 Jun 2026 01:48:58 GMT"
+                },
+                {
+                  "key": "Keep-Alive",
+                  "value": "timeout=60"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                }
+              ],
+              "cookie": [
+                {
+                  "expires": "Invalid Date",
+                  "domain": "",
+                  "path": ""
+                }
+              ],
+              "body": "{\n    \"status\": 0,\n    \"data\": {\n        \"LinkSize\": 270,\n        \"links\": [\n            {\n                \"end\": \"1238147705\",                // 도착 노드 사업자번호\n                \"id\": 335,\n                \"properties\": {\n                    \"buyRate\": 0.300,               // 구매비중(CRI 가중 계산 필요)\n                    \"sellRate\": 0.100,              // 판매비중(CRI 가중 계산 필요)\n                    \"slyAmt\": 934421785,            // 세액금액\n                    \"tamtAmt\": 93442178,            // 공급금액\n                    \"taxbllCnt\": 66,                // 세금계산서수\n                    \"taxfrAmt\": 0,                  // 면세금액\n                    \"tradeCnt\": 2,                  // 거래횟수\n                    \"tradeRate\": 0.30567785592756763,   // 기업간 거래비중\n                    \"tradeYear\": 2026               // 거래년도\n                },\n                \"start\": \"1358105450\",              // 시작 노드 사업자번호\n                \"type\": \"links\"\n            }\n        ],\n        \"nodeSize\": 77,\n        \"nodes\": [\n            {\n                \"id\": \"8792000802\",                     // 사업자번호\n                \"label\": \"company\",\n                \"properties\": {\n                    \"companyTradeAmountList\": [          // 년도별 수출액/수입액\n                        {\n                            \"amount\": \"9387770000.000000\",      // 수출액(단위:원)\n                            \"bseYr\": \"2022\",                    // 기준년도\n                            \"tseximdivcd\": \"3\",                 // 수입액(tseximdivcd:0), 수출액(tseximdivcd:3)\n                            \"upchecd\": \"OX9158\"                 // 업체코드\n                        },\n                        {\n                            \"amount\": \"9100898000.000000\",\n                            \"bseYr\": \"2023\",\n                            \"tseximdivcd\": \"3\",\n                            \"upchecd\": \"OX9158\"\n                        },\n                        {\n                            \"amount\": \"8899261000.000000\",\n                            \"bseYr\": \"2024\",\n                            \"tseximdivcd\": \"3\",\n                            \"upchecd\": \"OX9158\"\n                        },\n                        {\n                            \"amount\": \"8173153000.000000\",\n                            \"bseYr\": \"2025\",\n                            \"tseximdivcd\": \"3\",\n                            \"upchecd\": \"OX9158\"\n                        },\n                        {\n                            \"amount\": \"22512000000.000000\",\n                            \"bseYr\": \"2022\",\n                            \"tseximdivcd\": \"0\",\n                            \"upchecd\": \"OX9158\"\n                        },\n                        {\n                            \"amount\": \"21512305000.000000\",\n                            \"bseYr\": \"2023\",\n                            \"tseximdivcd\": \"0\",\n                            \"upchecd\": \"OX9158\"\n                        },\n                        {\n                            \"amount\": \"20430748000.000000\",\n                            \"bseYr\": \"2024\",\n                            \"tseximdivcd\": \"0\",\n                            \"upchecd\": \"OX9158\"\n                        },\n                        {\n                            \"amount\": \"18555744000.000000\",\n                            \"bseYr\": \"2025\",\n                            \"tseximdivcd\": \"0\",\n                            \"upchecd\": \"OX9158\"\n                        },\n                        {\n                            \"amount\": \"19228714000.000000\",\n                            \"bseYr\": \"2026\",\n                            \"tseximdivcd\": \"0\",\n                            \"upchecd\": \"OX9158\"\n                        }\n                    ],\n                    \"companyCreditCriList\": {           // CRI 년도별 신용등급\n                        \"2026\": \"AA-\",\n                        \"2025\": \"AA-\",\n                        \"2024\": \"A+\"\n                    },\n                    \"companyHskcodeList\": {             // 수출/수입 hskcode 목록\n                        \"EXPORT\": [                     // 수출\n                            \"2710129000\",\n                            \"2710197330\",\n                            \"2710197900\",\n                            \"2710199000\"\n                        ],\n                        \"IMPORT\": [                     // 수입\n                            \"2710129000\",\n                            \"2710197330\",\n                            \"2710197900\",\n                            \"2710199000\"\n                        ]\n                    },\n                    \"amnisuyn\": \"N\",                    // 관리종목여부\n                    \"bizno\": \"8792000802\",              // 사업자번호\n                    \"clsYndivcd\": null,                 // 법인폐쇄상태코드(Y: 폐쇄, N: 정상, X: 미확인)\n                    \"crpno\": null,                      // 법인번호\n                    \"eml\": null,                        // 이메일\n                    \"empnum\": 26,                       // 종업원수\n                    \"empnumBseDate\": \"20251231\",        // 종업원수 기준일자\n                    \"engMainpdtpcl\": null,              // (영문)주요상품목록\n                    \"engTmknm\": null,                   // (영문)상표명\n                    \"engentrnm\": null,                  // (영문)업체명\n                    \"engreprnm\": null,                  // (영문)대표자명\n                    \"eprCnuYn\": \"Y\",                    // 기업존속여부\n                    \"eprOblTcd\": \"0\",                   // 기업공개유형코드\n                    \"eprdtldivcd\": \"0  \",               // 기업상세유형코드 (0: 미분류, 110: 공기업, 111: 준정부기관, 112: 정부기관, 119: 기타 공공 기관 등등)\n                    \"eprmdydivcd\": \"9\",                 // 기업주체유형코드 (1: 일반법인, 2: 공공기관, 3: 비영리법인, 8: 기타 법인(KODEX등 분류가 불가능한 실체), 9: 개인)\n                    \"etbDate\": \"20171227\",              // 설립일자\n                    \"etlIpcYn\": \"N\",                    // 외부감서여부\n                    \"fadivcd\": \"00\",                    // 재무업종코드\n                    \"financeList\": [                    // 재무정보(매출액)\n                        {\n                            \"amt\": 38971566646,         // 매출액(원)\n                            \"bogosu\": \"12\",             // 재무보고서코드\n                            \"date\": \"20231231\",         // 결산일자\n                            \"gusung\": 100.0,            // 구성비율\n                            \"hang\": \"1000\",             // 재무보고서항목코드\n                            \"klgubn\": \"K\",              // 누적결산유형코드(F:1분기, B:2분기, T:3분기, K:4분기)\n                            \"upchecd\": \"OX9158\",        // 업체코드\n                            \"znga\": 10.9                // 증감률\n                        },\n                        {\n                            \"amt\": 37556522539,\n                            \"bogosu\": \"12\",\n                            \"date\": \"20241231\",\n                            \"gusung\": 100.0,\n                            \"hang\": \"1000\",\n                            \"klgubn\": \"K\",\n                            \"upchecd\": \"OX9158\",\n                            \"znga\": -3.6\n                        },\n                        {\n                            \"amt\": 35010837156,\n                            \"bogosu\": \"12\",\n                            \"date\": \"20251231\",\n                            \"gusung\": 100.0,\n                            \"hang\": \"1000\",\n                            \"klgubn\": \"K\",\n                            \"upchecd\": \"OX9158\",\n                            \"znga\": -6.8\n                        }\n                    ],\n                    \"homepurl\": null,                   // 홈페이지\n                    \"korentrnm\": \"대건\",                // 업체명\n                    \"korreprnm\": \"한성우\",              // 대표자명\n                    \"ksicMid\": \"25\",                    // 표준산업분류코드 중분류\n                    \"ltgDate\": null,                    // 상장일자\n                    \"ltgmktdivcd\": \"0\",                 // 상장시장유형코드\n                    \"mainpdtpcl\": \"전문건설,설비공사\",      // 주요상품목록\n                    \"optEntrnm\": \"대건\",                // 약식업체명\n                    \"rgsDtm\": \"2026-01-15T04:12:33Z\",   // 등록일시\n                    \"scaledivcd\": \"0\",                  // 기업규모유형코드(0: 미대상, 1: 대기업, 2: 중소기업, 3: 중견기업)\n                    \"stacmm\": \"12\",                     // 결산월코드\n                    \"tmknm\": null,                      // 상표명\n                    \"upchecd\": \"808857\",                // 업체코드\n                    \"uptDtm\": \"2026-05-30T04:09:11Z\",   // 수정일시\n                    \"vtrEprYn\": \"N\"                     // 벤처기업유무\n                }\n            }\n        ]\n    },\n    \"message\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "관계망 상세 조회",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    // 기업명\r\n    \"companyNameList\": [\r\n        \"(주)포스코\"\r\n    ],\r\n    // 신용등급(creditGradeList, creditYear 한세트)\r\n    \"creditGradeList\": [                \r\n        \"AA\",\r\n        \"BBB\"\r\n    ],\r\n    \"creditYear\": \"2026\",               // 신용등급 연도\r\n    // // hsk코드(hskcodeList, hskYear 한세트)\r\n    // \"hskcodeList\": [\r\n    //     \"3210002030\"\r\n    // ],\r\n    // \"hskYear\": \"2024\",                  // hsk코드 연도\r\n    // // 종업원수\r\n    // \"empnumMin\": 100,                   // 종업원수 최소\r\n    // \"empnumMax\": 5000,                  // 종업원수 최대\r\n    // // 설립연도\r\n    // \"etbYearFrom\": \"2000\",              // 설립연도 최소\r\n    // \"etbYearTo\": \"2020\",                // 설립연도 최대\r\n    // 관계망 옵션\r\n    \"tradeYear\": \"2026\",                // 거래관계 연도\r\n    \"extendDepth\": 2,                   // 관계망 뎁스\r\n    \"relationType\": \"ALL\"               // 관계 구분(ALL:연결된 모든 관계, KISC_MID:표준산업분류 중분류가 같은 관계)\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{network-nice-rest-api-url}}/network/detail/search",
+              "host": [
+                "{{network-nice-rest-api-url}}"
+              ],
+              "path": [
+                "network",
+                "detail",
+                "search"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "관계망 조회",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"searchType\": \"bizno\",      // upchecd:업체코드, companyName:기업명, bizno:사업자번호, crpno:법인번호\r\n    \"searchList\": [\r\n        \"2178127343\",\r\n        \"6178628931\",\r\n        \"1318609217\",\r\n        \"4138106081\",\r\n        \"1198611917\",\r\n        \"4038181763\",\r\n        \"1358105450\",\r\n        \"1418120344\",\r\n        \"1138655163\",\r\n        \"2018168693\"\r\n    ],\r\n    \"tradeYear\": \"2026\",        // 조회할 거래년도\r\n    \"extendDepth\": 3,           // 관계망 뎁스\r\n    \"relationType\": \"ALL\"       // 관계 구분(ALL:연결된 모든 관계, KISC_MID:표준산업분류 중분류가 같은 관계)\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{network-nice-rest-api-url}}/network/search",
+                  "host": [
+                    "{{network-nice-rest-api-url}}"
+                  ],
+                  "path": [
+                    "network",
+                    "search"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Vary",
+                  "value": "Origin"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Method"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Headers"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "X-XSS-Protection",
+                  "value": "0"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-cache, no-store, max-age=0, must-revalidate"
+                },
+                {
+                  "key": "Pragma",
+                  "value": "no-cache"
+                },
+                {
+                  "key": "Expires",
+                  "value": "0"
+                },
+                {
+                  "key": "X-Frame-Options",
+                  "value": "DENY"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json",
+                  "description": "",
+                  "type": "text"
+                },
+                {
+                  "key": "Transfer-Encoding",
+                  "value": "chunked"
+                },
+                {
+                  "key": "Date",
+                  "value": "Tue, 23 Jun 2026 01:48:58 GMT"
+                },
+                {
+                  "key": "Keep-Alive",
+                  "value": "timeout=60"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                }
+              ],
+              "cookie": [
+                {
+                  "expires": "Invalid Date",
+                  "domain": "",
+                  "path": ""
+                }
+              ],
+              "body": "{\n    \"status\": 0,\n    \"data\": {\n        \"LinkSize\": 270,\n        \"links\": [\n            {\n                \"end\": \"1238147705\",                // 도착 노드 사업자번호\n                \"id\": 335,\n                \"properties\": {\n                    \"buyRate\": 0.300,               // 구매비중(CRI 가중 계산 필요)\n                    \"sellRate\": 0.100,              // 판매비중(CRI 가중 계산 필요)\n                    \"slyAmt\": 934421785,            // 세액금액\n                    \"tamtAmt\": 93442178,            // 공급금액\n                    \"taxbllCnt\": 66,                // 세금계산서수\n                    \"taxfrAmt\": 0,                  // 면세금액\n                    \"tradeCnt\": 2,                  // 거래횟수\n                    \"tradeRate\": 0.30567785592756763,   // 기업간 거래비중\n                    \"tradeYear\": 2026               // 거래년도\n                },\n                \"start\": \"1358105450\",              // 시작 노드 사업자번호\n                \"type\": \"links\"\n            }\n        ],\n        \"nodeSize\": 77,\n        \"nodes\": [\n            {\n                \"id\": \"8792000802\",                     // 사업자번호\n                \"label\": \"company\",\n                \"properties\": {\n                    \"companyCompanyTradeAmountList\": [          // 년도별 수출액/수입액\n                        {\n                            \"amount\": \"9387770000.000000\",      // 수출액(단위:원)\n                            \"bseYr\": \"2022\",                    // 기준년도\n                            \"tseximdivcd\": \"3\",                 // 수입액(tseximdivcd:0), 수출액(tseximdivcd:3)\n                            \"upchecd\": \"OX9158\"                 // 업체코드\n                        },\n                        {\n                            \"amount\": \"9100898000.000000\",\n                            \"bseYr\": \"2023\",\n                            \"tseximdivcd\": \"3\",\n                            \"upchecd\": \"OX9158\"\n                        },\n                        {\n                            \"amount\": \"8899261000.000000\",\n                            \"bseYr\": \"2024\",\n                            \"tseximdivcd\": \"3\",\n                            \"upchecd\": \"OX9158\"\n                        },\n                        {\n                            \"amount\": \"8173153000.000000\",\n                            \"bseYr\": \"2025\",\n                            \"tseximdivcd\": \"3\",\n                            \"upchecd\": \"OX9158\"\n                        },\n                        {\n                            \"amount\": \"22512000000.000000\",\n                            \"bseYr\": \"2022\",\n                            \"tseximdivcd\": \"0\",\n                            \"upchecd\": \"OX9158\"\n                        },\n                        {\n                            \"amount\": \"21512305000.000000\",\n                            \"bseYr\": \"2023\",\n                            \"tseximdivcd\": \"0\",\n                            \"upchecd\": \"OX9158\"\n                        },\n                        {\n                            \"amount\": \"20430748000.000000\",\n                            \"bseYr\": \"2024\",\n                            \"tseximdivcd\": \"0\",\n                            \"upchecd\": \"OX9158\"\n                        },\n                        {\n                            \"amount\": \"18555744000.000000\",\n                            \"bseYr\": \"2025\",\n                            \"tseximdivcd\": \"0\",\n                            \"upchecd\": \"OX9158\"\n                        },\n                        {\n                            \"amount\": \"19228714000.000000\",\n                            \"bseYr\": \"2026\",\n                            \"tseximdivcd\": \"0\",\n                            \"upchecd\": \"OX9158\"\n                        }\n                    ],\n                    \"companyCreditCriList\": {           // CRI 년도별 신용등급\n                        \"2026\": \"AA-\",\n                        \"2025\": \"AA-\",\n                        \"2024\": \"A+\"\n                    },\n                    \"amnisuyn\": \"N\",                    // 관리종목여부\n                    \"bizno\": \"8792000802\",              // 사업자번호\n                    \"clsYndivcd\": null,                 // 법인폐쇄상태코드(Y: 폐쇄, N: 정상, X: 미확인)\n                    \"crpno\": null,                      // 법인번호\n                    \"eml\": null,                        // 이메일\n                    \"empnum\": 26,                       // 종업원수\n                    \"empnumBseDate\": \"20251231\",        // 종업원수 기준일자\n                    \"engMainpdtpcl\": null,              // (영문)주요상품목록\n                    \"engTmknm\": null,                   // (영문)상표명\n                    \"engentrnm\": null,                  // (영문)업체명\n                    \"engreprnm\": null,                  // (영문)대표자명\n                    \"eprCnuYn\": \"Y\",                    // 기업존속여부\n                    \"eprOblTcd\": \"0\",                   // 기업공개유형코드\n                    \"eprdtldivcd\": \"0  \",               // 기업상세유형코드 (0: 미분류, 110: 공기업, 111: 준정부기관, 112: 정부기관, 119: 기타 공공 기관 등등)\n                    \"eprmdydivcd\": \"9\",                 // 기업주체유형코드 (1: 일반법인, 2: 공공기관, 3: 비영리법인, 8: 기타 법인(KODEX등 분류가 불가능한 실체), 9: 개인)\n                    \"etbDate\": \"20171227\",              // 설립일자\n                    \"etlIpcYn\": \"N\",                    // 외부감서여부\n                    \"fadivcd\": \"00\",                    // 재무업종코드\n                    \"financeList\": [                    // 재무정보(매출액)\n                        {\n                            \"amt\": 38971566646,         // 매출액(원)\n                            \"bogosu\": \"12\",             // 재무보고서코드\n                            \"date\": \"20231231\",         // 결산일자\n                            \"gusung\": 100.0,            // 구성비율\n                            \"hang\": \"1000\",             // 재무보고서항목코드\n                            \"klgubn\": \"K\",              // 누적결산유형코드(F:1분기, B:2분기, T:3분기, K:4분기)\n                            \"upchecd\": \"OX9158\",        // 업체코드\n                            \"znga\": 10.9                // 증감률\n                        },\n                        {\n                            \"amt\": 37556522539,\n                            \"bogosu\": \"12\",\n                            \"date\": \"20241231\",\n                            \"gusung\": 100.0,\n                            \"hang\": \"1000\",\n                            \"klgubn\": \"K\",\n                            \"upchecd\": \"OX9158\",\n                            \"znga\": -3.6\n                        },\n                        {\n                            \"amt\": 35010837156,\n                            \"bogosu\": \"12\",\n                            \"date\": \"20251231\",\n                            \"gusung\": 100.0,\n                            \"hang\": \"1000\",\n                            \"klgubn\": \"K\",\n                            \"upchecd\": \"OX9158\",\n                            \"znga\": -6.8\n                        }\n                    ],\n                    \"homepurl\": null,                   // 홈페이지\n                    \"korentrnm\": \"대건\",                // 업체명\n                    \"korreprnm\": \"한성우\",              // 대표자명\n                    \"ksicMid\": \"25\",                    // 표준산업분류코드 중분류\n                    \"ltgDate\": null,                    // 상장일자\n                    \"ltgmktdivcd\": \"0\",                 // 상장시장유형코드\n                    \"mainpdtpcl\": \"전문건설,설비공사\",      // 주요상품목록\n                    \"optEntrnm\": \"대건\",                // 약식업체명\n                    \"rgsDtm\": \"2026-01-15T04:12:33Z\",   // 등록일시\n                    \"scaledivcd\": \"0\",                  // 기업규모유형코드(0: 미대상, 1: 대기업, 2: 중소기업, 3: 중견기업)\n                    \"stacmm\": \"12\",                     // 결산월코드\n                    \"tmknm\": null,                      // 상표명\n                    \"upchecd\": \"808857\",                // 업체코드\n                    \"uptDtm\": \"2026-05-30T04:09:11Z\",   // 수정일시\n                    \"vtrEprYn\": \"N\"                     // 벤처기업유무\n                }\n            }\n        ]\n    },\n    \"message\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "단일 노드 확장 조회",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{network-nice-rest-api-url}}/network/extend/:bizno/:tradeYear/:relationType",
+              "host": [
+                "{{network-nice-rest-api-url}}"
+              ],
+              "path": [
+                "network",
+                "extend",
+                ":bizno",
+                ":tradeYear",
+                ":relationType"
+              ],
+              "variable": [
+                {
+                  "key": "bizno",
+                  "value": "3018702315",
+                  "description": "사업자번호"
+                },
+                {
+                  "key": "tradeYear",
+                  "value": "2026",
+                  "description": "조회할 거래년도"
+                },
+                {
+                  "key": "relationType",
+                  "value": "ALL",
+                  "description": "관계 구분(ALL:연결된 모든 관계, KISC_MID:표준산업분류 중분류가 같은 관계)"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "대시보드",
+      "item": [
+        {
+          "name": "총 기업 수, 최근년도 총 매출액, 총 종업원수, 최근년도 CRI 신용등급별 기업 수 조회",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{network-nice-rest-api-url}}/dashboard/company/total?ksicMid=26",
+              "host": [
+                "{{network-nice-rest-api-url}}"
+              ],
+              "path": [
+                "dashboard",
+                "company",
+                "total"
+              ],
+              "query": [
+                {
+                  "key": "ksicMid",
+                  "value": "26",
+                  "description": "표준산업분류 중분류 코드(파라미터 삭제 시 전체 조회)"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "총 기업 수, 최근년도 총 매출액, 총 종업원수, 최근년도 CRI 신용등급별 기업 수 조회",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{network-nice-rest-api-url}}/dashboard/company/total",
+                  "host": [
+                    "{{network-nice-rest-api-url}}"
+                  ],
+                  "path": [
+                    "dashboard",
+                    "company",
+                    "total"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Vary",
+                  "value": "Origin"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Method"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Headers"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "X-XSS-Protection",
+                  "value": "0"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-cache, no-store, max-age=0, must-revalidate"
+                },
+                {
+                  "key": "Pragma",
+                  "value": "no-cache"
+                },
+                {
+                  "key": "Expires",
+                  "value": "0"
+                },
+                {
+                  "key": "X-Frame-Options",
+                  "value": "DENY"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json",
+                  "description": "",
+                  "type": "text"
+                },
+                {
+                  "key": "Content-Length",
+                  "value": "665"
+                },
+                {
+                  "key": "Date",
+                  "value": "Mon, 27 Jul 2026 08:38:32 GMT"
+                },
+                {
+                  "key": "Keep-Alive",
+                  "value": "timeout=60"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                }
+              ],
+              "cookie": [
+                {
+                  "expires": "Invalid Date",
+                  "domain": "",
+                  "path": ""
+                }
+              ],
+              "body": "{\n    \"status\": 0,\n    \"data\": {\n        \"companyCount\": 171,                // 총 기업수\n        \"salesYear\": \"2025\",                // 총 매출액 기준년도\n        \"totalSales\": 1794217254156,        // 총 매출액(단위 : 원)\n        \"totalEmpnum\": 64618,               // 총 종업원 수\n        \"criYear\": \"2026\",                  // CRI신용등급 기준년도\n        \"criCountByGrade\": [\n            {\n                \"key\": \"A+\",\n                \"count\": 2\n            },\n            {\n                \"key\": \"A-\",\n                \"count\": 5\n            },\n            {\n                \"key\": \"A0\",\n                \"count\": 4\n            },\n            {\n                \"key\": \"AA+\",\n                \"count\": 3\n            },\n            {\n                \"key\": \"AA-\",\n                \"count\": 1\n            },\n            {\n                \"key\": \"AAA+\",\n                \"count\": 2\n            },\n            {\n                \"key\": \"B+\",\n                \"count\": 14\n            },\n            {\n                \"key\": \"B-\",\n                \"count\": 5\n            },\n            {\n                \"key\": \"B0\",\n                \"count\": 7\n            },\n            {\n                \"key\": \"BB+\",\n                \"count\": 11\n            },\n            {\n                \"key\": \"BB-\",\n                \"count\": 11\n            },\n            {\n                \"key\": \"BB0\",\n                \"count\": 19\n            },\n            {\n                \"key\": \"BBB+\",\n                \"count\": 5\n            },\n            {\n                \"key\": \"BBB-\",\n                \"count\": 9\n            },\n            {\n                \"key\": \"BBB0\",\n                \"count\": 5\n            },\n            {\n                \"key\": \"C+\",\n                \"count\": 1\n            },\n            {\n                \"key\": \"CC+\",\n                \"count\": 1\n            },\n            {\n                \"key\": \"CCC+\",\n                \"count\": 2\n            },\n            {\n                \"key\": \"CCC-\",\n                \"count\": 2\n            },\n            {\n                \"key\": \"CCC0\",\n                \"count\": 2\n            },\n            {\n                \"key\": \"NR\",\n                \"count\": 1\n            }\n        ]\n    },\n    \"message\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "기업규모 유형코드별 기업수 조회",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{network-nice-rest-api-url}}/dashboard/count/company-size?ksicMid=26",
+              "host": [
+                "{{network-nice-rest-api-url}}"
+              ],
+              "path": [
+                "dashboard",
+                "count",
+                "company-size"
+              ],
+              "query": [
+                {
+                  "key": "ksicMid",
+                  "value": "26",
+                  "description": "표준산업분류 중분류 코드(파라미터 삭제 시 전체 조회)",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "기업규모 유형코드별 기업수 조회",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{network-nice-rest-api-url}}/dashboard/count/company-size",
+                  "host": [
+                    "{{network-nice-rest-api-url}}"
+                  ],
+                  "path": [
+                    "dashboard",
+                    "count",
+                    "company-size"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Vary",
+                  "value": "Origin"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Method"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Headers"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "X-XSS-Protection",
+                  "value": "0"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-cache, no-store, max-age=0, must-revalidate"
+                },
+                {
+                  "key": "Pragma",
+                  "value": "no-cache"
+                },
+                {
+                  "key": "Expires",
+                  "value": "0"
+                },
+                {
+                  "key": "X-Frame-Options",
+                  "value": "DENY"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json",
+                  "description": "",
+                  "type": "text"
+                },
+                {
+                  "key": "Content-Length",
+                  "value": "105"
+                },
+                {
+                  "key": "Date",
+                  "value": "Mon, 27 Jul 2026 08:40:37 GMT"
+                },
+                {
+                  "key": "Keep-Alive",
+                  "value": "timeout=60"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                }
+              ],
+              "cookie": [
+                {
+                  "expires": "Invalid Date",
+                  "domain": "",
+                  "path": ""
+                }
+              ],
+              "body": "{\n    \"status\": 0,\n    \"data\": [\n        // key = 기업규모유형코드(미대상은 제외)\n        // 0: 미대상, 1: 대기업, 2: 중소기업, 3: 중견기업\n        {\n            \"key\": \"1\",\n            \"count\": 4\n        },\n        {\n            \"key\": \"2\",\n            \"count\": 124\n        },\n        {\n            \"key\": \"3\",\n            \"count\": 43\n        }\n    ],\n    \"message\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "설립연도별 기업 수 조회",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{network-nice-rest-api-url}}/dashboard/count/establishment?ksicMid=26",
+              "host": [
+                "{{network-nice-rest-api-url}}"
+              ],
+              "path": [
+                "dashboard",
+                "count",
+                "establishment"
+              ],
+              "query": [
+                {
+                  "key": "ksicMid",
+                  "value": "26",
+                  "description": "표준산업분류 중분류 코드(파라미터 삭제 시 전체 조회)",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "설립연도별 기업 수 조회",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{network-nice-rest-api-url}}/dashboard/count/establishment",
+                  "host": [
+                    "{{network-nice-rest-api-url}}"
+                  ],
+                  "path": [
+                    "dashboard",
+                    "count",
+                    "establishment"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Vary",
+                  "value": "Origin"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Method"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Headers"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "X-XSS-Protection",
+                  "value": "0"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-cache, no-store, max-age=0, must-revalidate"
+                },
+                {
+                  "key": "Pragma",
+                  "value": "no-cache"
+                },
+                {
+                  "key": "Expires",
+                  "value": "0"
+                },
+                {
+                  "key": "X-Frame-Options",
+                  "value": "DENY"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json",
+                  "description": "",
+                  "type": "text"
+                },
+                {
+                  "key": "Content-Length",
+                  "value": "962"
+                },
+                {
+                  "key": "Date",
+                  "value": "Mon, 27 Jul 2026 08:43:13 GMT"
+                },
+                {
+                  "key": "Keep-Alive",
+                  "value": "timeout=60"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                }
+              ],
+              "cookie": [
+                {
+                  "expires": "Invalid Date",
+                  "domain": "",
+                  "path": ""
+                }
+              ],
+              "body": "{\n    \"status\": 0,\n    \"data\": [\n        {\n            \"key\": \"1977\",              // 설립연도\n            \"count\": 1\n        },\n        {\n            \"key\": \"1985\",\n            \"count\": 2\n        },\n        {\n            \"key\": \"1986\",\n            \"count\": 4\n        },\n        {\n            \"key\": \"1987\",\n            \"count\": 2\n        },\n        {\n            \"key\": \"1988\",\n            \"count\": 2\n        },\n        {\n            \"key\": \"1989\",\n            \"count\": 2\n        },\n        {\n            \"key\": \"1990\",\n            \"count\": 9\n        },\n        {\n            \"key\": \"1991\",\n            \"count\": 2\n        },\n        {\n            \"key\": \"1992\",\n            \"count\": 4\n        },\n        {\n            \"key\": \"1993\",\n            \"count\": 6\n        },\n        {\n            \"key\": \"1994\",\n            \"count\": 4\n        },\n        {\n            \"key\": \"1995\",\n            \"count\": 3\n        },\n        {\n            \"key\": \"1996\",\n            \"count\": 4\n        },\n        {\n            \"key\": \"1997\",\n            \"count\": 6\n        },\n        {\n            \"key\": \"1998\",\n            \"count\": 3\n        },\n        {\n            \"key\": \"1999\",\n            \"count\": 6\n        },\n        {\n            \"key\": \"2000\",\n            \"count\": 2\n        },\n        {\n            \"key\": \"2001\",\n            \"count\": 12\n        },\n        {\n            \"key\": \"2002\",\n            \"count\": 6\n        },\n        {\n            \"key\": \"2003\",\n            \"count\": 8\n        },\n        {\n            \"key\": \"2004\",\n            \"count\": 6\n        },\n        {\n            \"key\": \"2005\",\n            \"count\": 3\n        },\n        {\n            \"key\": \"2006\",\n            \"count\": 7\n        },\n        {\n            \"key\": \"2007\",\n            \"count\": 5\n        },\n        {\n            \"key\": \"2008\",\n            \"count\": 4\n        },\n        {\n            \"key\": \"2009\",\n            \"count\": 7\n        },\n        {\n            \"key\": \"2010\",\n            \"count\": 9\n        },\n        {\n            \"key\": \"2011\",\n            \"count\": 6\n        },\n        {\n            \"key\": \"2012\",\n            \"count\": 7\n        },\n        {\n            \"key\": \"2013\",\n            \"count\": 4\n        },\n        {\n            \"key\": \"2014\",\n            \"count\": 5\n        },\n        {\n            \"key\": \"2015\",\n            \"count\": 4\n        },\n        {\n            \"key\": \"2016\",\n            \"count\": 5\n        },\n        {\n            \"key\": \"2017\",\n            \"count\": 2\n        },\n        {\n            \"key\": \"2018\",\n            \"count\": 3\n        },\n        {\n            \"key\": \"2019\",\n            \"count\": 4\n        },\n        {\n            \"key\": \"2022\",\n            \"count\": 1\n        }\n    ],\n    \"message\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "기업주체유형코드별 기업 수 조회",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{network-nice-rest-api-url}}/dashboard/count/eprmdydivcd?ksicMid=26",
+              "host": [
+                "{{network-nice-rest-api-url}}"
+              ],
+              "path": [
+                "dashboard",
+                "count",
+                "eprmdydivcd"
+              ],
+              "query": [
+                {
+                  "key": "ksicMid",
+                  "value": "26",
+                  "description": "표준산업분류 중분류 코드(파라미터 삭제 시 전체 조회)",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "기업주체유형코드별 기업 수 조회",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{network-nice-rest-api-url}}/dashboard/count/eprmdydivcd",
+                  "host": [
+                    "{{network-nice-rest-api-url}}"
+                  ],
+                  "path": [
+                    "dashboard",
+                    "count",
+                    "eprmdydivcd"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Vary",
+                  "value": "Origin"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Method"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Headers"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "X-XSS-Protection",
+                  "value": "0"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-cache, no-store, max-age=0, must-revalidate"
+                },
+                {
+                  "key": "Pragma",
+                  "value": "no-cache"
+                },
+                {
+                  "key": "Expires",
+                  "value": "0"
+                },
+                {
+                  "key": "X-Frame-Options",
+                  "value": "DENY"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json",
+                  "description": "",
+                  "type": "text"
+                },
+                {
+                  "key": "Content-Length",
+                  "value": "82"
+                },
+                {
+                  "key": "Date",
+                  "value": "Mon, 27 Jul 2026 08:44:24 GMT"
+                },
+                {
+                  "key": "Keep-Alive",
+                  "value": "timeout=60"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                }
+              ],
+              "cookie": [
+                {
+                  "expires": "Invalid Date",
+                  "domain": "",
+                  "path": ""
+                }
+              ],
+              "body": "{\n    \"status\": 0,\n    \"data\": [\n        // key = 기업주체유형코드\n        // 1: 일반법인, 2: 공공기관, 3: 비영리법인, 8: 기타 법인(KODEX등 분류가 불가능한 실체), 9: 개인\n        {\n            \"key\": \"1\",\n            \"count\": 170\n        },\n        {\n            \"key\": \"9\",\n            \"count\": 1\n        }\n    ],\n    \"message\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "법인폐쇄상태코드별 기업 수 조회",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{network-nice-rest-api-url}}/dashboard/count/cls-yndivcd",
+              "host": [
+                "{{network-nice-rest-api-url}}"
+              ],
+              "path": [
+                "dashboard",
+                "count",
+                "cls-yndivcd"
+              ],
+              "query": [
+                {
+                  "key": "ksicMid",
+                  "value": "26",
+                  "description": "표준산업분류 중분류 코드(파라미터 삭제 시 전체 조회)",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "법인폐쇄상태코드별 기업 수 조회",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{network-nice-rest-api-url}}/dashboard/count/cls-yndivcd",
+                  "host": [
+                    "{{network-nice-rest-api-url}}"
+                  ],
+                  "path": [
+                    "dashboard",
+                    "count",
+                    "cls-yndivcd"
+                  ],
+                  "query": [
+                    {
+                      "key": "ksicMid",
+                      "value": "26",
+                      "description": "표준산업분류 중분류 코드(파라미터 삭제 시 전체 조회)",
+                      "disabled": true
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Vary",
+                  "value": "Origin"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Method"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Headers"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "X-XSS-Protection",
+                  "value": "0"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-cache, no-store, max-age=0, must-revalidate"
+                },
+                {
+                  "key": "Pragma",
+                  "value": "no-cache"
+                },
+                {
+                  "key": "Expires",
+                  "value": "0"
+                },
+                {
+                  "key": "X-Frame-Options",
+                  "value": "DENY"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json",
+                  "description": "",
+                  "type": "text"
+                },
+                {
+                  "key": "Content-Length",
+                  "value": "80"
+                },
+                {
+                  "key": "Date",
+                  "value": "Tue, 28 Jul 2026 07:51:30 GMT"
+                },
+                {
+                  "key": "Keep-Alive",
+                  "value": "timeout=60"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                }
+              ],
+              "cookie": [
+                {
+                  "expires": "Invalid Date",
+                  "domain": "",
+                  "path": ""
+                }
+              ],
+              "body": "{\n    \"status\": 0,\n    \"data\": [\n        // key = 법인폐쇄상태코드\n        // Y: 폐쇄, N: 정상, X: 미확인\n        // Y의 경우 데이터가 없을 수 있으니 예외처리 필수\n        {\n            \"key\": \"N\",\n            \"count\": 2\n        },\n        {\n\n            \"key\": \"X\",\n            \"count\": 1\n        }\n    ],\n    \"message\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "사업장 시/도별 기업 수 조회",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{network-nice-rest-api-url}}/dashboard/count/address-sido?ksicMid=26",
+              "host": [
+                "{{network-nice-rest-api-url}}"
+              ],
+              "path": [
+                "dashboard",
+                "count",
+                "address-sido"
+              ],
+              "query": [
+                {
+                  "key": "ksicMid",
+                  "value": "26",
+                  "description": "표준산업분류 중분류 코드(파라미터 삭제 시 전체 조회)",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "사업장 시/도별 기업 수 조회",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{network-nice-rest-api-url}}/dashboard/count/address-sido",
+                  "host": [
+                    "{{network-nice-rest-api-url}}"
+                  ],
+                  "path": [
+                    "dashboard",
+                    "count",
+                    "address-sido"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Vary",
+                  "value": "Origin"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Method"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Headers"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "X-XSS-Protection",
+                  "value": "0"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-cache, no-store, max-age=0, must-revalidate"
+                },
+                {
+                  "key": "Pragma",
+                  "value": "no-cache"
+                },
+                {
+                  "key": "Expires",
+                  "value": "0"
+                },
+                {
+                  "key": "X-Frame-Options",
+                  "value": "DENY"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json",
+                  "description": "",
+                  "type": "text"
+                },
+                {
+                  "key": "Content-Length",
+                  "value": "37"
+                },
+                {
+                  "key": "Date",
+                  "value": "Mon, 27 Jul 2026 08:46:58 GMT"
+                },
+                {
+                  "key": "Keep-Alive",
+                  "value": "timeout=60"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                }
+              ],
+              "cookie": [
+                {
+                  "expires": "Invalid Date",
+                  "domain": "",
+                  "path": ""
+                }
+              ],
+              "body": "{\n    \"status\": 0,\n    \"data\": [\n        // key = 시 또는 도 명칭(현재는 데이터가 없어서 정확히 어떻게 나오는지 확인 후 표기 예정)\n        {\n            \"key\": \"서울특별시\",\n            \"count\": 170\n        },\n        {\n            \"key\": \"경기도\",\n            \"count\": 1\n        }\n    ],\n    \"message\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "년도별 매출액 합계 조회",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{network-nice-rest-api-url}}/dashboard/sales/by-year?ksicMid=26",
+              "host": [
+                "{{network-nice-rest-api-url}}"
+              ],
+              "path": [
+                "dashboard",
+                "sales",
+                "by-year"
+              ],
+              "query": [
+                {
+                  "key": "ksicMid",
+                  "value": "26",
+                  "description": "표준산업분류 중분류 코드(파라미터 삭제 시 전체 조회)",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "년도별 매출액 합계 조회",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{network-nice-rest-api-url}}/dashboard/sales/by-year",
+                  "host": [
+                    "{{network-nice-rest-api-url}}"
+                  ],
+                  "path": [
+                    "dashboard",
+                    "sales",
+                    "by-year"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Vary",
+                  "value": "Origin"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Method"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Headers"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "X-XSS-Protection",
+                  "value": "0"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-cache, no-store, max-age=0, must-revalidate"
+                },
+                {
+                  "key": "Pragma",
+                  "value": "no-cache"
+                },
+                {
+                  "key": "Expires",
+                  "value": "0"
+                },
+                {
+                  "key": "X-Frame-Options",
+                  "value": "DENY"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json",
+                  "description": "",
+                  "type": "text"
+                },
+                {
+                  "key": "Content-Length",
+                  "value": "153"
+                },
+                {
+                  "key": "Date",
+                  "value": "Mon, 27 Jul 2026 08:49:06 GMT"
+                },
+                {
+                  "key": "Keep-Alive",
+                  "value": "timeout=60"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                }
+              ],
+              "cookie": [
+                {
+                  "expires": "Invalid Date",
+                  "domain": "",
+                  "path": ""
+                }
+              ],
+              "body": "{\n    \"status\": 0,\n    \"data\": [\n        {\n            \"year\": \"2023\",                 // 기준년도\n            \"amount\": 1581285691646         // 매출액 합계(단위 : 원)\n        },\n        {\n            \"year\": \"2024\",\n            \"amount\": 1645830444539\n        },\n        {\n            \"year\": \"2025\",\n            \"amount\": 1794217254156\n        }\n    ],\n    \"message\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "업종(표준산업분류 중분류)별 기업 수 조회",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{network-nice-rest-api-url}}/dashboard/count/industry?ksicMid=26",
+              "host": [
+                "{{network-nice-rest-api-url}}"
+              ],
+              "path": [
+                "dashboard",
+                "count",
+                "industry"
+              ],
+              "query": [
+                {
+                  "key": "ksicMid",
+                  "value": "26",
+                  "description": "표준산업분류 중분류 코드(파라미터 삭제 시 전체 조회)",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "업종(표준산업분류 중분류)별 기업 수 조회",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{network-nice-rest-api-url}}/dashboard/count/industry",
+                  "host": [
+                    "{{network-nice-rest-api-url}}"
+                  ],
+                  "path": [
+                    "dashboard",
+                    "count",
+                    "industry"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Vary",
+                  "value": "Origin"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Method"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Headers"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "X-XSS-Protection",
+                  "value": "0"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-cache, no-store, max-age=0, must-revalidate"
+                },
+                {
+                  "key": "Pragma",
+                  "value": "no-cache"
+                },
+                {
+                  "key": "Expires",
+                  "value": "0"
+                },
+                {
+                  "key": "X-Frame-Options",
+                  "value": "DENY"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json",
+                  "description": "",
+                  "type": "text"
+                },
+                {
+                  "key": "Content-Length",
+                  "value": "437"
+                },
+                {
+                  "key": "Date",
+                  "value": "Mon, 27 Jul 2026 08:51:29 GMT"
+                },
+                {
+                  "key": "Keep-Alive",
+                  "value": "timeout=60"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                }
+              ],
+              "cookie": [
+                {
+                  "expires": "Invalid Date",
+                  "domain": "",
+                  "path": ""
+                }
+              ],
+              "body": "{\n    \"status\": 0,\n    \"data\": [\n        // key = 한국표준산업분류 11차 중분류 코드\n        // 코드 조회의 경우 코드 전체 조회 API 참고\n        {\n            \"key\": \"20\",\n            \"count\": 4\n        },\n        {\n            \"key\": \"22\",\n            \"count\": 11\n        },\n        {\n            \"key\": \"23\",\n            \"count\": 11\n        },\n        {\n            \"key\": \"24\",\n            \"count\": 7\n        },\n        {\n            \"key\": \"25\",\n            \"count\": 8\n        },\n        {\n            \"key\": \"26\",\n            \"count\": 9\n        },\n        {\n            \"key\": \"28\",\n            \"count\": 10\n        },\n        {\n            \"key\": \"29\",\n            \"count\": 12\n        },\n        {\n            \"key\": \"30\",\n            \"count\": 7\n        },\n        {\n            \"key\": \"33\",\n            \"count\": 17\n        },\n        {\n            \"key\": \"41\",\n            \"count\": 13\n        },\n        {\n            \"key\": \"42\",\n            \"count\": 14\n        },\n        {\n            \"key\": \"45\",\n            \"count\": 10\n        },\n        {\n            \"key\": \"46\",\n            \"count\": 6\n        },\n        {\n            \"key\": \"58\",\n            \"count\": 14\n        },\n        {\n            \"key\": \"64\",\n            \"count\": 2\n        },\n        {\n            \"key\": \"71\",\n            \"count\": 14\n        }\n    ],\n    \"message\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "년도별 CRI 신용등급별 기업 수 조회",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{network-nice-rest-api-url}}/dashboard/cri/by-year?year=2025&ksicMid=26",
+              "host": [
+                "{{network-nice-rest-api-url}}"
+              ],
+              "path": [
+                "dashboard",
+                "cri",
+                "by-year"
+              ],
+              "query": [
+                {
+                  "key": "year",
+                  "value": "2025",
+                  "description": "조회할 년도"
+                },
+                {
+                  "key": "ksicMid",
+                  "value": "26",
+                  "description": "표준산업분류 중분류 코드(파라미터 삭제 시 전체 조회)"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "년도별 CRI 신용등급별 기업 수 조회",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{network-nice-rest-api-url}}/dashboard/cri/by-year?year=2025",
+                  "host": [
+                    "{{network-nice-rest-api-url}}"
+                  ],
+                  "path": [
+                    "dashboard",
+                    "cri",
+                    "by-year"
+                  ],
+                  "query": [
+                    {
+                      "key": "year",
+                      "value": "2025",
+                      "description": "조회할 년도"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Vary",
+                  "value": "Origin"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Method"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Headers"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "X-XSS-Protection",
+                  "value": "0"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-cache, no-store, max-age=0, must-revalidate"
+                },
+                {
+                  "key": "Pragma",
+                  "value": "no-cache"
+                },
+                {
+                  "key": "Expires",
+                  "value": "0"
+                },
+                {
+                  "key": "X-Frame-Options",
+                  "value": "DENY"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json",
+                  "description": "",
+                  "type": "text"
+                },
+                {
+                  "key": "Content-Length",
+                  "value": "545"
+                },
+                {
+                  "key": "Date",
+                  "value": "Mon, 27 Jul 2026 08:56:49 GMT"
+                },
+                {
+                  "key": "Keep-Alive",
+                  "value": "timeout=60"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                }
+              ],
+              "cookie": [
+                {
+                  "expires": "Invalid Date",
+                  "domain": "",
+                  "path": ""
+                }
+              ],
+              "body": "{\n    \"status\": 0,\n    \"data\": [\n        // key = CRI 신용등급\n        {\n            \"key\": \"A+\",\n            \"count\": 1\n        },\n        {\n            \"key\": \"A-\",\n            \"count\": 4\n        },\n        {\n            \"key\": \"A0\",\n            \"count\": 4\n        },\n        {\n            \"key\": \"AA+\",\n            \"count\": 3\n        },\n        {\n            \"key\": \"AA-\",\n            \"count\": 2\n        },\n        {\n            \"key\": \"AAA+\",\n            \"count\": 2\n        },\n        {\n            \"key\": \"B+\",\n            \"count\": 16\n        },\n        {\n            \"key\": \"B-\",\n            \"count\": 4\n        },\n        {\n            \"key\": \"B0\",\n            \"count\": 10\n        },\n        {\n            \"key\": \"BB+\",\n            \"count\": 15\n        },\n        {\n            \"key\": \"BB-\",\n            \"count\": 12\n        },\n        {\n            \"key\": \"BB0\",\n            \"count\": 10\n        },\n        {\n            \"key\": \"BBB+\",\n            \"count\": 6\n        },\n        {\n            \"key\": \"BBB-\",\n            \"count\": 4\n        },\n        {\n            \"key\": \"BBB0\",\n            \"count\": 11\n        },\n        {\n            \"key\": \"C+\",\n            \"count\": 1\n        },\n        {\n            \"key\": \"CC+\",\n            \"count\": 1\n        },\n        {\n            \"key\": \"CCC+\",\n            \"count\": 9\n        },\n        {\n            \"key\": \"CCC-\",\n            \"count\": 3\n        },\n        {\n            \"key\": \"CCC0\",\n            \"count\": 1\n        },\n        {\n            \"key\": \"NR\",\n            \"count\": 3\n        }\n    ],\n    \"message\": null\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "코드",
+      "item": [
+        {
+          "name": "한국표준산업분류 중분류 코드 전체 조회",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{network-nice-rest-api-url}}/code",
+              "host": [
+                "{{network-nice-rest-api-url}}"
+              ],
+              "path": [
+                "code"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "거래비중",
+      "item": [
+        {
+          "name": "(AI서버 조회용)기업별 년도별 hskcode별 수출/수입 비중 조회",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"bseYr\": \"2025\",            // 기준년도\r\n    \"upchecdList\": [            // 업체코드\r\n        \"380130\",\r\n        \"OX9158\"\r\n    ],\r\n    \"hskcodeList\": [            // hsk코드\r\n        \"7318160000\",\r\n        \"8534009000\",\r\n        \"7326900000\"\r\n    ]\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{network-nice-rest-api-url}}/trade/weight",
+              "host": [
+                "{{network-nice-rest-api-url}}"
+              ],
+              "path": [
+                "trade",
+                "weight"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "(AI서버 조회용)기업별 년도별 hskcode별 수출/수입 비중 조회",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"bseYr\": \"2025\",            // 기준년도\r\n    \"upchecdList\": [            // 업체코드\r\n        \"380130\",\r\n        \"OX9158\"\r\n    ],\r\n    \"hskcodeList\": [            // hsk코드\r\n        \"7318160000\",\r\n        \"8534009000\",\r\n        \"7326900000\"\r\n    ]\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{network-nice-rest-api-url}}/trade/weight",
+                  "host": [
+                    "{{network-nice-rest-api-url}}"
+                  ],
+                  "path": [
+                    "trade",
+                    "weight"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Vary",
+                  "value": "Origin"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Method"
+                },
+                {
+                  "key": "Vary",
+                  "value": "Access-Control-Request-Headers"
+                },
+                {
+                  "key": "X-Content-Type-Options",
+                  "value": "nosniff"
+                },
+                {
+                  "key": "X-XSS-Protection",
+                  "value": "0"
+                },
+                {
+                  "key": "Cache-Control",
+                  "value": "no-cache, no-store, max-age=0, must-revalidate"
+                },
+                {
+                  "key": "Pragma",
+                  "value": "no-cache"
+                },
+                {
+                  "key": "Expires",
+                  "value": "0"
+                },
+                {
+                  "key": "X-Frame-Options",
+                  "value": "DENY"
+                },
+                {
+                  "key": "Content-Type",
+                  "value": "application/json",
+                  "description": "",
+                  "type": "text"
+                },
+                {
+                  "key": "Content-Length",
+                  "value": "552"
+                },
+                {
+                  "key": "Date",
+                  "value": "Wed, 19 Aug 2026 08:37:50 GMT"
+                },
+                {
+                  "key": "Keep-Alive",
+                  "value": "timeout=60"
+                },
+                {
+                  "key": "Connection",
+                  "value": "keep-alive"
+                }
+              ],
+              "cookie": [
+                {
+                  "expires": "Invalid Date",
+                  "domain": "",
+                  "path": ""
+                }
+              ],
+              "body": "{\n    \"status\": 0,\n    \"data\": [\n        {\n            \"bseYr\": \"2025\",                            // 기준년도\n            \"tscdcg\": \"H10\",                            // 무역통계코드유형코드(H6:hs코드 6차, H10:hs코드 10차) - 10차만 내려옴\n            \"upchecd\": \"380130\",                        // 업체번호\n            \"weightList\": [\n                {\n                    \"tseximdivcd\": \"0\",                 // 한국무역통계진흥원 수출입유형코드(0:전체수출, 3:전체 수입,  1/2는 사용X)\n                    \"tscdvl\": \"7318160000\",             // 무역통계코드(HS코드)\n                    \"tstrdwgt\": \"0.272135\"              // 거래비중\n                },\n                {\n                    \"tseximdivcd\": \"3\",\n                    \"tscdvl\": \"7318160000\",\n                    \"tstrdwgt\": \"0.002382\"\n                },\n                {\n                    \"tseximdivcd\": \"0\",\n                    \"tscdvl\": \"8534009000\",\n                    \"tstrdwgt\": \"0.486030\"\n                },\n                {\n                    \"tseximdivcd\": \"3\",\n                    \"tscdvl\": \"8534009000\",\n                    \"tstrdwgt\": \"0.588838\"\n                }\n            ]\n        },\n        {\n            \"bseYr\": \"2025\",\n            \"tscdcg\": \"H10\",\n            \"upchecd\": \"OX9158\",\n            \"weightList\": [\n                {\n                    \"tseximdivcd\": \"3\",\n                    \"tscdvl\": \"7318160000\",\n                    \"tstrdwgt\": \"0.000103\"\n                },\n                {\n                    \"tseximdivcd\": \"3\",\n                    \"tscdvl\": \"8534009000\",\n                    \"tstrdwgt\": \"0.000210\"\n                }\n            ]\n        }\n    ],\n    \"message\": null\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RAG",
+      "item": [
+        {
+          "name": "health",
+          "item": [
+            {
+              "name": "deep",
+              "item": [
+                {
+                  "name": "의존성 도달성",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{network-nice-rest-api-url}}/proxy/rag/rest/health/deep",
+                      "host": [
+                        "{{network-nice-rest-api-url}}"
+                      ],
+                      "path": [
+                        "proxy",
+                        "rag",
+                        "rest",
+                        "health",
+                        "deep"
+                      ]
+                    },
+                    "description": "PG/Redis/LLM/Embed 네 가지 의존성을 한 번에 점검. 각 필드는 'ok' 또는 'fail: {ExceptionClass}'. 운영 디버깅용 — 503 으로 인한 사용자 측 에러가 어느 의존성에서 발생했는지 즉시 분간 가능."
+                  },
+                  "response": [
+                    {
+                      "name": "Successful Response",
+                      "originalRequest": {
+                        "method": "GET",
+                        "header": [
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "url": {
+                          "raw": "{{baseUrl}}/health/deep",
+                          "host": [
+                            "{{baseUrl}}"
+                          ],
+                          "path": [
+                            "health",
+                            "deep"
+                          ]
+                        }
+                      },
+                      "status": "OK",
+                      "code": 200,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "cookie": [],
+                      "body": "{\n  \"postgres\": \"string\",\n  \"redis\": \"string\",\n  \"llm\": \"string\",\n  \"embed\": \"string\"\n}"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "라이브니스",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{network-nice-rest-api-url}}/proxy/rag/rest/health",
+                  "host": [
+                    "{{network-nice-rest-api-url}}"
+                  ],
+                  "path": [
+                    "proxy",
+                    "rag",
+                    "rest",
+                    "health"
+                  ]
+                },
+                "description": "프로세스가 응답 가능한지 확인. 외부 의존성 점검 없음."
+              },
+              "response": [
+                {
+                  "name": "Successful Response",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/health",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "health"
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"status\": \"string\"\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "api",
+          "item": [
+            {
+              "name": "hsk",
+              "item": [
+                {
+                  "name": "search",
+                  "item": [
+                    {
+                      "name": "HSCode 키워드/의미 검색 (RRF hybrid)",
+                      "request": {
+                        "method": "GET",
+                        "header": [
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "url": {
+                          "raw": "{{network-nice-rest-api-url}}/proxy/rag/rest/api/hsk/search?q=농가 사육용 말&limit=10&hs_prefix=8072&active_only=false",
+                          "host": [
+                            "{{network-nice-rest-api-url}}"
+                          ],
+                          "path": [
+                            "proxy",
+                            "rag",
+                            "rest",
+                            "api",
+                            "hsk",
+                            "search"
+                          ],
+                          "query": [
+                            {
+                              "key": "q",
+                              "value": "농가 사육용 말",
+                              "description": "검색 키워드 (한국어/영문 자유)."
+                            },
+                            {
+                              "key": "limit",
+                              "value": "10",
+                              "description": "반환할 후보 개수. 운영 권장 5~10."
+                            },
+                            {
+                              "key": "hs_prefix",
+                              "value": "8072",
+                              "description": "HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리). 예: 85 (전기기기), 8703 (승용차)."
+                            },
+                            {
+                              "key": "active_only",
+                              "value": "false",
+                              "description": "true 면 현재 유효한(valid_to >= 오늘) 코드만 검색."
+                            }
+                          ]
+                        },
+                        "description": "한국어 또는 영문 키워드를 받아 임베딩 + trigram + tsvector 3 시그널의 Reciprocal Rank Fusion 으로 결합 검색. 정확 매칭 시 score ≈ 0.0492 (이론적 최대). top1 이 저신뢰(< 0.033)면 CRAG 평가기가 1회 보정 — 품목 조회와 무관한 질의로 판정되면 빈 리스트(추천 불가)를 반환."
+                      },
+                      "response": [
+                        {
+                          "name": "Successful Response",
+                          "originalRequest": {
+                            "method": "GET",
+                            "header": [
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "url": {
+                              "raw": "{{baseUrl}}/api/hsk/search?q=농가 사육용 말&limit=10&hs_prefix=8072&active_only=false",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "api",
+                                "hsk",
+                                "search"
+                              ],
+                              "query": [
+                                {
+                                  "description": "검색 키워드 (한국어/영문 자유).",
+                                  "key": "q",
+                                  "value": "농가 사육용 말"
+                                },
+                                {
+                                  "description": "반환할 후보 개수. 운영 권장 5~10.",
+                                  "key": "limit",
+                                  "value": "10"
+                                },
+                                {
+                                  "description": "HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리). 예: 85 (전기기기), 8703 (승용차).",
+                                  "key": "hs_prefix",
+                                  "value": "8072"
+                                },
+                                {
+                                  "description": "true 면 현재 유효한(valid_to >= 오늘) 코드만 검색.",
+                                  "key": "active_only",
+                                  "value": "false"
+                                }
+                              ]
+                            }
+                          },
+                          "status": "OK",
+                          "code": 200,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "[\n  {\n    \"hs_code\": \"string\",\n    \"score\": 5759.149230952638,\n    \"name_ko\": \"string\",\n    \"name_en\": \"string\",\n    \"description\": \"string\"\n  },\n  {\n    \"hs_code\": \"string\",\n    \"score\": 1772.6985967957476,\n    \"name_ko\": \"string\",\n    \"name_en\": \"string\",\n    \"description\": \"string\"\n  }\n]"
+                        },
+                        {
+                          "name": "요청 파라미터 검증 실패 (q 길이 등).",
+                          "originalRequest": {
+                            "method": "GET",
+                            "header": [
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "url": {
+                              "raw": "{{baseUrl}}/api/hsk/search?q=농가 사육용 말&limit=10&hs_prefix=8072&active_only=false",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "api",
+                                "hsk",
+                                "search"
+                              ],
+                              "query": [
+                                {
+                                  "description": "검색 키워드 (한국어/영문 자유).",
+                                  "key": "q",
+                                  "value": "농가 사육용 말"
+                                },
+                                {
+                                  "description": "반환할 후보 개수. 운영 권장 5~10.",
+                                  "key": "limit",
+                                  "value": "10"
+                                },
+                                {
+                                  "description": "HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리). 예: 85 (전기기기), 8703 (승용차).",
+                                  "key": "hs_prefix",
+                                  "value": "8072"
+                                },
+                                {
+                                  "description": "true 면 현재 유효한(valid_to >= 오늘) 코드만 검색.",
+                                  "key": "active_only",
+                                  "value": "false"
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+                          "code": 422,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"detail\": \"string\"\n}"
+                        },
+                        {
+                          "name": "임베딩 백엔드 또는 PostgreSQL 도달 불가.",
+                          "originalRequest": {
+                            "method": "GET",
+                            "header": [
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "url": {
+                              "raw": "{{baseUrl}}/api/hsk/search?q=농가 사육용 말&limit=10&hs_prefix=8072&active_only=false",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "api",
+                                "hsk",
+                                "search"
+                              ],
+                              "query": [
+                                {
+                                  "description": "검색 키워드 (한국어/영문 자유).",
+                                  "key": "q",
+                                  "value": "농가 사육용 말"
+                                },
+                                {
+                                  "description": "반환할 후보 개수. 운영 권장 5~10.",
+                                  "key": "limit",
+                                  "value": "10"
+                                },
+                                {
+                                  "description": "HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리). 예: 85 (전기기기), 8703 (승용차).",
+                                  "key": "hs_prefix",
+                                  "value": "8072"
+                                },
+                                {
+                                  "description": "true 면 현재 유효한(valid_to >= 오늘) 코드만 검색.",
+                                  "key": "active_only",
+                                  "value": "false"
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Service Unavailable",
+                          "code": 503,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"detail\": \"string\"\n}"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "agent",
+                  "item": [
+                    {
+                      "name": "자연어 질의 → 검색 → LLM 한국어 답변",
+                      "request": {
+                        "method": "GET",
+                        "header": [
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "url": {
+                          "raw": "{{network-nice-rest-api-url}}/proxy/rag/rest/api/hsk/agent?q=경주마를 수입할 때 어떤 HS 코드를 사용하나요?&k=5&hs_prefix=8072&active_only=false",
+                          "host": [
+                            "{{network-nice-rest-api-url}}"
+                          ],
+                          "path": [
+                            "proxy",
+                            "rag",
+                            "rest",
+                            "api",
+                            "hsk",
+                            "agent"
+                          ],
+                          "query": [
+                            {
+                              "key": "q",
+                              "value": "경주마를 수입할 때 어떤 HS 코드를 사용하나요?",
+                              "description": "자연어 질의 (한국어 권장)."
+                            },
+                            {
+                              "key": "k",
+                              "value": "5",
+                              "description": "LLM 에 컨텍스트로 제공할 검색 후보 수. 4~8 권장."
+                            },
+                            {
+                              "key": "hs_prefix",
+                              "value": "8072",
+                              "description": "HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리)."
+                            },
+                            {
+                              "key": "active_only",
+                              "value": "false",
+                              "description": "true 면 현재 유효한(valid_to >= 오늘) 코드만 검색."
+                            }
+                          ]
+                        },
+                        "description": "자연어 질문을 받아 hybrid 검색으로 후보 k 건을 추리고, LLM 이 후보 내에서만 인용해 한국어로 답변. citations 가 항상 ground truth — LLM 답변이 부실해도 citations[0] 이 정답일 확률 높음."
+                      },
+                      "response": [
+                        {
+                          "name": "Successful Response",
+                          "originalRequest": {
+                            "method": "GET",
+                            "header": [
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "url": {
+                              "raw": "{{baseUrl}}/api/hsk/agent?q=경주마를 수입할 때 어떤 HS 코드를 사용하나요?&k=5&hs_prefix=8072&active_only=false",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "api",
+                                "hsk",
+                                "agent"
+                              ],
+                              "query": [
+                                {
+                                  "description": "자연어 질의 (한국어 권장).",
+                                  "key": "q",
+                                  "value": "경주마를 수입할 때 어떤 HS 코드를 사용하나요?"
+                                },
+                                {
+                                  "description": "LLM 에 컨텍스트로 제공할 검색 후보 수. 4~8 권장.",
+                                  "key": "k",
+                                  "value": "5"
+                                },
+                                {
+                                  "description": "HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리).",
+                                  "key": "hs_prefix",
+                                  "value": "8072"
+                                },
+                                {
+                                  "description": "true 면 현재 유효한(valid_to >= 오늘) 코드만 검색.",
+                                  "key": "active_only",
+                                  "value": "false"
+                                }
+                              ]
+                            }
+                          },
+                          "status": "OK",
+                          "code": 200,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"answer\": \"string\",\n  \"citations\": [\n    {\n      \"hs_code\": \"string\",\n      \"score\": 8569.996298295162,\n      \"name_ko\": \"string\",\n      \"name_en\": \"string\",\n      \"description\": \"string\"\n    },\n    {\n      \"hs_code\": \"string\",\n      \"score\": 7913.520055051936,\n      \"name_ko\": \"string\",\n      \"name_en\": \"string\",\n      \"description\": \"string\"\n    }\n  ]\n}"
+                        },
+                        {
+                          "name": "요청 파라미터 검증 실패.",
+                          "originalRequest": {
+                            "method": "GET",
+                            "header": [
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "url": {
+                              "raw": "{{baseUrl}}/api/hsk/agent?q=경주마를 수입할 때 어떤 HS 코드를 사용하나요?&k=5&hs_prefix=8072&active_only=false",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "api",
+                                "hsk",
+                                "agent"
+                              ],
+                              "query": [
+                                {
+                                  "description": "자연어 질의 (한국어 권장).",
+                                  "key": "q",
+                                  "value": "경주마를 수입할 때 어떤 HS 코드를 사용하나요?"
+                                },
+                                {
+                                  "description": "LLM 에 컨텍스트로 제공할 검색 후보 수. 4~8 권장.",
+                                  "key": "k",
+                                  "value": "5"
+                                },
+                                {
+                                  "description": "HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리).",
+                                  "key": "hs_prefix",
+                                  "value": "8072"
+                                },
+                                {
+                                  "description": "true 면 현재 유효한(valid_to >= 오늘) 코드만 검색.",
+                                  "key": "active_only",
+                                  "value": "false"
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+                          "code": 422,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"detail\": \"string\"\n}"
+                        },
+                        {
+                          "name": "임베딩/LLM 백엔드 또는 PostgreSQL 도달 불가.",
+                          "originalRequest": {
+                            "method": "GET",
+                            "header": [
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "url": {
+                              "raw": "{{baseUrl}}/api/hsk/agent?q=경주마를 수입할 때 어떤 HS 코드를 사용하나요?&k=5&hs_prefix=8072&active_only=false",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "api",
+                                "hsk",
+                                "agent"
+                              ],
+                              "query": [
+                                {
+                                  "description": "자연어 질의 (한국어 권장).",
+                                  "key": "q",
+                                  "value": "경주마를 수입할 때 어떤 HS 코드를 사용하나요?"
+                                },
+                                {
+                                  "description": "LLM 에 컨텍스트로 제공할 검색 후보 수. 4~8 권장.",
+                                  "key": "k",
+                                  "value": "5"
+                                },
+                                {
+                                  "description": "HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리).",
+                                  "key": "hs_prefix",
+                                  "value": "8072"
+                                },
+                                {
+                                  "description": "true 면 현재 유효한(valid_to >= 오늘) 코드만 검색.",
+                                  "key": "active_only",
+                                  "value": "false"
+                                }
+                              ]
+                            }
+                          },
+                          "status": "Service Unavailable",
+                          "code": 503,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"detail\": \"string\"\n}"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "SHOCK",
+      "item": [
+        {
+          "name": "health",
+          "item": [
+            {
+              "name": "헬스체크",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{network-nice-rest-api-url}}/proxy/rag/rest/health",
+                  "host": [
+                    "{{network-nice-rest-api-url}}"
+                  ],
+                  "path": [
+                    "proxy",
+                    "rag",
+                    "rest",
+                    "health"
+                  ]
+                }
+              },
+              "response": [
+                {
+                  "name": "Successful Response",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/health",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "health"
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"key_0\": 3547.778645742481\n}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "api",
+          "item": [
+            {
+              "name": "shock",
+              "item": [
+                {
+                  "name": "tariff",
+                  "item": [
+                    {
+                      "name": "관세(외생) 충격",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"direction\": \"export\",\n  \"seed_list\": [\n    \"b\"\n  ],\n  \"shock_rate\": 1,\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"rate\": 0.115,\n      \"to\": \"b\"\n    },\n    {\n      \"from\": \"b\",\n      \"rate\": 0.06,\n      \"to\": \"a\"\n    },\n    {\n      \"from\": \"c\",\n      \"rate\": 0.912,\n      \"to\": \"b\"\n    },\n    {\n      \"from\": \"b\",\n      \"rate\": 0.607,\n      \"to\": \"c\"\n    }\n  ]\n}",
+                          "options": {
+                            "raw": {
+                              "headerFamily": "json",
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{network-nice-rest-api-url}}/proxy/shock/rest/api/shock/tariff",
+                          "host": [
+                            "{{network-nice-rest-api-url}}"
+                          ],
+                          "path": [
+                            "proxy",
+                            "shock",
+                            "rest",
+                            "api",
+                            "shock",
+                            "tariff"
+                          ]
+                        }
+                      },
+                      "response": [
+                        {
+                          "name": "Successful Response",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"direction\": \"export\",\n  \"seed_list\": [\n    \"b\"\n  ],\n  \"shock_rate\": 1,\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"rate\": 0.115,\n      \"to\": \"b\"\n    },\n    {\n      \"from\": \"b\",\n      \"rate\": 0.06,\n      \"to\": \"a\"\n    },\n    {\n      \"from\": \"c\",\n      \"rate\": 0.912,\n      \"to\": \"b\"\n    },\n    {\n      \"from\": \"b\",\n      \"rate\": 0.607,\n      \"to\": \"c\"\n    }\n  ]\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/api/shock/tariff",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "api",
+                                "shock",
+                                "tariff"
+                              ]
+                            }
+                          },
+                          "status": "OK",
+                          "code": 200,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"data_list\": [\n    {\n      \"depth\": 1,\n      \"node_id\": \"b\",\n      \"shock\": 2.27523\n    },\n    {\n      \"depth\": 2,\n      \"node_id\": \"c\",\n      \"shock\": 1.38106\n    },\n    {\n      \"depth\": 2,\n      \"node_id\": \"a\",\n      \"shock\": 0.13651\n    }\n  ],\n  \"direction\": \"export\",\n  \"total_shock\": 3.79281\n}"
+                        },
+                        {
+                          "name": "Validation Error",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"direction\": \"export\",\n  \"seed_list\": [\n    \"b\"\n  ],\n  \"shock_rate\": 1,\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"rate\": 0.115,\n      \"to\": \"b\"\n    },\n    {\n      \"from\": \"b\",\n      \"rate\": 0.06,\n      \"to\": \"a\"\n    },\n    {\n      \"from\": \"c\",\n      \"rate\": 0.912,\n      \"to\": \"b\"\n    },\n    {\n      \"from\": \"b\",\n      \"rate\": 0.607,\n      \"to\": \"c\"\n    }\n  ]\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/api/shock/tariff",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "api",
+                                "shock",
+                                "tariff"
+                              ]
+                            }
+                          },
+                          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+                          "code": 422,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        491,\n        1733\n      ],\n      \"msg\": \"string\",\n      \"type\": \"string\",\n      \"input\": \"\",\n      \"ctx\": {}\n    },\n    {\n      \"loc\": [\n        5425,\n        6682\n      ],\n      \"msg\": \"string\",\n      \"type\": \"string\",\n      \"input\": \"\",\n      \"ctx\": {}\n    }\n  ]\n}"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "volume",
+                  "item": [
+                    {
+                      "name": "거래량 변동",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"direction\": \"export\",\n  \"node_overrides\": [\n    {\n      \"delta\": -0.2,\n      \"p1\": \"b\"\n    }\n  ],\n  \"seed_list\": [\n    \"b\"\n  ],\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"rate\": 0.115,\n      \"to\": \"b\"\n    },\n    {\n      \"from\": \"b\",\n      \"rate\": 0.607,\n      \"to\": \"c\"\n    }\n  ]\n}",
+                          "options": {
+                            "raw": {
+                              "headerFamily": "json",
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{network-nice-rest-api-url}}/proxy/shock/rest/api/shock/volume",
+                          "host": [
+                            "{{network-nice-rest-api-url}}"
+                          ],
+                          "path": [
+                            "proxy",
+                            "shock",
+                            "rest",
+                            "api",
+                            "shock",
+                            "volume"
+                          ]
+                        }
+                      },
+                      "response": [
+                        {
+                          "name": "Successful Response",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"direction\": \"export\",\n  \"node_overrides\": [\n    {\n      \"delta\": -0.2,\n      \"p1\": \"b\"\n    }\n  ],\n  \"seed_list\": [\n    \"b\"\n  ],\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"rate\": 0.115,\n      \"to\": \"b\"\n    },\n    {\n      \"from\": \"b\",\n      \"rate\": 0.607,\n      \"to\": \"c\"\n    }\n  ]\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/api/shock/volume",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "api",
+                                "shock",
+                                "volume"
+                              ]
+                            }
+                          },
+                          "status": "OK",
+                          "code": 200,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"data_list\": [\n    {\n      \"depth\": 1,\n      \"node_id\": \"b\",\n      \"shock\": 2.27523\n    },\n    {\n      \"depth\": 2,\n      \"node_id\": \"c\",\n      \"shock\": 1.38106\n    },\n    {\n      \"depth\": 2,\n      \"node_id\": \"a\",\n      \"shock\": 0.13651\n    }\n  ],\n  \"direction\": \"export\",\n  \"total_shock\": 3.79281\n}"
+                        },
+                        {
+                          "name": "Validation Error",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"direction\": \"export\",\n  \"node_overrides\": [\n    {\n      \"delta\": -0.2,\n      \"p1\": \"b\"\n    }\n  ],\n  \"seed_list\": [\n    \"b\"\n  ],\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"rate\": 0.115,\n      \"to\": \"b\"\n    },\n    {\n      \"from\": \"b\",\n      \"rate\": 0.607,\n      \"to\": \"c\"\n    }\n  ]\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/api/shock/volume",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "api",
+                                "shock",
+                                "volume"
+                              ]
+                            }
+                          },
+                          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+                          "code": 422,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        491,\n        1733\n      ],\n      \"msg\": \"string\",\n      \"type\": \"string\",\n      \"input\": \"\",\n      \"ctx\": {}\n    },\n    {\n      \"loc\": [\n        5425,\n        6682\n      ],\n      \"msg\": \"string\",\n      \"type\": \"string\",\n      \"input\": \"\",\n      \"ctx\": {}\n    }\n  ]\n}"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "propagate",
+                  "item": [
+                    {
+                      "name": "저수준 전파(edges+init)",
+                      "request": {
+                        "method": "POST",
+                        "header": [
+                          {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                          },
+                          {
+                            "key": "Accept",
+                            "value": "application/json"
+                          }
+                        ],
+                        "body": {
+                          "mode": "raw",
+                          "raw": "{\n  \"init\": {\n    \"a\": 1\n  },\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"rate\": 0.5,\n      \"to\": \"b\"\n    }\n  ]\n}",
+                          "options": {
+                            "raw": {
+                              "headerFamily": "json",
+                              "language": "json"
+                            }
+                          }
+                        },
+                        "url": {
+                          "raw": "{{network-nice-rest-api-url}}/proxy/shock/rest/api/shock/propagate",
+                          "host": [
+                            "{{network-nice-rest-api-url}}"
+                          ],
+                          "path": [
+                            "proxy",
+                            "shock",
+                            "rest",
+                            "api",
+                            "shock",
+                            "propagate"
+                          ]
+                        }
+                      },
+                      "response": [
+                        {
+                          "name": "Successful Response",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"init\": {\n    \"a\": 1\n  },\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"rate\": 0.5,\n      \"to\": \"b\"\n    }\n  ]\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/api/shock/propagate",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "api",
+                                "shock",
+                                "propagate"
+                              ]
+                            }
+                          },
+                          "status": "OK",
+                          "code": 200,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"converged\": true,\n  \"damped_cycles\": [],\n  \"direction\": -1,\n  \"iterations\": 0,\n  \"shock_list\": [\n    {\n      \"bizno\": \"a\",\n      \"shock\": 1\n    },\n    {\n      \"bizno\": \"b\",\n      \"shock\": 0.5\n    }\n  ],\n  \"total_shock\": 1.5\n}"
+                        },
+                        {
+                          "name": "Validation Error",
+                          "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                              {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                              },
+                              {
+                                "key": "Accept",
+                                "value": "application/json"
+                              }
+                            ],
+                            "body": {
+                              "mode": "raw",
+                              "raw": "{\n  \"init\": {\n    \"a\": 1\n  },\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"rate\": 0.5,\n      \"to\": \"b\"\n    }\n  ]\n}",
+                              "options": {
+                                "raw": {
+                                  "headerFamily": "json",
+                                  "language": "json"
+                                }
+                              }
+                            },
+                            "url": {
+                              "raw": "{{baseUrl}}/api/shock/propagate",
+                              "host": [
+                                "{{baseUrl}}"
+                              ],
+                              "path": [
+                                "api",
+                                "shock",
+                                "propagate"
+                              ]
+                            }
+                          },
+                          "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+                          "code": 422,
+                          "_postman_previewlanguage": "json",
+                          "header": [
+                            {
+                              "key": "Content-Type",
+                              "value": "application/json"
+                            }
+                          ],
+                          "cookie": [],
+                          "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        491,\n        1733\n      ],\n      \"msg\": \"string\",\n      \"type\": \"string\",\n      \"input\": \"\",\n      \"ctx\": {}\n    },\n    {\n      \"loc\": [\n        5425,\n        6682\n      ],\n      \"msg\": \"string\",\n      \"type\": \"string\",\n      \"input\": \"\",\n      \"ctx\": {}\n    }\n  ]\n}"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "cri",
+              "item": [
+                {
+                  "name": "CRI(신용위험지표) 판매/구매망",
+                  "request": {
+                    "method": "POST",
+                    "header": [],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\r\n  \"edges\": [\r\n    {\r\n      \"buy_share\": 0.375,\r\n      \"sell_share\": 0.3,\r\n      \"source\": \"A\",\r\n      \"target\": \"B\"\r\n    },\r\n    {\r\n      \"buy_share\": 0.333,\r\n      \"sell_share\": 0.2,\r\n      \"source\": \"A\",\r\n      \"target\": \"D\"\r\n    },\r\n    {\r\n      \"buy_share\": 0.225,\r\n      \"sell_share\": 0.3,\r\n      \"source\": \"D\",\r\n      \"target\": \"B\"\r\n    },\r\n    {\r\n      \"buy_share\": 0.6,\r\n      \"sell_share\": 0.4,\r\n      \"source\": \"D\",\r\n      \"target\": \"E\"\r\n    },\r\n    {\r\n      \"buy_share\": 0.8,\r\n      \"sell_share\": 0.5,\r\n      \"source\": \"B\",\r\n      \"target\": \"C\"\r\n    },\r\n    {\r\n      \"buy_share\": 0.16,\r\n      \"sell_share\": 0.2,\r\n      \"source\": \"B\",\r\n      \"target\": \"A\"\r\n    }\r\n  ],\r\n  \"nodes\": [\r\n    {\r\n      \"grade\": \"AA\",\r\n      \"id\": \"A\",\r\n      \"sales\": 1000\r\n    },\r\n    {\r\n      \"grade\": \"NR\",\r\n      \"id\": \"B\",\r\n      \"sales\": 800\r\n    },\r\n    {\r\n      \"grade\": \"BBB\",\r\n      \"id\": \"C\",\r\n      \"sales\": 500\r\n    },\r\n    {\r\n      \"grade\": \"A\",\r\n      \"id\": \"D\",\r\n      \"sales\": 600\r\n    },\r\n    {\r\n      \"grade\": \"BB\",\r\n      \"id\": \"E\",\r\n      \"sales\": 400\r\n    }\r\n  ]\r\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{network-nice-rest-api-url}}/proxy/shock/rest/api/cri",
+                      "host": [
+                        "{{network-nice-rest-api-url}}"
+                      ],
+                      "path": [
+                        "proxy",
+                        "shock",
+                        "rest",
+                        "api",
+                        "cri"
+                      ]
+                    }
+                  },
+                  "response": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
