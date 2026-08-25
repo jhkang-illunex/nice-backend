@@ -4,7 +4,7 @@
   POST /api/shock/tariff  : 수출입(외생) 충격 — 시드별 주입액
                             = total_amount(손익계산서 매출액, 인자)
                             × Σrate(HS10 품목별 수출입 비중 — bse_yr 기준으로 backend
-                              POST /trade/weight 일괄 조회, 각 0~1, direction 방향분만)
+                              POST /trade/weight 일괄 조회, 각 0~1, iokind 방향분만)
                             × shock_rate(충격 비율, 인자 0~1)
                             ※ backend 가 H10 단일 계층만 반환하고 요청 내 중복 코드는
                             dedup 하므로 이중계상(중복/prefix) 여지 없음.
@@ -59,6 +59,7 @@ _EX_TARIFF_REQ = {
         }
     ],
     "direction": "export",
+    "iokind": "out",
 }
 _EX_VOLUME_REQ = {
     "triple_list": [{"from": "a", "to": "b", "rate": 0.115}, {"from": "b", "to": "c", "rate": 0.607}],
@@ -124,12 +125,14 @@ class DirectionOut(BaseModel):
 
 _METHODS = ("scc", "iterative")
 
-# direction 입력/출력 — import=매입(upstream,1) / export=매출(downstream,0).
+# direction 입력/출력 — import=매입(upstream,1) / export=매출(downstream,0). 전파 방향 전용.
 Direction = Literal["import", "export"]
 _DIR_TO_INT = {"import": 1, "export": 0}
 _INT_TO_DIR = {1: "import", 0: "export"}
-# tariff rate 조회 방향 — backend tseximdivcd(0=전체수출/3=전체수입)와 매핑.
-_DIR_TO_EXIM = {"export": EXIM_EXPORT, "import": EXIM_IMPORT}
+# iokind — tariff rate 조회 방향. backend tseximdivcd(0=전체수출/3=전체수입)와 매핑.
+# (2026-08-25 개편: rate 조회 방향을 direction 에서 분리 — direction 은 전파 방향만 담당.)
+IoKind = Literal["in", "out"]
+_IOKIND_TO_EXIM = {"in": EXIM_IMPORT, "out": EXIM_EXPORT}
 
 
 # ── 외부 응답 (간소화) ───────────────────────────────────────────────────────
@@ -230,8 +233,13 @@ class TariffRequest(BaseModel):
     )
     direction: Direction = Field(
         "import",
-        description="import=매입(기본) / export=매출 — 전파 방향과 rate 조회 방향"
-        "(tseximdivcd 3/0)에 공통 적용",
+        description="전파 방향 — import=매입(기본, 상류) / export=매출(하류). "
+        "rate 조회 방향은 iokind 가 별도로 지정",
+    )
+    iokind: IoKind = Field(
+        "in",
+        description="rate(수출입 비중) 조회 방향 — in=수입(tseximdivcd '3', 기본) / "
+        "out=수출('0'). backend /trade/weight 응답에서 이 방향의 행만 Σrate 합산에 사용",
     )
 
     model_config = {"json_schema_extra": {"example": _EX_TARIFF_REQ}}
@@ -247,7 +255,7 @@ def tariff(req: TariffRequest) -> DataResponse:
     # 전 시드의 (upche_cd × hscodes) 를 backend /trade/weight 로 한 번에 조회한 뒤
     # 시드별 Σrate 를 만든다. 응답에 행이 없는 (업체, 품목) 셀 = 그 품목 실적 없음
     # = 비중 0 취급(부분 합산). 전 품목 실적 없음일 때만 시드 excluded.
-    exim = _DIR_TO_EXIM[req.direction]
+    exim = _IOKIND_TO_EXIM[req.iokind]
     upchecds = sorted({s.upche_cd for s in req.seed_list})
     hscodes = sorted({h for s in req.seed_list for h in s.hscodes})
     try:
@@ -312,7 +320,12 @@ class VolumeRequest(BaseModel):
         description="변동 대상 1차 기업 [{seed_id, total_amount, shock_rate}] — "
         "기업별 변동 비율을 개별 입력",
     )
-    direction: Direction = Field("import", description="import=매입(기본) / export=매출")
+    direction: Direction = Field("import", description="전파 방향 — import=매입(기본) / export=매출")
+    iokind: IoKind = Field(
+        "in",
+        description="예약 인자(현재 미사용) — tariff 와 인자 통일 목적. in(기본)/out. "
+        "DB 구조 검토 후 사용 여부 확정 예정",
+    )
 
     model_config = {"json_schema_extra": {"example": _EX_VOLUME_REQ}}
 
