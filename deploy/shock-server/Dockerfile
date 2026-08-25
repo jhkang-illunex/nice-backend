@@ -19,12 +19,14 @@ RUN apt-get update \
 WORKDIR /app
 
 # 순수 계산 의존만 (pyproject base 와 버전 정합). DB/LLM/임베딩 드라이버 불필요.
+# httpx: tariff 거래비중 조회 (rate_client — backend POST /trade/weight).
 RUN pip install \
         "fastapi>=0.115" \
         "uvicorn[standard]>=0.32" \
         "pydantic>=2.9" \
         "numpy>=2.0" \
-        "networkx>=3.3"
+        "networkx>=3.3" \
+        "httpx>=0.27"
 
 # nice_shock 만 복사 (cross-package 의존 없음 → /app/src 에 단독 배치).
 COPY src/nice_shock ./src/nice_shock
