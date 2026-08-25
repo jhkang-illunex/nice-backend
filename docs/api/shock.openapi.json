@@ -483,8 +483,18 @@
               "export"
             ],
             "title": "Direction",
-            "description": "import=매입(기본) / export=매출 — 전파 방향과 rate 조회 방향(tseximdivcd 3/0)에 공통 적용",
+            "description": "전파 방향 — import=매입(기본, 상류) / export=매출(하류). rate 조회 방향은 iokind 가 별도로 지정",
             "default": "import"
+          },
+          "iokind": {
+            "type": "string",
+            "enum": [
+              "in",
+              "out"
+            ],
+            "title": "Iokind",
+            "description": "rate(수출입 비중) 조회 방향 — in=수입(tseximdivcd '3', 기본) / out=수출('0'). backend /trade/weight 응답에서 이 방향의 행만 Σrate 합산에 사용",
+            "default": "in"
           }
         },
         "type": "object",
@@ -497,6 +507,7 @@
         "example": {
           "bse_yr": "2025",
           "direction": "export",
+          "iokind": "out",
           "seed_list": [
             {
               "hscodes": [
@@ -661,8 +672,18 @@
               "export"
             ],
             "title": "Direction",
-            "description": "import=매입(기본) / export=매출",
+            "description": "전파 방향 — import=매입(기본) / export=매출",
             "default": "import"
+          },
+          "iokind": {
+            "type": "string",
+            "enum": [
+              "in",
+              "out"
+            ],
+            "title": "Iokind",
+            "description": "예약 인자(현재 미사용) — tariff 와 인자 통일 목적. in(기본)/out. DB 구조 검토 후 사용 여부 확정 예정",
+            "default": "in"
           }
         },
         "type": "object",

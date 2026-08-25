@@ -48,10 +48,10 @@
             "tariff"
           ]
         },
-        "description": "수출입(외생) 관세 충격 전파 — \"1차 기업 충격 금액 산출 로직 v2\" 기준.\n\n시드별 주입액 = total_amount(손익계산서 ab01·ac01 매출액) × Σrate × shock_rate\n- Σrate: 전 시드의 (upche_cd × hscodes) 를 backend `POST {RATE_API_URL}`(/trade/weight) 로\n  **일괄 조회**해 얻은 HS10 품목별 수출입 비중(각 0~1)의 합.\n- direction 이 전파 방향과 rate 조회 방향(tseximdivcd — export=0, import=3)에 공통 적용.\n\n요청 필드\n| 필드 | 설명 |\n| --- | --- |\n| triple_list | 거래 엣지 [{from: 셀러 bizno, to: 바이어 bizno, rate: 거래비율(source 정규화)}] |\n| bse_yr | 수출입 비중 조회 기준연도, `\\d{4}` (기본 2025 — 2026 데이터 불충분) |\n| shock_rate | 충격 비율 0~1 (**전 시드 공통** — 시드별 비율은 volume 쪽 사양) |\n| seed_list | 1차 기업 [{seed_id: bizno, upche_cd: 업체코드(rate 조회 키), total_amount: 매출액(원), hscodes: HS **10자리** 목록}] |\n| direction | import=매입(기본) / export=매출 |\n\n동작 규칙\n- hscodes 는 10자리 digit 강제(4/6자리는 422 — 예시 응답 참조). 요청 내 중복 코드는\n  dedup — backend 가 H10 단일 계층만 반환하므로 이중계상 여지 없음.\n- 실적 없는 품목(응답 행 부재) = 비중 0 으로 부분 합산. **전 품목** 실적 없음이면 그 시드는\n  excluded_seeds 로 제외(오류 아님).\n- backend 미설정·연결 실패·status≠0 → 503.\n- 내부 고정값: pin_seeds=False(자기순환 되먹임 포함, NICE 확정 2026-06-24), method=scc,\n  cycle_damping=0.95.",
+        "description": "수출입(외생) 관세 충격 전파 — \"1차 기업 충격 금액 산출 로직 v2\" 기준.\n\n시드별 주입액 = total_amount(손익계산서 ab01·ac01 매출액) × Σrate × shock_rate\n- Σrate: 전 시드의 (upche_cd × hscodes) 를 backend `POST {RATE_API_URL}`(/trade/weight) 로\n  **일괄 조회**해 얻은 HS10 품목별 수출입 비중(각 0~1)의 합. **iokind 방향의 행만** 사용.\n- direction(전파 방향)과 iokind(rate 조회 방향)는 독립 인자 (2026-08-25 분리).\n\n요청 필드\n| 필드 | 설명 |\n| --- | --- |\n| triple_list | 거래 엣지 [{from: 셀러 bizno, to: 바이어 bizno, rate: 거래비율(source 정규화)}] |\n| bse_yr | 수출입 비중 조회 기준연도, `\\d{4}` (기본 2025 — 2026 데이터 불충분) |\n| shock_rate | 충격 비율 0~1 (**전 시드 공통** — 시드별 비율은 volume 쪽 사양) |\n| seed_list | 1차 기업 [{seed_id: bizno, upche_cd: 업체코드(rate 조회 키), total_amount: 매출액(원), hscodes: HS **10자리** 목록}] |\n| direction | **전파 방향** — import=매입(기본) / export=매출 |\n| iokind | **rate 조회 방향** — in=수입(tseximdivcd '3', 기본) / out=수출('0') |\n\n동작 규칙\n- hscodes 는 10자리 digit 강제(4/6자리는 422 — 예시 응답 참조). 요청 내 중복 코드는\n  dedup — backend 가 H10 단일 계층만 반환하므로 이중계상 여지 없음.\n- 실적 없는 품목(응답 행 부재) = 비중 0 으로 부분 합산. **전 품목** 실적 없음이면 그 시드는\n  excluded_seeds 로 제외(오류 아님).\n- backend 미설정·연결 실패·status≠0 → 503.\n- 내부 고정값: pin_seeds=False(자기순환 되먹임 포함, NICE 확정 2026-06-24), method=scc,\n  cycle_damping=0.95.",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"to\": \"b\",\n      \"rate\": 0.115\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"a\",\n      \"rate\": 0.06\n    },\n    {\n      \"from\": \"c\",\n      \"to\": \"b\",\n      \"rate\": 0.912\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"c\",\n      \"rate\": 0.607\n    }\n  ],\n  \"bse_yr\": \"2025\",\n  \"shock_rate\": 0.1,\n  \"seed_list\": [\n    {\n      \"seed_id\": \"b\",\n      \"upche_cd\": \"184084\",\n      \"total_amount\": 10000000.0,\n      \"hscodes\": [\n        \"3801300000\",\n        \"3901100000\"\n      ]\n    }\n  ],\n  \"direction\": \"export\"\n}",
+          "raw": "{\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"to\": \"b\",\n      \"rate\": 0.115\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"a\",\n      \"rate\": 0.06\n    },\n    {\n      \"from\": \"c\",\n      \"to\": \"b\",\n      \"rate\": 0.912\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"c\",\n      \"rate\": 0.607\n    }\n  ],\n  \"bse_yr\": \"2025\",\n  \"shock_rate\": 0.1,\n  \"seed_list\": [\n    {\n      \"seed_id\": \"b\",\n      \"upche_cd\": \"184084\",\n      \"total_amount\": 10000000.0,\n      \"hscodes\": [\n        \"3801300000\",\n        \"3901100000\"\n      ]\n    }\n  ],\n  \"direction\": \"export\",\n  \"iokind\": \"out\"\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -83,7 +83,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"to\": \"b\",\n      \"rate\": 0.115\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"a\",\n      \"rate\": 0.06\n    },\n    {\n      \"from\": \"c\",\n      \"to\": \"b\",\n      \"rate\": 0.912\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"c\",\n      \"rate\": 0.607\n    }\n  ],\n  \"bse_yr\": \"2025\",\n  \"shock_rate\": 0.1,\n  \"seed_list\": [\n    {\n      \"seed_id\": \"b\",\n      \"upche_cd\": \"184084\",\n      \"total_amount\": 10000000.0,\n      \"hscodes\": [\n        \"3801300000\",\n        \"3901100000\"\n      ]\n    }\n  ],\n  \"direction\": \"export\"\n}",
+              "raw": "{\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"to\": \"b\",\n      \"rate\": 0.115\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"a\",\n      \"rate\": 0.06\n    },\n    {\n      \"from\": \"c\",\n      \"to\": \"b\",\n      \"rate\": 0.912\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"c\",\n      \"rate\": 0.607\n    }\n  ],\n  \"bse_yr\": \"2025\",\n  \"shock_rate\": 0.1,\n  \"seed_list\": [\n    {\n      \"seed_id\": \"b\",\n      \"upche_cd\": \"184084\",\n      \"total_amount\": 10000000.0,\n      \"hscodes\": [\n        \"3801300000\",\n        \"3901100000\"\n      ]\n    }\n  ],\n  \"direction\": \"export\",\n  \"iokind\": \"out\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -212,7 +212,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"to\": \"b\",\n      \"rate\": 0.115\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"a\",\n      \"rate\": 0.06\n    },\n    {\n      \"from\": \"c\",\n      \"to\": \"b\",\n      \"rate\": 0.912\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"c\",\n      \"rate\": 0.607\n    }\n  ],\n  \"bse_yr\": \"2025\",\n  \"shock_rate\": 0.1,\n  \"seed_list\": [\n    {\n      \"seed_id\": \"b\",\n      \"upche_cd\": \"184084\",\n      \"total_amount\": 10000000.0,\n      \"hscodes\": [\n        \"3801300000\",\n        \"3901100000\"\n      ]\n    }\n  ],\n  \"direction\": \"export\"\n}",
+              "raw": "{\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"to\": \"b\",\n      \"rate\": 0.115\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"a\",\n      \"rate\": 0.06\n    },\n    {\n      \"from\": \"c\",\n      \"to\": \"b\",\n      \"rate\": 0.912\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"c\",\n      \"rate\": 0.607\n    }\n  ],\n  \"bse_yr\": \"2025\",\n  \"shock_rate\": 0.1,\n  \"seed_list\": [\n    {\n      \"seed_id\": \"b\",\n      \"upche_cd\": \"184084\",\n      \"total_amount\": 10000000.0,\n      \"hscodes\": [\n        \"3801300000\",\n        \"3901100000\"\n      ]\n    }\n  ],\n  \"direction\": \"export\",\n  \"iokind\": \"out\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -276,10 +276,10 @@
             "volume"
           ]
         },
-        "description": "거래량 변동(국내 충격) 전파 — backend rate 조회 없음.\n\n시드별 주입액 = total_amount(총매출; 매입 기준이면 매입 총액) × shock_rate(**기업별** 0~1).\ntariff 와 달리 shock_rate 가 시드 안에 있다 — 기업마다 변동 비율이 다를 수 있어서.\n\n**기준연도(bse_yr) 개념이 없다**: backend 비중 조회가 없어 연도 인자를 받지 않는다.\ntotal_amount(재무 기준연도)와 triple_list(거래 기준연도)의 연도 정합은 **호출자 책임**.\n\n요청 필드\n| 필드 | 설명 |\n| --- | --- |\n| triple_list | 거래 엣지 (tariff 와 동일 형식) |\n| seed_list | 변동 대상 1차 기업 [{seed_id, total_amount, shock_rate}] — 기업별 비율 개별 입력 |\n| direction | import=매입(기본) / export=매출 |\n\n내부 고정값은 tariff 와 동일 (pin_seeds=False, method=scc, cycle_damping=0.95).",
+        "description": "거래량 변동(국내 충격) 전파 — backend rate 조회 없음.\n\n시드별 주입액 = total_amount(총매출; 매입 기준이면 매입 총액) × shock_rate(**기업별** 0~1).\ntariff 와 달리 shock_rate 가 시드 안에 있다 — 기업마다 변동 비율이 다를 수 있어서.\n\n**기준연도(bse_yr) 개념이 없다**: backend 비중 조회가 없어 연도 인자를 받지 않는다.\ntotal_amount(재무 기준연도)와 triple_list(거래 기준연도)의 연도 정합은 **호출자 책임**.\n\n요청 필드\n| 필드 | 설명 |\n| --- | --- |\n| triple_list | 거래 엣지 (tariff 와 동일 형식) |\n| seed_list | 변동 대상 1차 기업 [{seed_id, total_amount, shock_rate}] — 기업별 비율 개별 입력 |\n| direction | **전파 방향** — import=매입(기본) / export=매출 |\n| iokind | **예약(현재 미사용)** — tariff 와 인자 통일 목적, in(기본)/out. DB 구조 검토 후 사용 여부 확정 |\n\n내부 고정값은 tariff 와 동일 (pin_seeds=False, method=scc, cycle_damping=0.95).",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"to\": \"b\",\n      \"rate\": 0.115\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"c\",\n      \"rate\": 0.607\n    }\n  ],\n  \"seed_list\": [\n    {\n      \"seed_id\": \"b\",\n      \"total_amount\": 1000000.0,\n      \"shock_rate\": 0.2\n    }\n  ],\n  \"direction\": \"export\"\n}",
+          "raw": "{\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"to\": \"b\",\n      \"rate\": 0.115\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"c\",\n      \"rate\": 0.607\n    }\n  ],\n  \"seed_list\": [\n    {\n      \"seed_id\": \"b\",\n      \"total_amount\": 1000000.0,\n      \"shock_rate\": 0.2\n    }\n  ],\n  \"direction\": \"export\",\n  \"iokind\": \"in\"\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -311,7 +311,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"to\": \"b\",\n      \"rate\": 0.115\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"c\",\n      \"rate\": 0.607\n    }\n  ],\n  \"seed_list\": [\n    {\n      \"seed_id\": \"b\",\n      \"total_amount\": 1000000.0,\n      \"shock_rate\": 0.2\n    }\n  ],\n  \"direction\": \"export\"\n}",
+              "raw": "{\n  \"triple_list\": [\n    {\n      \"from\": \"a\",\n      \"to\": \"b\",\n      \"rate\": 0.115\n    },\n    {\n      \"from\": \"b\",\n      \"to\": \"c\",\n      \"rate\": 0.607\n    }\n  ],\n  \"seed_list\": [\n    {\n      \"seed_id\": \"b\",\n      \"total_amount\": 1000000.0,\n      \"shock_rate\": 0.2\n    }\n  ],\n  \"direction\": \"export\",\n  \"iokind\": \"in\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

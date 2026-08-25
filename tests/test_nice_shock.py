@@ -162,9 +162,10 @@ def test_tariff_missing_hscode_partial_sum(monkeypatch) -> None:
     assert abs(sm["포스코"] - 100_000.0) < 1e-6  # 1e6 × 0.5(보유분만) × 0.2
 
 
-def test_tariff_direction_maps_exim_and_default_year(monkeypatch) -> None:
-    """direction 미입력 시 import(매입) 기본 — rate 조회도 tseximdivcd '3'(수입).
+def test_tariff_iokind_maps_exim_and_default_year(monkeypatch) -> None:
+    """iokind 미입력 시 in(수입) 기본 — rate 조회 tseximdivcd '3'. out=수출 '0'.
 
+    direction 은 전파 방향 전용 — rate 조회 방향(exim)에 영향 없음(2026-08-25 분리).
     bse_yr 미입력 시 기본 2025 로 backend 조회 (v2 §0 기준 연도).
     """
     import nice_shock.api.main as m
@@ -180,11 +181,30 @@ def test_tariff_direction_maps_exim_and_default_year(monkeypatch) -> None:
     del body["direction"]
     d = client.post("/api/shock/tariff", json=body).json()
     assert d["direction"] == "import"
-    assert seen == {"bse_yr": "2025", "exim": "3"}  # 수입=3 / 기본연도 2025
-    body["direction"] = "export"
+    assert seen == {"bse_yr": "2025", "exim": "3"}  # iokind 기본 in=수입 / 기본연도 2025
+    body["direction"] = "export"  # 전파 방향을 바꿔도 exim 은 그대로 (iokind 만 반영)
     body["bse_yr"] = "2023"
     client.post("/api/shock/tariff", json=body)
-    assert seen == {"bse_yr": "2023", "exim": "0"}  # 수출=0 / 사용자 지정 연도
+    assert seen == {"bse_yr": "2023", "exim": "3"}
+    body["iokind"] = "out"
+    client.post("/api/shock/tariff", json=body)
+    assert seen == {"bse_yr": "2023", "exim": "0"}  # out=수출
+    body["iokind"] = "수출"  # in/out 외 값은 422
+    assert client.post("/api/shock/tariff", json=body).status_code == 422
+
+
+def test_volume_iokind_reserved_accepted() -> None:
+    """volume 의 iokind 는 예약 인자(인자 통일) — in/out 수용·결과 무영향, 그 외 422."""
+    vol = {
+        "triple_list": [{"from": x["from"], "to": x["to"], "rate": x["rate"]} for x in _TRIPLES],
+        "seed_list": [{"seed_id": "포스코", "total_amount": 1_000_000.0, "shock_rate": 0.2}],
+        "direction": "export",
+    }
+    base = client.post("/api/shock/volume", json=vol).json()
+    for kind in ("in", "out"):
+        d = client.post("/api/shock/volume", json={**vol, "iokind": kind}).json()
+        assert d == base  # 미사용 — 결과 동일
+    assert client.post("/api/shock/volume", json={**vol, "iokind": "x"}).status_code == 422
 
 
 def test_tariff_hscode_must_be_10_digits() -> None:
@@ -220,10 +240,10 @@ def test_tariff_input_schema() -> None:
     )
 
     assert set(TariffRequest.model_fields) == {
-        "triple_list", "bse_yr", "shock_rate", "seed_list", "direction",
+        "triple_list", "bse_yr", "shock_rate", "seed_list", "direction", "iokind",
     }
     assert set(TariffSeedIn.model_fields) == {"seed_id", "upche_cd", "total_amount", "hscodes"}
-    assert set(VolumeRequest.model_fields) == {"triple_list", "seed_list", "direction"}
+    assert set(VolumeRequest.model_fields) == {"triple_list", "seed_list", "direction", "iokind"}
     assert set(VolumeSeedIn.model_fields) == {"seed_id", "total_amount", "shock_rate"}
     assert set(ExcludedSeedOut.model_fields) == {"node_id", "reason"}
 
