@@ -56,13 +56,17 @@ services:
     restart: unless-stopped
     networks: [nice-net]
 
-  # 쇼크 전파 API — DB-free(요청 body 로 그래프 입력). 외부 의존 없음.
+  # 쇼크 전파 API — DB-free(요청 body 로 그래프 입력). tariff 만 backend /trade/weight 의존.
   shock-server:
     image: nice/shock-server:${APP_TAG:-dev}
     container_name: nice-shock-server
     environment:
       APP_ENV: ${APP_ENV:-prod}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # backend 거래비중 조회 — /trade/weight "전체 URL" (.env 필수 입력).
+      # 미설정이면 tariff 호출만 503 — volume/propagate/health 는 영향 없음.
+      RATE_API_URL: ${RATE_API_URL:-}
+      RATE_API_TIMEOUT: ${RATE_API_TIMEOUT:-5.0}
     ports:
       - "${SHOCK_API_PORT:-18004}:8000"
     restart: unless-stopped

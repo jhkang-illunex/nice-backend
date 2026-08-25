@@ -110,6 +110,7 @@ services:
       # tariff 거래비중 조회 backend (POST /trade/weight 전체 URL) — 실 backend 연결 시
       # RATE_API_URL 을 {network-nice-rest-api-url}/trade/weight 로 지정.
       RATE_API_URL: ${RATE_API_URL:-http://rate-mock:8000/trade/weight}
+      RATE_API_TIMEOUT: ${RATE_API_TIMEOUT:-5.0}
     ports:
       - "${SHOCK_API_PORT:-8004}:8000"
     restart: unless-stopped

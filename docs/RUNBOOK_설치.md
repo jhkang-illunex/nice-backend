@@ -89,6 +89,10 @@ curl http://localhost:${SHOCK_API_PORT:-8004}/health          # {"status":"ok"}
 DB·임베딩·LLM 불요. `/api/shock/{tariff,volume,propagate}` 즉시 사용.
 (`/api/cri` 는 외부 비노출 — 코드 보존, 라우트 주석 처리 상태.)
 
+**tariff 만 backend 의존**: `.env` 의 `RATE_API_URL`(= backend `/trade/weight` **전체 URL**)
+필수 — 미설정 시 tariff 만 503, volume/propagate/health 는 무관. 타임아웃은
+`RATE_API_TIMEOUT`(초, 기본 5.0).
+
 ---
 
 ## 3. rag-server 외부 연결 설정 (`.env`)
