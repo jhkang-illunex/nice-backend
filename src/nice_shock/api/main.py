@@ -317,7 +317,17 @@ class VolumeRequest(BaseModel):
     model_config = {"json_schema_extra": {"example": _EX_VOLUME_REQ}}
 
 
-@app.post("/api/shock/volume", response_model=DataResponse, summary="거래량 변동")
+@app.post(
+    "/api/shock/volume",
+    response_model=DataResponse,
+    summary="거래량 변동",
+    description=(
+        "국내 거래량 변동 — 시드별 주입액 = total_amount × shock_rate(기업별). "
+        "**기준연도(bse_yr) 개념이 없다**: tariff 와 달리 backend 비중 조회가 없어 "
+        "연도 인자를 받지 않으며, total_amount(재무 기준연도)와 triple_list(거래 "
+        "기준연도)의 연도 정합은 호출자 책임이다."
+    ),
+)
 def volume(req: VolumeRequest) -> DataResponse:
     # pin_seeds/method/cycle_damping 은 내부 고정 (tariff 와 동일 정책).
     seeds = [
