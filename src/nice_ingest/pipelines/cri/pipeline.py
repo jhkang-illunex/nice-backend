@@ -129,13 +129,17 @@ def _grade_of(m, i, nodes, score_by_id) -> tuple[str, float | None]:
     return score_to_grade(avg), avg
 
 
-def compute_cumulative_cri(
-    companies: dict[str, dict], edges: list[tuple[str, str, float]]
+def cumulative_scores(
+    s: dict[str, dict[str, float]],
+    p: dict[str, dict[str, float]],
+    nodes: list[str],
+    score_by_id: dict[str, int | None],
 ) -> dict[str, dict]:
-    """회사별 {sell_grade, sell_score, buy_grade, buy_score} (누적망 기준)."""
-    nodes = list(companies)
-    score_by_id = {i: grade_to_score(companies[i].get("grade")) for i in nodes}
-    s, p = build_matrices(companies, edges)
+    """판매망 S·구매망 P 행렬에서 회사별 누적망 등급·점수 — cri2 핵심 (행렬 입력 공용 API).
+
+    행렬을 이미 갖고 있는 호출자(예: nice_migrate.cri 의 DB sell_rate/buy_rate)가
+    sales 유도(build_matrices) 없이 core 만 재사용할 수 있게 분리.
+    """
     cum_s = _cumulative(s, nodes)
     cum_p = _cumulative(p, nodes)
     out: dict[str, dict] = {}
@@ -144,6 +148,16 @@ def compute_cumulative_cri(
         bg, bs = _grade_of(cum_p, i, nodes, score_by_id)
         out[i] = {"sell_grade": sg, "sell_score": ss, "buy_grade": bg, "buy_score": bs}
     return out
+
+
+def compute_cumulative_cri(
+    companies: dict[str, dict], edges: list[tuple[str, str, float]]
+) -> dict[str, dict]:
+    """회사별 {sell_grade, sell_score, buy_grade, buy_score} (누적망 기준)."""
+    nodes = list(companies)
+    score_by_id = {i: grade_to_score(companies[i].get("grade")) for i in nodes}
+    s, p = build_matrices(companies, edges)
+    return cumulative_scores(s, p, nodes, score_by_id)
 
 
 # ── CSV 입출력 ────────────────────────────────────────────────────────────────
