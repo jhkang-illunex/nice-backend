@@ -86,7 +86,8 @@ docker run --rm --user root -v nice-backend_llm-models:/v -v "$PWD":/in \
 docker compose --profile shock up -d shock-server
 curl http://localhost:${SHOCK_API_PORT:-8004}/health          # {"status":"ok"}
 ```
-DB·임베딩·LLM 불요. `/api/shock/{tariff,volume,propagate}`, `/api/cri` 즉시 사용.
+DB·임베딩·LLM 불요. `/api/shock/{tariff,volume,propagate}` 즉시 사용.
+(`/api/cri` 는 외부 비노출 — 코드 보존, 라우트 주석 처리 상태.)
 
 ---
 
@@ -227,7 +228,8 @@ SELECT count(*) FROM pg_indexes WHERE schemaname='rag' AND tablename='hsk';  -- 
 ```bash
 # shock
 curl http://localhost:8004/health
-curl -X POST http://localhost:8004/api/cri -H 'Content-Type: application/json' -d @cri_sample.json
+curl -X POST http://localhost:8004/api/shock/propagate -H 'Content-Type: application/json' \
+  -d '{"triple_list":[{"from":"a","to":"b","rate":0.5}],"init":{"a":1.0}}'
 
 # rag — 의존성 3종(postgres/llm/embed) 도달성 한 번에
 curl http://localhost:8002/health/deep

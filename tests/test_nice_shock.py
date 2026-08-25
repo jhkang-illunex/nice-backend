@@ -488,11 +488,17 @@ def test_cri_matches_spec() -> None:
     assert abs(r["network"]["buy"]["risk_index"] - 2.393419) < 1e-5
 
 
-def test_cri_endpoint() -> None:
-    """공개 /api/cri (shock 와 동급) — 노드별 sell/buy 속성 + 네트워크 지표."""
+def test_cri_endpoint_not_exposed() -> None:
+    """/api/cri 는 외부 비노출(2026-08-25 결정) — 라우트 미등록으로 404.
+
+    계산 함수·스키마는 보존(main.cri 직접 호출은 동작), 재노출 시 데코레이터 주석 해제.
+    """
     r = client.post("/api/cri", json={"nodes": _CRI_NODES, "edges": _CRI_EDGES})
-    assert r.status_code == 200
-    d = r.json()
+    assert r.status_code == 404
+
+    from nice_shock.api.main import CriRequest, cri
+
+    d = cri(CriRequest(nodes=_CRI_NODES, edges=_CRI_EDGES)).model_dump()
     nodes = {n["id"]: n for n in d["data_list"]}
     assert abs(nodes["A"]["sell"]["avg_cri"] - 3.739130) < 1e-5
     assert nodes["C"]["sell"]["coverage"] is None  # 판매 엣지 없음

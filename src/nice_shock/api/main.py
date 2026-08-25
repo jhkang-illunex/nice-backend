@@ -368,6 +368,8 @@ def propagate(req: PropagateRequest) -> DirectionOut:
 
 # ── CRI(신용위험지표) — 판매/구매망 신용등급 가중평균 (DB 의존 없음) ─────────────
 # 누적 거래망 T=Σ_k λ^k W^k (직접+간접+loop) 위에서 거래상대 신용등급을 거래비중 가중평균.
+# ⚠️ 현재 외부 비노출(2026-08-25 결정): 아래 @app.post 데코레이터를 주석 처리해 라우트
+#    미등록 상태 — /api/cri 호출 시 404. 스키마·계산 함수는 보존, 재노출 시 주석만 해제.
 _EX_CRI_REQ = {
     "nodes": [
         {"id": "A", "grade": "AA", "sales": 1000},
@@ -460,7 +462,7 @@ class CriResponse(BaseModel):
     model_config = {"json_schema_extra": {"example": _EX_CRI_RESP}}
 
 
-@app.post("/api/cri", response_model=CriResponse, summary="CRI(신용위험지표) 판매/구매망")
+# @app.post("/api/cri", response_model=CriResponse, summary="CRI(신용위험지표) 판매/구매망")
 def cri(req: CriRequest) -> CriResponse:
     res = compute_cri(
         [n.model_dump() for n in req.nodes],
