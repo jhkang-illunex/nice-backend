@@ -1,0 +1,154 @@
+"""company_credit_cri.weight_sell_avg / weight_buy_avg 갱신 — cri2 누적망 점수.
+
+기존 모듈 조합 루틴 (2026-08-25):
+  1) nice_migrate.rate.update_trade_rate 가 company_edge 에 채운 sell_rate/buy_rate 를
+     연도별로 읽어 판매망 S·구매망 P 행렬을 직접 구성하고,
+  2) cri2 이관 구현(nice_ingest.pipelines.cri.pipeline — 순수 stdlib)의
+     cumulative_scores(누적망 T=W+W²+… + 등급 가중평균 core)를 그대로 호출해,
+  3) 결과 점수를 company_credit_cri(bizno, grd_st_year) 행에 기록한다.
+
+행렬 정의 (cri2 와 동일 — rate 가 DB 에 이미 계산돼 있어 sales 유도 불필요):
+  S[판매][구매] = sell_rate (= 거래액 / 판매자 매출총액 Σ_out)
+  P[구매][판매] = buy_rate  (= 거래액 / 구매자 매입총액 Σ_in)
+
+연도 매칭: company_edge.trade_year == company_credit_cri.grd_st_year 인 연도만 처리.
+  등급 행이 없는 거래연도는 기록할 곳이 없어 건너뛰고 통계(years_skipped)로 보고.
+
+cri2 규칙 유지:
+  - 무등급(NR 등 grade_to_score 미매핑)·등급 테이블 부재 기업은 유효 가중에서 제외
+    (coverage 하락으로만 반영). 점수 산출 불가('-') 는 NULL 로 기록.
+  - 같은 bizno 에 등급 행이 복수면 (grd_st_year 유일 제약 실측) 연도당 1행 가정,
+    위반 시 bat_seq 최대 행 기준.
+
+⚠️ 에어갭: deploy/migrate/Dockerfile 이 src/nice_ingest 도 COPY 해야 import 가능
+  (cri2 core 의존 — httpx 누락 사건과 동일 유형의 함정 방지).
+"""
+from __future__ import annotations
+
+import logging
+from collections.abc import Sequence
+from typing import Any
+
+from sqlalchemy import text
+from sqlalchemy.engine import Engine
+
+from nice_ingest.pipelines.cri.pipeline import cumulative_scores, grade_to_score
+
+log = logging.getLogger(__name__)
+
+# 대상 연도 = 거래연도 ∩ 등급연도 (양쪽 다 있어야 계산·기록 가능).
+_YEARS_SQL = """
+    SELECT DISTINCT CAST(e.trade_year AS text) AS y
+    FROM {schema}.company_edge e
+    JOIN {schema}.company_credit_cri g
+      ON CAST(g.grd_st_year AS text) = CAST(e.trade_year AS text)
+    ORDER BY y
+"""
+
+_EDGES_SQL = """
+    SELECT from_bizno, to_bizno, sell_rate, buy_rate
+    FROM {schema}.company_edge
+    WHERE CAST(trade_year AS text) = :year
+      AND sell_rate IS NOT NULL AND buy_rate IS NOT NULL
+"""
+
+# 연도당 bizno 1행 전제(실측 (bizno, grd_st_year) 유일). 복수면 bat_seq 최대 행 채택.
+_GRADES_SQL = """
+    SELECT bizno, crigrd
+    FROM {schema}.company_credit_cri
+    WHERE CAST(grd_st_year AS text) = :year
+    ORDER BY bat_seq
+"""
+
+_UPDATE_SQL = """
+    UPDATE {schema}.company_credit_cri
+    SET weight_sell_avg = :sell, weight_buy_avg = :buy
+    WHERE CAST(bizno AS text) = :bizno AND CAST(grd_st_year AS text) = :year
+"""
+
+
+def _build_matrices_from_rates(
+    rows: Sequence[tuple[str, str, float, float] | Any],
+) -> tuple[dict, dict, list[str]]:
+    """(from, to, sell_rate, buy_rate) 행들로 S·P 행렬 구성. bizno 는 strip 정규화."""
+    nodes = sorted(
+        {r[0].strip() for r in rows} | {r[1].strip() for r in rows}
+    )
+    s = {i: {j: 0.0 for j in nodes} for i in nodes}
+    p = {i: {j: 0.0 for j in nodes} for i in nodes}
+    for frm, to, sell_rate, buy_rate in rows:
+        f, t = frm.strip(), to.strip()
+        s[f][t] += float(sell_rate)
+        p[t][f] += float(buy_rate)
+    return s, p, nodes
+
+
+def update_cri_weights(
+    engine: Engine,
+    *,
+    year: str | None = None,
+    schema: str = "public",
+    dry_run: bool = False,
+) -> dict:
+    """연도별 cri2 누적망 점수를 산출해 company_credit_cri 에 기록.
+
+    dry_run=True 면 계산까지만 하고 UPDATE 는 생략(통계만 반환).
+    반환: {years, per_year: {연도: {nodes, edges, graded_nodes, scored_sell, scored_buy,
+      rows_updated, nodes_without_grade_row}}, years_skipped(등급 행 없는 거래연도)}.
+    """
+    out: dict = {"years": [], "per_year": {}, "years_skipped": [], "dry_run": dry_run}
+    with engine.begin() as c:
+        if year:
+            years = [str(year)]
+        else:
+            years = [
+                r[0] for r in c.execute(text(_YEARS_SQL.format(schema=schema))).fetchall()
+            ]
+            all_trade_years = [
+                r[0] for r in c.execute(
+                    text(f"SELECT DISTINCT CAST(trade_year AS text) FROM {schema}.company_edge ORDER BY 1")  # noqa: S608
+                ).fetchall()
+            ]
+            out["years_skipped"] = [y for y in all_trade_years if y not in years]
+        for y in years:
+            rows = c.execute(
+                text(_EDGES_SQL.format(schema=schema)), {"year": y}
+            ).fetchall()
+            if not rows:
+                log.warning("[cri] year=%s: sell_rate/buy_rate 채워진 엣지 0행 — "
+                            "update_trade_rate 선행 필요. 건너뜀", y)
+                out["per_year"][y] = {"nodes": 0, "edges": 0, "rows_updated": 0}
+                continue
+            grades = {
+                r[0].strip(): r[1]
+                for r in c.execute(text(_GRADES_SQL.format(schema=schema)), {"year": y})
+            }
+            s, p, nodes = _build_matrices_from_rates(rows)
+            score_by_id = {n: grade_to_score(grades.get(n)) for n in nodes}
+            scores = cumulative_scores(s, p, nodes, score_by_id)
+            updated = 0
+            no_grade_row = 0
+            for n in nodes:
+                if n not in grades:  # 등급 테이블에 행 없음 → 기록할 곳 없음
+                    no_grade_row += 1
+                    continue
+                if not dry_run:
+                    res = c.execute(
+                        text(_UPDATE_SQL.format(schema=schema)),
+                        {"sell": scores[n]["sell_score"], "buy": scores[n]["buy_score"],
+                         "bizno": n, "year": y},
+                    )
+                    updated += res.rowcount
+            stat = {
+                "nodes": len(nodes),
+                "edges": len(rows),
+                "graded_nodes": sum(1 for n in nodes if score_by_id[n] is not None),
+                "scored_sell": sum(1 for n in nodes if scores[n]["sell_score"] is not None),
+                "scored_buy": sum(1 for n in nodes if scores[n]["buy_score"] is not None),
+                "rows_updated": updated,
+                "nodes_without_grade_row": no_grade_row,
+            }
+            out["per_year"][y] = stat
+            log.info("[cri] year=%s: %s", y, stat)
+        out["years"] = years
+    return out

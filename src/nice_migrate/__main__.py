@@ -40,6 +40,11 @@ def main(argv: list[str] | None = None) -> int:
                    help="target 이 무매출이라 buy_rate=0 인 행을 target 매입 총액 기준으로 "
                         "재계산(buy_rate_basis='target_purchases'). 기본 off — CRI 등 하류 계산에 "
                         "영향을 주는 정의 변경이라 명시적으로 켜야 적용됨.")
+    p.add_argument("--cri", action="store_true",
+                   help="rate 갱신 후 cri2 누적망 점수까지 — company_edge 의 "
+                        "sell_rate/buy_rate 로 판매/구매망 등급 가중평균을 계산해 "
+                        "company_credit_cri.weight_sell_avg/weight_buy_avg 갱신 "
+                        "(연도 매칭: trade_year == grd_st_year).")
     p.add_argument("--dry-run", action="store_true", help="갱신 없이 대상 행 수만 출력.")
     p.add_argument("--shell", action="store_true",
                    help="갱신 없이 IPython 쉘 진입(engine/pd 준비된 상태) — 데이터 직접 조회·핸들링용.")
@@ -68,6 +73,12 @@ def main(argv: list[str] | None = None) -> int:
             dry_run=args.dry_run, alter_column=not args.no_alter,
             fill_shares=not args.no_shares, fill_buy_fallback=args.buy_fallback,
         )
+        if args.cri:
+            from nice_migrate.cri import update_cri_weights
+
+            stats = {"rate": stats, "cri": update_cri_weights(
+                engine, year=args.year, schema=args.schema, dry_run=args.dry_run,
+            )}
     except Exception as exc:  # noqa: BLE001
         print(f"[error] {exc.__class__.__name__}: {exc}", file=sys.stderr)
         return 1
