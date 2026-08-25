@@ -2,52 +2,17 @@
   "info": {
     "_postman_id": "nice-rag-server-0001",
     "name": "NICE rag-server 0.1.0",
-    "description": "\n**NICE PoC rag-server** — 관세청 HSCode 검색 + 자연어 질의 에이전트.\n\n* **/api/hsk/search** — 키워드/의미 hybrid 검색 (임베딩 + trigram + tsvector RRF)\n* **/api/hsk/agent**  — 자연어 질의 → 검색 → LLM 한국어 답변\n\n### 백엔드 추상화\nLLM / 임베딩 백엔드는 OpenAI-호환 base_url 만 바라봅니다. 자체 호스팅\n(ollama / vLLM / TEI) ↔ 외부 API (OpenAI / Anthropic proxy) 전환은\n`.env` 의 `LLM_BASE_URL` / `EMBED_BASE_URL` 1줄 변경.\n\n### 데이터\nPostgreSQL `rag.hsk` 테이블에 12,469 row + 1024-d 임베딩(BAAI/bge-m3)\n적재. NICE 운영 인스턴스의 기존 31 public 테이블과 schema 격리.\n\n### 명세서\n[`docs/RAG_API.md`](https://github.com/jhkang-illunex/nice-backend/blob/main/docs/RAG_API.md)\n",
+    "description": "NICE rag-server API — HSK(관세율표 HS10)·KSIC(제11차 산업분류) 검색 RAG.\n\n- 구현: src/nice_rag/api/ (FastAPI) / 스모크 스크립트: scripts/test_rag_api.sh\n- 검색 = 임베딩 + trigram + tsvector RRF hybrid, agent = 검색 후보 인용 LLM 답변.\n- baseUrl 기본 18002 = 에어갭 배포 표준(RAG_API_PORT). 로컬 compose 기본은 8002.\n- 예시 응답은 로컬 컨테이너 실호출 실측값 (2026-08-25). agent 계열은 LLM 이\n  포함되어 응답까지 수십 초 걸릴 수 있다.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "라이브니스",
+      "name": "HSK 검색 (RRF hybrid)",
       "request": {
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/health",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "health"
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "의존성 도달성",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/health/deep",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "health",
-            "deep"
-          ]
-        }
-      },
-      "response": []
-    },
-    {
-      "name": "HSCode 키워드/의미 검색 (RRF hybrid)",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/hsk/search?q=%EB%B0%B8%EB%B8%8C&limit=10&active_only=false",
+          "raw": "{{baseUrl}}/api/hsk/search?q=밸브&limit=3",
           "host": [
             "{{baseUrl}}"
           ],
@@ -60,36 +25,93 @@
             {
               "key": "q",
               "value": "밸브",
-              "description": "검색 키워드 (한국어/영문 자유)."
+              "description": "검색 키워드 (한국어/영문 자유, 1~200자)."
             },
             {
               "key": "limit",
-              "value": "10",
-              "description": "반환할 후보 개수. 운영 권장 5~10."
+              "value": "3",
+              "description": "반환 후보 수 (1~50, 기본 10). 운영 권장 5~10."
             },
             {
               "key": "hs_prefix",
-              "value": "",
-              "disabled": true,
-              "description": "HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리). 예: 85 (전기기기), 8703 (승용차)."
+              "value": "84",
+              "description": "HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리, \\d{2,8}). 예: 85=전기기기, 8703=승용차.",
+              "disabled": true
             },
             {
               "key": "active_only",
-              "value": "false",
-              "description": "true 면 현재 유효한(valid_to >= 오늘) 코드만 검색."
+              "value": "true",
+              "description": "true 면 현재 유효한(valid_to >= 오늘) 코드만 검색 (기본 false).",
+              "disabled": true
             }
           ]
-        }
+        },
+        "description": "HSCode 키워드/의미 검색 (RRF hybrid).\n\n임베딩 + trigram + tsvector 3 시그널을 Reciprocal Rank Fusion 으로 결합.\n문장형 질의는 LLM 이 품목만 추출 후 동의어 확장. 정확 매칭 시 score ≈ 0.0492(이론적 최대).\ntop1 저신뢰(< 0.033)면 CRAG 평가기가 1회 보정 — 품목과 무관한 질의로 판정되면\n빈 리스트(추천 불가) 반환.\n\n오류: 422 파라미터 검증 실패 / 503 임베딩 백엔드·PostgreSQL 도달 불가."
       },
-      "response": []
+      "response": [
+        {
+          "name": "200 성공 (실측)",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/hsk/search?q=밸브&limit=3",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "hsk",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "밸브",
+                  "description": "검색 키워드 (한국어/영문 자유, 1~200자)."
+                },
+                {
+                  "key": "limit",
+                  "value": "3",
+                  "description": "반환 후보 수 (1~50, 기본 10). 운영 권장 5~10."
+                },
+                {
+                  "key": "hs_prefix",
+                  "value": "84",
+                  "description": "HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리, \\d{2,8}). 예: 85=전기기기, 8703=승용차.",
+                  "disabled": true
+                },
+                {
+                  "key": "active_only",
+                  "value": "true",
+                  "description": "true 면 현재 유효한(valid_to >= 오늘) 코드만 검색 (기본 false).",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "HSCode 키워드/의미 검색 (RRF hybrid).\n\n임베딩 + trigram + tsvector 3 시그널을 Reciprocal Rank Fusion 으로 결합.\n문장형 질의는 LLM 이 품목만 추출 후 동의어 확장. 정확 매칭 시 score ≈ 0.0492(이론적 최대).\ntop1 저신뢰(< 0.033)면 CRAG 평가기가 1회 보정 — 품목과 무관한 질의로 판정되면\n빈 리스트(추천 불가) 반환.\n\n오류: 422 파라미터 검증 실패 / 503 임베딩 백엔드·PostgreSQL 도달 불가."
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "[\n  {\n    \"hs_code\": \"8481202000\",\n    \"name_ko\": \"공기압 전송용 밸브\",\n    \"name_en\": \"Valves for pneumatic transmissions\",\n    \"description\": \"공기압 전송용 밸브 | Valves for pneumatic transmissions | 파이프 보일러 동체 탱크 통이나 이와 유사한 물품에 사용하는 탭 코크 밸브와 이와 유사한 장치 감압밸브와 온도제어식 밸브를 포함한다 > 유압이나 공기압 전송용 밸브 > 공기압 전송용 밸브 | Taps > Valves for oleohydraulic or pneumatic transmissions > Valves for pneumatic transmissions | 파이프 보일러 동체 탱크 통이나 이와 유사한 물품에 사용하는 탭 코크 밸브와 이와 유사한 장치 감압밸브와 온도제어식 밸브를 포함한다 > 유압이나 공기압 전송용 밸브 | | 밸브 | |\",\n    \"score\": 0.04788306451612903\n  },\n  {\n    \"hs_code\": \"8481201000\",\n    \"name_ko\": \"유압 전송용 밸브\",\n    \"name_en\": \"Valves for oleohydraulic transmissions\",\n    \"description\": \"유압 전송용 밸브 | Valves for oleohydraulic transmissions | 파이프 보일러 동체 탱크 통이나 이와 유사한 물품에 사용하는 탭 코크 밸브와 이와 유사한 장치 감압밸브와 온도제어식 밸브를 포함한다 > 유압이나 공기압 전송용 밸브 > 유압 전송용 밸브 | Taps > Valves for oleohydraulic or pneumatic transmissions > Valves for oleohydraulic transmissions | 파이프 보일러 동체 탱크 통이나 이와 유사한 물품에 사용하는 탭 코크 밸브와 이와 유사한 장치 감압밸브와 온도제어식 밸브를 포함한다 > 유압이나 공기압 전송용 밸브 | | 밸브 | |\",\n    \"score\": 0.047651073880582075\n  },\n  {\n    \"hs_code\": \"8481801000\",\n    \"name_ko\": \"그 밖의 밸브\",\n    \"name_en\": \"Other valves\",\n    \"description\": \"그 밖의 밸브 | Other valves | 파이프 보일러 동체 탱크 통이나 이와 유사한 물품에 사용하는 탭 코크 밸브와 이와 유사한 장치 감압밸브와 온도제어식 밸브를 포함한다 > 그 밖의 기기 | Taps > Other appliances | 파이프 보일러 동체 탱크 통이나 이와 유사한 물품에 사용하는 탭 코크 밸브와 이와 유사한 장치 감압밸브와 온도제어식 밸브를 포함한다 > 그 밖의 기기 > 그 밖의 밸브 | | | |\",\n    \"score\": 0.0474030580075662\n  }\n]"
+        }
+      ]
     },
     {
-      "name": "자연어 질의 → 검색 → LLM 한국어 답변",
+      "name": "HSK 에이전트 (LLM 답변)",
       "request": {
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/api/hsk/agent?q=%EA%B2%BD%EC%A3%BC%EB%A7%88%EB%A5%BC%20%EC%88%98%EC%9E%85%ED%95%A0%20%EB%95%8C%20%EC%A0%81%EC%9A%A9%EB%90%98%EB%8A%94%20HS%EC%BD%94%EB%93%9C%EB%8A%94%3F&k=5&active_only=false",
+          "raw": "{{baseUrl}}/api/hsk/agent?q=경주마를 수입할 때 적용되는 HS코드는?&k=5",
           "host": [
             "{{baseUrl}}"
           ],
@@ -102,36 +124,93 @@
             {
               "key": "q",
               "value": "경주마를 수입할 때 적용되는 HS코드는?",
-              "description": "자연어 질의 (한국어 권장)."
+              "description": "자연어 질의 (한국어 권장, 1~500자)."
             },
             {
               "key": "k",
               "value": "5",
-              "description": "LLM 에 컨텍스트로 제공할 검색 후보 수. 4~8 권장."
+              "description": "LLM 컨텍스트로 제공할 검색 후보 수 (1~20, 기본 5). 4~8 권장."
             },
             {
               "key": "hs_prefix",
-              "value": "",
-              "disabled": true,
-              "description": "HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리)."
+              "value": "01",
+              "description": "HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리, \\d{2,8}). 예: 85=전기기기, 8703=승용차.",
+              "disabled": true
             },
             {
               "key": "active_only",
-              "value": "false",
-              "description": "true 면 현재 유효한(valid_to >= 오늘) 코드만 검색."
+              "value": "true",
+              "description": "true 면 현재 유효한(valid_to >= 오늘) 코드만 검색 (기본 false).",
+              "disabled": true
             }
           ]
-        }
+        },
+        "description": "자연어 질의 → hybrid 검색 후보 k건 → LLM 이 후보 내에서만 인용해 한국어 답변.\n\n**citations 가 항상 ground truth** — LLM 답변이 부실해도 citations[0] 이 정답일 확률 높음.\nLLM 호출이 포함되므로 응답에 수십 초 걸릴 수 있음 (타임아웃 넉넉히).\n\n오류: 422 파라미터 검증 실패 / 503 임베딩·LLM 백엔드 또는 PostgreSQL 도달 불가."
       },
-      "response": []
+      "response": [
+        {
+          "name": "200 성공 (실측)",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/hsk/agent?q=경주마를 수입할 때 적용되는 HS코드는?&k=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "hsk",
+                "agent"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "경주마를 수입할 때 적용되는 HS코드는?",
+                  "description": "자연어 질의 (한국어 권장, 1~500자)."
+                },
+                {
+                  "key": "k",
+                  "value": "5",
+                  "description": "LLM 컨텍스트로 제공할 검색 후보 수 (1~20, 기본 5). 4~8 권장."
+                },
+                {
+                  "key": "hs_prefix",
+                  "value": "01",
+                  "description": "HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리, \\d{2,8}). 예: 85=전기기기, 8703=승용차.",
+                  "disabled": true
+                },
+                {
+                  "key": "active_only",
+                  "value": "true",
+                  "description": "true 면 현재 유효한(valid_to >= 오늘) 코드만 검색 (기본 false).",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "자연어 질의 → hybrid 검색 후보 k건 → LLM 이 후보 내에서만 인용해 한국어 답변.\n\n**citations 가 항상 ground truth** — LLM 답변이 부실해도 citations[0] 이 정답일 확률 높음.\nLLM 호출이 포함되므로 응답에 수십 초 걸릴 수 있음 (타임아웃 넉넉히).\n\n오류: 422 파라미터 검증 실패 / 503 임베딩·LLM 백엔드 또는 PostgreSQL 도달 불가."
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"answer\": \"0101291000 — 경주말  \\n0101299000 — 기타  \\n0101300000 — 당나귀  \\n8302100000 — 경첩  \\n2710193000 — 경유\",\n  \"citations\": [\n    {\n      \"hs_code\": \"0101291000\",\n      \"name_ko\": \"경주말\",\n      \"name_en\": \"Horses for racing\",\n      \"description\": \"경주말 | Horses for racing | 살아 있는 말 당나귀 노새 버새 > 기타 > 경주말 | Live horses > Other > Horses for racing | 살아 있는 말 당나귀 노새 버새 > 말 > 기타 | | 말 | |\",\n      \"score\": 0.03278688524590164\n    },\n    {\n      \"hs_code\": \"0101299000\",\n      \"name_ko\": \"기타\",\n      \"name_en\": \"Other\",\n      \"description\": \"기타 | Other | 살아 있는 말 당나귀 노새 버새 > 기타 > 기타 | Live horses > Other > Other | 살아 있는 말 당나귀 노새 버새 > 말 > 기타 | | 말 | |\",\n      \"score\": 0.016129032258064516\n    },\n    {\n      \"hs_code\": \"2710193000\",\n      \"name_ko\": \"경유\",\n      \"name_en\": \"Gas oils\",\n      \"description\": \"경유 | Gas oils | 석유와 역청유 瀝靑油 > 기타 > 경유 | Other > Gas oils | 석유와 역청유 瀝靑油 , 따로 분류되지 않은 조제품 , 웨이스트 오일 waste oil > 석유와 역청유 瀝靑油 , 따로 분류되지 않은 조제품 > 기타 | | 경유 | | 석유나 역청유 瀝靑油 의 함유량이 전 중량의 100분의 70 이상인 것으로서 조제품의 기초 성분이 석유나 역청유 瀝靑油 인 것으로 한정한다 석유나 역청유 瀝靑油 의 함유량이 전 중량의 100분의 70 이상인 것으로서 조제품의 기초 성분이 석유나 역청유 瀝靑油 인 것으로 한정하며, 바이오디젤을 함유하는 것과 웨이스트 오일 waste oil 은 제외한다 원유는 제외한다 원유는 제외한다 원유는 제외한다\",\n      \"score\": 0.016129032258064516\n    },\n    {\n      \"hs_code\": \"0101300000\",\n      \"name_ko\": \"당나귀\",\n      \"name_en\": \"Asses\",\n      \"description\": \"당나귀 | Asses | 살아 있는 말 당나귀 노새 버새 > 당나귀 | Live horses > Asses | 살아 있는 말 당나귀 노새 버새 | | 기타 산 동물 | |\",\n      \"score\": 0.015873015873015872\n    },\n    {\n      \"hs_code\": \"8302100000\",\n      \"name_ko\": \"경첩\",\n      \"name_en\": \"Hinges\",\n      \"description\": \"경첩 | Hinges | 비금속 卑金屬 으로 만든 장착구 부착구와 이와 유사한 물품 > 경첩 | Hinges | 비금속 卑金屬 으로 만든 장착구 부착구와 이와 유사한 물품 , 비금속 卑金屬 으로 만든 모자걸이 브래킷 bracket 과 이와 유사한 부착구, 비금속 卑金屬 으로 만든 장착구가 있는 카스터 castor , 비금속 卑金屬 으로 만든 자동도어 폐지기 | | 기타 기계요소 | | 가구 문 계단 창 블라인드 차체 coachwork 마구 트렁크 장 함이나 이와 유사한 것에 적합한 것으로 한정한다 가구 문 계단 창 블라인드 차체 coachwork 마구 트렁크 장 함이나 이와 유사한 것에 적합한 것으로 한정한다\",\n      \"score\": 0.015873015873015872\n    }\n  ]\n}"
+        }
+      ]
     },
     {
-      "name": "KSIC 11차 대·중분류 검색 (RRF hybrid)",
+      "name": "KSIC 검색 (11차 대·중분류)",
       "request": {
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/api/ksic/search?q=%EB%B0%98%EB%8F%84%EC%B2%B4%20%EC%A0%9C%EC%A1%B0&limit=10",
+          "raw": "{{baseUrl}}/api/ksic/search?q=반도체 제조&limit=3",
           "host": [
             "{{baseUrl}}"
           ],
@@ -144,31 +223,81 @@
             {
               "key": "q",
               "value": "반도체 제조",
-              "description": "검색 키워드 (업종명/업태 자유 표현)."
+              "description": "검색 키워드 (업종명/업태 자유 표현, 1~200자)."
             },
             {
               "key": "limit",
-              "value": "10",
-              "description": "반환할 후보 개수. 운영 권장 5~10."
+              "value": "3",
+              "description": "반환 후보 수 (1~50, 기본 10). 운영 권장 5~10."
             },
             {
               "key": "level",
-              "value": "",
-              "disabled": true,
-              "description": "계층 제한 — 1=대분류만, 2=중분류만. 생략 시 둘 다."
+              "value": "2",
+              "description": "계층 제한 — 1=대분류만, 2=중분류만. 생략 시 둘 다.",
+              "disabled": true
             }
           ]
-        }
+        },
+        "description": "KSIC 제11차 대·중분류 키워드/의미 검색 (RRF hybrid).\n\n결과는 대분류(A~U)·중분류(2자리)까지 — 소분류 이하 항목명은 검색 텍스트에 흡수돼\n리콜에만 기여. 문장형 질의는 LLM 이 업종 표현만 추출(키워드형은 LLM 미호출).\n\n오류: 422 파라미터 검증 실패 / 503 임베딩 백엔드·PostgreSQL 도달 불가."
       },
-      "response": []
+      "response": [
+        {
+          "name": "200 성공 (실측)",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ksic/search?q=반도체 제조&limit=3",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ksic",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "반도체 제조",
+                  "description": "검색 키워드 (업종명/업태 자유 표현, 1~200자)."
+                },
+                {
+                  "key": "limit",
+                  "value": "3",
+                  "description": "반환 후보 수 (1~50, 기본 10). 운영 권장 5~10."
+                },
+                {
+                  "key": "level",
+                  "value": "2",
+                  "description": "계층 제한 — 1=대분류만, 2=중분류만. 생략 시 둘 다.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "KSIC 제11차 대·중분류 키워드/의미 검색 (RRF hybrid).\n\n결과는 대분류(A~U)·중분류(2자리)까지 — 소분류 이하 항목명은 검색 텍스트에 흡수돼\n리콜에만 기여. 문장형 질의는 LLM 이 업종 표현만 추출(키워드형은 LLM 미호출).\n\n오류: 422 파라미터 검증 실패 / 503 임베딩 백엔드·PostgreSQL 도달 불가."
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "[\n  {\n    \"code\": \"C\",\n    \"level\": 1,\n    \"parent_code\": null,\n    \"name_ko\": \"제조업\",\n    \"division_range\": \"10~34\",\n    \"score\": 0.047651073880582075\n  },\n  {\n    \"code\": \"29\",\n    \"level\": 2,\n    \"parent_code\": \"C\",\n    \"name_ko\": \"기타 기계 및 장비 제조업\",\n    \"division_range\": null,\n    \"score\": 0.045907331511839705\n  },\n  {\n    \"code\": \"26\",\n    \"level\": 2,\n    \"parent_code\": \"C\",\n    \"name_ko\": \"전자 부품, 컴퓨터, 영상, 음향 및 통신장비 제조업\",\n    \"division_range\": null,\n    \"score\": 0.044427236785777244\n  }\n]"
+        }
+      ]
     },
     {
-      "name": "자연어 질의 → 산업분류 후보 → LLM 답변 (KSIC)",
+      "name": "KSIC 에이전트 (LLM 답변)",
       "request": {
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/api/ksic/agent?q=%EB%B0%98%EB%8F%84%EC%B2%B4%20%EB%A7%8C%EB%93%9C%EB%8A%94%20%ED%9A%8C%EC%82%AC%EB%8A%94%20%EC%96%B4%EB%96%A4%20%EC%82%B0%EC%97%85%EB%B6%84%EB%A5%98%EC%97%90%20%EC%86%8D%ED%95%98%EB%82%98%EC%9A%94%3F&k=5",
+          "raw": "{{baseUrl}}/api/ksic/agent?q=반도체 만드는 회사는 어떤 산업분류에 속하나요?&k=5",
           "host": [
             "{{baseUrl}}"
           ],
@@ -181,31 +310,81 @@
             {
               "key": "q",
               "value": "반도체 만드는 회사는 어떤 산업분류에 속하나요?",
-              "description": "자연어 질의 (한국어 권장)."
+              "description": "자연어 질의 (한국어 권장, 1~500자)."
             },
             {
               "key": "k",
               "value": "5",
-              "description": "LLM 에 컨텍스트로 제공할 검색 후보 수. 4~8 권장."
+              "description": "LLM 컨텍스트로 제공할 검색 후보 수 (1~20, 기본 5). 4~8 권장."
             },
             {
               "key": "level",
-              "value": "",
-              "disabled": true,
-              "description": "계층 제한 — 1=대분류만, 2=중분류만. 생략 시 둘 다."
+              "value": "2",
+              "description": "계층 제한 — 1=대분류만, 2=중분류만. 생략 시 둘 다.",
+              "disabled": true
             }
           ]
-        }
+        },
+        "description": "자연어 질의 → hybrid 검색 대·중분류 후보 k건 → LLM 한국어 답변 (KSIC 11차).\n\n**citations 가 항상 ground truth**. LLM 호출 포함 — 응답에 수십 초 걸릴 수 있음.\n\n오류: 422 파라미터 검증 실패 / 503 임베딩·LLM 백엔드 또는 PostgreSQL 도달 불가."
       },
-      "response": []
+      "response": [
+        {
+          "name": "200 성공 (실측)",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ksic/agent?q=반도체 만드는 회사는 어떤 산업분류에 속하나요?&k=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ksic",
+                "agent"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "반도체 만드는 회사는 어떤 산업분류에 속하나요?",
+                  "description": "자연어 질의 (한국어 권장, 1~500자)."
+                },
+                {
+                  "key": "k",
+                  "value": "5",
+                  "description": "LLM 컨텍스트로 제공할 검색 후보 수 (1~20, 기본 5). 4~8 권장."
+                },
+                {
+                  "key": "level",
+                  "value": "2",
+                  "description": "계층 제한 — 1=대분류만, 2=중분류만. 생략 시 둘 다.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "자연어 질의 → hybrid 검색 대·중분류 후보 k건 → LLM 한국어 답변 (KSIC 11차).\n\n**citations 가 항상 ground truth**. LLM 호출 포함 — 응답에 수십 초 걸릴 수 있음.\n\n오류: 422 파라미터 검증 실패 / 503 임베딩·LLM 백엔드 또는 PostgreSQL 도달 불가."
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"answer\": \"26 (중분류) — 전자 부품, 컴퓨터, 영상, 음향 및 통신장비 제조업\",\n  \"citations\": [\n    {\n      \"code\": \"29\",\n      \"level\": 2,\n      \"parent_code\": \"C\",\n      \"name_ko\": \"기타 기계 및 장비 제조업\",\n      \"division_range\": null,\n      \"score\": 0.04251410322288341\n    },\n    {\n      \"code\": \"26\",\n      \"level\": 2,\n      \"parent_code\": \"C\",\n      \"name_ko\": \"전자 부품, 컴퓨터, 영상, 음향 및 통신장비 제조업\",\n      \"division_range\": null,\n      \"score\": 0.04161338397192443\n    },\n    {\n      \"code\": \"C\",\n      \"level\": 1,\n      \"parent_code\": null,\n      \"name_ko\": \"제조업\",\n      \"division_range\": \"10~34\",\n      \"score\": 0.03149801587301587\n    },\n    {\n      \"code\": \"27\",\n      \"level\": 2,\n      \"parent_code\": \"C\",\n      \"name_ko\": \"의료, 정밀, 광학 기기 및 시계 제조업\",\n      \"division_range\": null,\n      \"score\": 0.029206349206349208\n    },\n    {\n      \"code\": \"20\",\n      \"level\": 2,\n      \"parent_code\": \"C\",\n      \"name_ko\": \"화학 물질 및 화학제품 제조업; 의약품 제외\",\n      \"division_range\": null,\n      \"score\": 0.027799227799227798\n    }\n  ]\n}"
+        }
+      ]
     },
     {
-      "name": "HSCode + KSIC 통합 검색 (병렬 hybrid)",
+      "name": "통합 검색 (HSK + KSIC 병렬)",
       "request": {
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/api/search?q=%EB%B0%98%EB%8F%84%EC%B2%B4&limit=5",
+          "raw": "{{baseUrl}}/api/search?q=반도체&limit=3",
           "host": [
             "{{baseUrl}}"
           ],
@@ -217,35 +396,192 @@
             {
               "key": "q",
               "value": "반도체",
-              "description": "검색 키워드 (품목/업종 자유 표현)."
+              "description": "검색 키워드 (품목/업종 자유 표현, 1~200자)."
             },
             {
               "key": "limit",
-              "value": "5",
-              "description": "도메인별 반환 후보 수 (hsk·ksic 각각 적용)."
+              "value": "3",
+              "description": "도메인별 반환 후보 수 (hsk·ksic 각각 적용, 1~50, 기본 10)."
             },
             {
               "key": "hs_prefix",
-              "value": "",
-              "disabled": true,
-              "description": "[hsk 전용] HS 코드 prefix 로 검색 범위 제한."
+              "value": "85",
+              "description": "[hsk 전용] HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리, \\d{2,8}). 예: 85=전기기기, 8703=승용차.",
+              "disabled": true
             },
             {
               "key": "active_only",
-              "value": "false",
-              "disabled": true,
-              "description": "[hsk 전용] true 면 현재 유효한 코드만 검색."
+              "value": "true",
+              "description": "[hsk 전용] true 면 현재 유효한(valid_to >= 오늘) 코드만 검색 (기본 false).",
+              "disabled": true
             },
             {
               "key": "level",
-              "value": "",
-              "disabled": true,
-              "description": "[ksic 전용] 계층 제한 — 1=대분류만, 2=중분류만."
+              "value": "2",
+              "description": "[ksic 전용] 계층 제한 — 1=대분류만, 2=중분류만. 생략 시 둘 다.",
+              "disabled": true
             }
           ]
-        }
+        },
+        "description": "HSCode + KSIC 통합 검색 — 키워드 하나로 /api/hsk/search 와 /api/ksic/search 를\n**병렬** 실행해 한 응답({hsk, ksic, errors})에 담는다. 도메인별 파이프라인은 개별\n엔드포인트와 동일 (hsk: 품목 추출·동의어 확장·CRAG / ksic: raw 질의).\n\n부분 실패 처리: 한 도메인만 실패하면 200 + errors 에 사유, 둘 다 실패하면 503.\nhs_prefix·active_only 는 hsk 전용, level 은 ksic 전용 파라미터."
       },
-      "response": []
+      "response": [
+        {
+          "name": "200 성공 (실측)",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/search?q=반도체&limit=3",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "반도체",
+                  "description": "검색 키워드 (품목/업종 자유 표현, 1~200자)."
+                },
+                {
+                  "key": "limit",
+                  "value": "3",
+                  "description": "도메인별 반환 후보 수 (hsk·ksic 각각 적용, 1~50, 기본 10)."
+                },
+                {
+                  "key": "hs_prefix",
+                  "value": "85",
+                  "description": "[hsk 전용] HS 코드 prefix 로 검색 범위 제한 (류 2자리 ~ 세번 8자리, \\d{2,8}). 예: 85=전기기기, 8703=승용차.",
+                  "disabled": true
+                },
+                {
+                  "key": "active_only",
+                  "value": "true",
+                  "description": "[hsk 전용] true 면 현재 유효한(valid_to >= 오늘) 코드만 검색 (기본 false).",
+                  "disabled": true
+                },
+                {
+                  "key": "level",
+                  "value": "2",
+                  "description": "[ksic 전용] 계층 제한 — 1=대분류만, 2=중분류만. 생략 시 둘 다.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "HSCode + KSIC 통합 검색 — 키워드 하나로 /api/hsk/search 와 /api/ksic/search 를\n**병렬** 실행해 한 응답({hsk, ksic, errors})에 담는다. 도메인별 파이프라인은 개별\n엔드포인트와 동일 (hsk: 품목 추출·동의어 확장·CRAG / ksic: raw 질의).\n\n부분 실패 처리: 한 도메인만 실패하면 200 + errors 에 사유, 둘 다 실패하면 503.\nhs_prefix·active_only 는 hsk 전용, level 은 ksic 전용 파라미터."
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"hsk\": [\n    {\n      \"hs_code\": \"8486402010\",\n      \"name_ko\": \"반도체 조립용의 다이 부착기, 테이프자동접착기ㆍ와이어접착기\",\n      \"name_en\": \"Die attach apparatus, tape automated bonders, and wire bonders for assembly of semiconductors\",\n      \"description\": \"반도체 조립용의 다이 부착기, 테이프자동접착기 와이어접착기 | Die attach apparatus, tape automated bonders, and wire bonders for assembly of semiconductors | 반도체 보울 boule 이나 웨이퍼 wafer 반도체 디바이스 전자집적회로 평판디스플레이의 제조에 전용되거나 주로 사용되는 기계와 기기 > 이 류의 주 제11호다목에서 특정한 기계와 기기 > 반도체 조립용의 다이 부착기 | Machines and apparatus specified in Note 11 C to this Chapter | 반도체 보울 boule 이나 웨이퍼 wafer 반도체 디바이스 전자집적회로 평판디스플레이의 제조에 전용되거나 주로 사용되는 기계와 기기, 이 류의 주 제11호다목에서 특정한 기계와 기기, 그 부분품과 부속품 > 이 류의 주 제11호다목에서 특정한 기계와 기기 > 반도체 디바이스 전자집적회로의 조립용 기계와 기기 | | 반도체제조용장비 | |\",\n      \"score\": 0.02987736900780379\n    },\n    {\n      \"hs_code\": \"8486402080\",\n      \"name_ko\": \"반도체 다이를 부착하거나 웨이퍼, 캐리어, 튜브를 세척하는 기계\",\n      \"name_en\": \"Machines for bonding semiconductor die, washing wafers, carrier or tube\",\n      \"description\": \"반도체 다이를 부착하거나 웨이퍼, 캐리어, 튜브를 세척하는 기계 | Machines for bonding semiconductor die, washing wafers, carrier or tube | 반도체 보울 boule 이나 웨이퍼 wafer 반도체 디바이스 전자집적회로 평판디스플레이의 제조에 전용되거나 주로 사용되는 기계와 기기 > 이 류의 주 제11호다목에서 특정한 기계와 기기 > 반도체 다이를 부착하거나 웨이퍼 | Machines and apparatus specified in Note 11 C to this Chapter | 반도체 보울 boule 이나 웨이퍼 wafer 반도체 디바이스 전자집적회로 평판디스플레이의 제조에 전용되거나 주로 사용되는 기계와 기기, 이 류의 주 제11호다목에서 특정한 기계와 기기, 그 부분품과 부속품 > 이 류의 주 제11호다목에서 특정한 기계와 기기 > 반도체 디바이스 전자집적회로의 조립용 기계와 기기 | | 반도체제조용장비 | |\",\n      \"score\": 0.02904040404040404\n    },\n    {\n      \"hs_code\": \"8486403010\",\n      \"name_ko\": \"반도체 소자 제조용 웨이퍼, 웨이퍼카셋트, 상자나 그 밖의 물품을 이송, 핸들링 그리고 저장하기 위한 것\",\n      \"name_en\": \"Automated machines and apparatus for transport, handling and storage of semiconductor wafers, wafer cassettes, boxes and other material for semiconductor devices\",\n      \"description\": \"반도체 소자 제조용 웨이퍼, 웨이퍼카셋트, 상자나 그 밖의 물품을 이송, 핸들링 그리고 저장하기 위한 것 | Automated machines and apparatus for transport, handling and storage of semiconductor wafers, wafer cassettes, boxes and other material for semiconductor devices | 반도체 보울 boule 이나 웨이퍼 wafer 반도체 디바이스 전자집적회로 평판디스플레이의 제조에 전용되거나 주로 사용되는 기계와 기기 > 이 류의 주 제11호다목에서 특정한 기계와 기기 > 반도체 소자 제조용 웨이퍼 | Machines and apparatus specified in Note 11 C to this Chapter | 반도체 보울 boule 이나 웨이퍼 wafer 반도체 디바이스 전자집적회로 평판디스플레이의 제조에 전용되거나 주로 사용되는 기계와 기기, 이 류의 주 제11호다목에서 특정한 기계와 기기, 그 부분품과 부속품 > 이 류의 주 제11호다목에서 특정한 기계와 기기 > 보울, 웨이퍼, 반도체 디바이스, 전자집적회로와 평판디스플레이의 권양 捲揚 , 취급, 적하 積荷 나 양하 揚荷 용 기계와 기기 | | 반도체제조용장비 | |\",\n      \"score\": 0.02857142857142857\n    }\n  ],\n  \"ksic\": [\n    {\n      \"code\": \"29\",\n      \"level\": 2,\n      \"parent_code\": \"C\",\n      \"name_ko\": \"기타 기계 및 장비 제조업\",\n      \"division_range\": null,\n      \"score\": 0.04251410322288341\n    },\n    {\n      \"code\": \"26\",\n      \"level\": 2,\n      \"parent_code\": \"C\",\n      \"name_ko\": \"전자 부품, 컴퓨터, 영상, 음향 및 통신장비 제조업\",\n      \"division_range\": null,\n      \"score\": 0.04161338397192443\n    },\n    {\n      \"code\": \"C\",\n      \"level\": 1,\n      \"parent_code\": null,\n      \"name_ko\": \"제조업\",\n      \"division_range\": \"10~34\",\n      \"score\": 0.03149801587301587\n    }\n  ],\n  \"errors\": {}\n}"
+        }
+      ]
+    },
+    {
+      "name": "헬스체크 (라이브니스)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
+        },
+        "description": "라이브니스 — 프로세스 응답 가능 여부만 확인 (외부 의존성 점검 없음)."
+      },
+      "response": [
+        {
+          "name": "200 성공 (실측)",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "라이브니스 — 프로세스 응답 가능 여부만 확인 (외부 의존성 점검 없음)."
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"status\": \"ok\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "헬스체크 (의존성 도달성)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health/deep",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health",
+            "deep"
+          ]
+        },
+        "description": "의존성 도달성 — PostgreSQL / LLM / Embed 세 의존성을 한 번에 점검.\n각 필드는 \"ok\" 또는 \"fail: {ExceptionClass}\". 운영 디버깅용 — 검색·에이전트의 503 이\n어느 의존성에서 왔는지 즉시 분간. (LLM/Embed 는 도달성만 — 모델 호출 안 함.)"
+      },
+      "response": [
+        {
+          "name": "200 성공 (실측)",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health/deep",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health",
+                "deep"
+              ]
+            },
+            "description": "의존성 도달성 — PostgreSQL / LLM / Embed 세 의존성을 한 번에 점검.\n각 필드는 \"ok\" 또는 \"fail: {ExceptionClass}\". 운영 디버깅용 — 검색·에이전트의 503 이\n어느 의존성에서 왔는지 즉시 분간. (LLM/Embed 는 도달성만 — 모델 호출 안 함.)"
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"postgres\": \"ok\",\n  \"llm\": \"ok\",\n  \"embed\": \"ok\"\n}"
+        }
+      ]
     }
   ],
   "variable": [
