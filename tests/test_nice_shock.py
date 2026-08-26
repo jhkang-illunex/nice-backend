@@ -214,19 +214,44 @@ def test_tariff_hscode_must_be_10_digits() -> None:
     assert client.post("/api/shock/tariff", json=body).status_code == 422
 
 
-def test_shock_rate_forced_0_to_1(monkeypatch) -> None:
-    """shock_rate(충격 비율)는 0~1 강제 — 범위 밖(음수·1 초과)은 422."""
+def test_shock_rate_any_finite_number(monkeypatch) -> None:
+    """shock_rate 는 유한 실수면 제한 없음(음수·1 초과 허용) — NaN/±inf 만 422.
+
+    (구 0~1 강제 폐지, 2026-08-26 요청. 음수 = 완화/감소 시나리오 부호 그대로 전파.)
+    """
     import nice_shock.api.main as m
 
     monkeypatch.setattr(m, "fetch_weights", _grid_weights(1.0))
-    assert client.post("/api/shock/tariff", json=_tariff_body(["포스코"], shock_rate=-0.2)).status_code == 422
-    assert client.post("/api/shock/tariff", json=_tariff_body(["포스코"], shock_rate=1.5)).status_code == 422
+    for ok_rate in (-0.2, 1.5, 3.0):
+        r = client.post("/api/shock/tariff", json=_tariff_body(["포스코"], shock_rate=ok_rate))
+        assert r.status_code == 200, (ok_rate, r.text)
+    # httpx 는 NaN 직렬화를 거부하므로 stdlib json 으로 비표준 리터럴(NaN/Infinity)
+    # raw body 를 만들어 전송 — starlette 파서는 수용하고 pydantic 이 422 로 거부해야 한다.
+    import json as _json
+
+    for bad in (float("nan"), float("inf"), float("-inf")):
+        r = client.post(
+            "/api/shock/tariff",
+            content=_json.dumps(_tariff_body(["포스코"], shock_rate=bad)),
+            headers={"Content-Type": "application/json"},
+        )
+        assert r.status_code == 422, (bad, r.status_code)
     vol = {
         "triple_list": [{"from": x["from"], "to": x["to"], "rate": x["rate"]} for x in _TRIPLES],
-        "seed_list": [{"seed_id": "포스코", "total_amount": 1.0, "shock_rate": -0.2}],
+        "seed_list": [{"seed_id": "포스코", "total_amount": 1_000_000.0, "shock_rate": -0.2}],
         "direction": "export",
     }
-    assert client.post("/api/shock/volume", json=vol).status_code == 422
+    d = client.post("/api/shock/volume", json=vol)
+    assert d.status_code == 200
+    sm = {x["node_id"]: x["shock"] for x in d.json()["data_list"]}
+    assert sm["포스코"] < 0  # 음수 주입 = 감소 방향 그대로 전파
+    vol["seed_list"][0]["shock_rate"] = float("nan")
+    r = client.post(
+        "/api/shock/volume",
+        content=_json.dumps(vol),
+        headers={"Content-Type": "application/json"},
+    )
+    assert r.status_code == 422
 
 
 def test_tariff_input_schema() -> None:
