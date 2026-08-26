@@ -1,27 +1,38 @@
-# 런북 — `company_edge.trade_rate` / `sell_rate` / `buy_rate` 갱신 (nice_migrate)
+# 런북 — `company_edge` rate/공유율 + `company_credit_cri` cri2 점수 갱신 (nice_migrate)
 
-> **언제**: `company_edge` 데이터를 새로 적재했거나 rate/share 컬럼이 비었/초기화됐을 때.
-> **무엇**: 각 거래의 `trade_rate` + 거래망 공유율 `sell_rate`·`buy_rate` 를 **연도별 정규화**로 채운다.
-> **왜**: `trade_rate` 는 shock 전파 입력 가중치, `sell_rate`/`buy_rate` 는 CRI 입력(`sell_share`/`buy_share`).
->   비어 있으면 관련 API 가 정상 동작 안 함. (한 번의 실행으로 세 컬럼 모두 갱신)
+> **언제**: `company_edge` 데이터를 새로 적재했거나 rate/share 컬럼이 비었/초기화됐을 때,
+>   그리고 cri2 누적망 점수(`weight_sell_avg`/`weight_buy_avg`)를 산출·갱신할 때.
+> **무엇**: nice_migrate 하나가 **두 테이블**을 갱신한다 (`--cri` 플래그로 범위 결정):
 
-계산식:
+| 명령 | company_edge | company_credit_cri |
+|---|---|---|
+| `python -m nice_migrate` | trade_rate, sell_rate, buy_rate (+buy_rate_basis) | 안 건드림 |
+| `python -m nice_migrate --cri` | 위와 동일 (**1단계로 반드시 선행**) | weight_sell_avg, weight_buy_avg |
+
+> **왜**: `trade_rate` 는 shock 전파 입력 가중치, `sell_rate`/`buy_rate` 는 cri2 입력
+>   (판매/구매망 행렬). `--cri` 는 그 입력으로 cri2 누적망 점수(등급 가중평균)까지 계산해
+>   `company_credit_cri(bizno, grd_st_year)` 행에 기록한다 — rate 갱신이 항상 선행되므로
+>   낡은 rate 로 점수가 계산되는 일이 없다. 갱신 컬럼 외(등급 crigrd 등 원천)는 읽기만 한다.
+> **cri2 알고리즘 코드**는 `nice_ingest.pipelines.cri.pipeline`(순수 stdlib)에 있고
+>   migrate 가 import 해 실행한다 — CSV 배치(`nice_ingest run cri`, DB 미사용)와 동일 core 공유.
+
+계산식 (**2026-08 현행 — 커밋 0268794 에서 buy_rate 분모 정정됨**):
 ```
 trade_rate(from→to, year) = sly_amt / Σ_out(from, year)     # source(셀러) 정규화
 sell_rate  (=sell_share)  = sly_amt / Σ_out(source=from)    # trade_rate 와 동일 공식·값
-buy_rate   (=buy_share)   = sly_amt / Σ_out(target=to)      # 바이어 매출로 정규화
+buy_rate   (=buy_share)   = sly_amt / Σ_in(target=to)       # 바이어 "매입 총액" 정규화
 ```
 - `trade_rate`·`sell_rate`: 같은 (셀러 from, 연도) 합 = 1 (source 정규화). ρ(전파행렬)≤1 로 수렴.
-  이 거래 행 자신이 이미 source 의 Σ_out 집계에 포함되므로 분모는 항상 >0 — 대칭 fallback 불필요.
-- `buy_rate`: 바이어의 **매출**(Σ_out(to))로 나눔 → **상한 1 아님**(자기 매출보다 많이 사면 >1).
-  바이어가 판매 이력이 없으면(Σ_out(to)=0) `buy_rate=0`.
+  이 거래 행 자신이 이미 source 의 Σ_out 집계에 포함되므로 분모는 항상 >0.
+- `buy_rate`: 바이어의 **매입 총액**(Σ_in(to) = 그 바이어로 들어오는 모든 sly_amt 합)으로 나눔.
+  이 거래 행 자신이 Σ_in 에 포함되므로 분모 항상 >0 → **항상 [0,1]**, `buy_rate_basis='target_purchases'`.
+  (구 정의였던 "바이어 매출(Σ_out(to)) 분모, 무매출→0, 상한 없음"은 0268794 로 폐기 — §5-B/C 의
+  과거 실행 기록 수치는 구 정의 기준이니 현재와 비교하지 말 것.)
 
-**buy_rate 대안 계산 — `--buy-fallback`(2026-08-04 추가, 기본 off)**: 바이어가 무매출이라
-`buy_rate=0`인 행을, 그 바이어의 **매입 총액**(Σ_in(to) = 그 바이어로 들어오는 모든 sly_amt 합,
-이 행 자신도 포함되므로 분모 항상 >0)으로 재계산한다. "바이어 매출 대비"에서 "바이어 매입 총액
-대비"로 **의미가 바뀌는 값**이라 `buy_rate_basis` 컬럼(`target_sales`=정상/`target_purchases`
-=대안/`NULL`=미계산)에 근거를 남긴다. `sell_share`/`buy_share` 는 CRI(`nice_shock/cri.py`) 전파
-가중치로 쓰이므로, 이 옵션은 하류 계산 결과에 영향을 준다 — **기본은 off, 명시적으로 켜야 적용**.
+**`--buy-fallback` 은 현행 정의에서 사실상 no-op**: 기본 계산이 이미 매입 총액(Σ_in) 기준이라
+fallback 3단계(basis NULL 행 재계산)가 대상 0행이다. 하위호환으로 인자만 보존.
+⚠ dry-run 의 `buy_rate_fallback_would_update` 수치는 구 정의 기준 카운트라 실제 변경 행 수가
+아님 — 인용하지 말 것.
 
 ---
 
@@ -62,7 +73,18 @@ python -m nice_migrate
 → `rate_sum_*`≈1.0 (셀러 정규화), `sell_vs_rate_diff`≈0 (sell_rate=trade_rate),
   `buy_rate_null`=0 이면 정상. (`--no-shares` 로 공유율 갱신 생략 가능)
 
-### ③ 검증 (아래 §4 SQL)
+### ③ cri2 점수까지 한 번에 (`--cri`)
+```bash
+python -m nice_migrate --cri --year 2024 --dry-run   # 계산만, 두 테이블 모두 무기록
+python -m nice_migrate --cri --year 2024             # rate 갱신 → cri2 점수 기록
+```
+- 연도 매칭: `company_edge.trade_year == company_credit_cri.grd_st_year` 인 연도만 처리
+  (등급 행이 없는 거래연도는 `years_skipped` 로 보고만 하고 건너뜀).
+- 출력 JSON 이 `{"rate": {...}, "cri": {...}}` 로 나뉘며, cri 쪽 `rows_updated` /
+  `nodes_without_grade_row`(거래망엔 있으나 등급 테이블에 행이 없어 기록 못한 노드 수) 확인.
+- 무등급(NR 등)·해당 방향 유효 거래처 없음 → 해당 weight 는 NULL (cri2 규칙).
+
+### ④ 검증 (아래 §4 SQL)
 
 ---
 
@@ -200,7 +222,8 @@ docker rm -f migrate2
 | `--schema public` | 대상 스키마 (기본 public) |
 | `--no-alter` | `trade_rate` 컬럼 타입 자동보정(double precision) **비활성** |
 | `--no-shares` | `sell_rate`/`buy_rate`(거래망 공유율) 동시 갱신 **비활성** (기본은 함께 채움) |
-| `--buy-fallback` | 바이어 무매출로 `buy_rate=0`인 행을 바이어 매입 총액 기준 재계산. **기본 off** — CRI 하류계산 영향 있어 명시적으로 켜야 함. `--no-shares` 와 같이 주면 무시됨 |
+| `--cri` | rate 갱신 후 **cri2 누적망 점수까지** — `company_credit_cri.weight_sell_avg`/`weight_buy_avg` 갱신 (연도 매칭 `trade_year==grd_st_year`). `--dry-run` 이면 계산만 |
+| `--buy-fallback` | **현행 정의(매입 총액 기준)에선 사실상 no-op** — 하위호환 보존용. dry-run preview 수치는 구 정의 기준이라 무시 |
 | `--shell` | 갱신 없이 IPython 쉘 진입(`engine`/`pd`/`requests`/`q()`/`llm_chat()` 준비됨) — 데이터 조회·핸들링 + LLM/ollama 호출 테스트용 |
 | `-v`, `--verbose` | 상세 로그 |
 
@@ -229,14 +252,23 @@ GROUP BY 1 ORDER BY 1;
 -- (3) sell_rate = trade_rate (동일 공식) 확인 → 0 이어야
 SELECT MAX(ABS(sell_rate - trade_rate)) AS 최대차 FROM public.company_edge;
 
--- (4) buy_rate 점검 — 바이어 매출 정규화라 상한 1 아님, 무매출 바이어는 0
-SELECT MIN(buy_rate), MAX(buy_rate), ROUND(AVG(buy_rate)::numeric,4) AS 평균,
-       COUNT(*) FILTER (WHERE buy_rate = 0) AS 무매출바이어수
-FROM public.company_edge;
+-- (4) buy_rate 점검 — 현행(매입 총액 정규화)은 항상 [0,1]. 범위 밖이면 이상.
+SELECT MIN(buy_rate), MAX(buy_rate), ROUND(AVG(buy_rate)::numeric,4) AS 평균
+FROM public.company_edge WHERE buy_rate IS NOT NULL;
 
--- (5) buy_rate_basis 분포 — --buy-fallback 사용 시 근거별 건수 확인
---     target_sales=정상(바이어 매출 대비) / target_purchases=대안(바이어 매입 총액 대비) / NULL=미계산(0)
+-- (5) buy_rate_basis 분포 — 현행 정의로 갱신된 행은 전부 target_purchases 여야 함
+--     (target_sales 가 남아 있으면 0268794 이전 구 정의로 계산된 잔존 행)
 SELECT buy_rate_basis, COUNT(*) FROM public.company_edge GROUP BY 1 ORDER BY 1 NULLS LAST;
+
+-- (6) --cri 결과 점검 — 기록된 cri2 점수와 등급·연도
+SELECT grd_st_year, COUNT(*) AS 등급행,
+       COUNT(weight_sell_avg) AS sell채움, COUNT(weight_buy_avg) AS buy채움
+FROM public.company_credit_cri GROUP BY 1 ORDER BY 1;
+
+SELECT trim(bizno) AS bizno, crigrd, weight_sell_avg, weight_buy_avg
+FROM public.company_credit_cri
+WHERE weight_sell_avg IS NOT NULL OR weight_buy_avg IS NOT NULL
+ORDER BY grd_st_year, bizno;
 ```
 
 ---
@@ -272,6 +304,22 @@ $ python -m nice_migrate --env-file .env --year 2026 --buy-fallback --dry-run
 2026년 444행 중 64행(≈14%)이 바이어 무매출로 `buy_rate=0` 상태 — `--buy-fallback` 적용 시
 이 64행이 바이어 매입 총액 기준으로 재계산 대상. **실제 UPDATE 는 미실행**(에어갭 환경에서
 운영 결정 후 적용 예정). 실행 시 §4-(5) SQL로 `target_purchases` 건수 = 64 인지 재검증할 것.
+> ※ 위 5-B·5-C 는 **구 buy_rate 정의(바이어 매출 분모) 시절의 기록** — 0268794 정정 이후엔
+> buy_rate 가 항상 [0,1]·전행 target_purchases 라 수치 양상이 다르다. 이력으로만 참고.
+
+### 5-D. --cri 최초 실적용 — rate + cri2 점수 (2026-08-25, year 2024)
+```
+상태: 데이터 교체 후 rate 전 컬럼 NULL(248행, 2022~2025 각 62행).
+      company_credit_cri 512행(2024/2025/2026), weight_* 전부 NULL.
+$ python -m nice_migrate --env-file .env --cri --year 2024
+  rate: {"target_rows": 62, "updated": 62, "rate_sum_min/max": 1.0,
+         "buy_rate_min/max/avg": 0.0223/1.0/0.9839, "buy_rate_from_target_purchases": 62}
+  cri:  {"2024": {"nodes": 63, "edges": 62, "graded_nodes": 2,
+         "scored_buy": 51, "rows_updated": 2, "nodes_without_grade_row": 61}}
+결과: weight 기록 2행 — 1018116406(AA+, buy_avg=2.0) / 3018702315(AA+, sell_avg=2.0).
+원인: 거래망 63노드 중 등급 테이블 교집합이 2개뿐 + 둘 사이 거래가 한 방향 1건
+      (알고리즘 정상 — 유일한 유효 상대 AA+=2점 → 가중평균 정확히 2.0). 타 연도 무오염 확인.
+```
 
 ---
 
@@ -280,14 +328,16 @@ $ python -m nice_migrate --env-file .env --year 2026 --buy-fallback --dry-run
 - **운영 PG 에 UPDATE** 하는 작업 → 반드시 `--dry-run` 먼저.
 - **연도별로 따로 정규화**된다 (2024·2026 각각 셀러 합=1). 전 연도 한 번에 돌려도 됨.
 - `sly_amt=0` 이거나 셀러의 연도 Σ_out=0 이면 그 rate=0 (분모 0 방지 처리됨).
-- **`buy_rate` 는 상한 1 이 아니다** — 바이어 매출(Σ_out(to))로 나누므로 자기 매출보다 많이
-  구매하면 1 을 넘는다(정상). 판매 이력 없는 바이어는 `buy_rate=0`.
+- **`buy_rate` 는 현행 정의(매입 총액 Σ_in 분모)에서 항상 [0,1]** — 1 초과·"무매출→0" 은
+  구 정의(0268794 이전) 이야기다. §4-(4) 에서 범위 밖이 보이면 이상 신호.
 - 세 컬럼이 **한 트랜잭션**에서 갱신된다(부분 반영 없음). `--no-shares` 로 공유율만 건너뛸 수 있음.
 - compose 의 `up` 대상이 **아니다** — 상시 가동 X, 데이터 적재 후 **1회성 CLI/배치**로 실행
   (`docker-compose.deploy.yml` 의 `migrate` 서비스도 `profiles: ["migrate"]` + `run --rm` 전용).
-- **`--buy-fallback` 은 CRI 입력값의 의미를 바꾸는 옵션**이다 — 켜기 전 §1-①의 fallback dry-run 으로
-  영향 건수를 먼저 보고, `buy_rate_basis` 컬럼(§4-(5))으로 어떤 값이 대안 계산인지 추적할 것.
-  이미 이 값을 사용 중인 CRI/전파 결과가 있다면 켜는 순간 그 결과가 달라진다.
+- `--buy-fallback` 은 하위호환용 no-op — 새 작업에서 쓸 이유가 없다. preview 수치도 무시.
+- **`--cri` 는 `company_credit_cri` 에 UPDATE** 한다 — weight 두 컬럼만 쓰고 등급 등 원천
+  컬럼은 읽기 전용. 결과가 희소하면 버그가 아니라 **등급∩거래망 교집합**부터 확인(§5-D).
+- migrate 이미지는 `--cri` 가 cri2 core 를 import 하므로 **`src/nice_ingest` 가 이미지에
+  포함**돼야 한다 (deploy/migrate/Dockerfile 에 COPY 반영됨 — 구버전 이미지로는 --cri 불가).
 - 관련: [`README.md`](../README.md) §1-A(nice_migrate), [`CLAUDE.md`](../CLAUDE.md).
 
 ---

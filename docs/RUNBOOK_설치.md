@@ -27,7 +27,7 @@ DB를 가리키면 그대로 동작.
 | 번들 | 내용 | 크기 | 언제 |
 |---|---|---|---|
 | `nice_ai_app.tar.gz` | 이미지: rag-server·shock-server·ingestion | ≈320MB | **항상** |
-| `nice_migrate.image.tar.gz` | 이미지: migrate(`company_edge` rate/공유율 갱신 CLI + IPython/pandas/requests 데이터 조회·LLM 호출 테스트 쉘) | ≈370MB | `company_edge.trade_rate` 등을 새로 적재·갱신할 때만 — 상시 서비스 아님. 반입·기동: [`RUNBOOK_trade_rate_갱신.md`](RUNBOOK_trade_rate_갱신.md) §2-방법E |
+| `nice_migrate.image.tar.gz` | 이미지: migrate — `company_edge` rate/공유율 갱신 + **`--cri` cri2 누적망 점수(`company_credit_cri.weight_sell/buy_avg`) 갱신** + IPython/pandas/requests 조회·LLM 호출 테스트 쉘 | ≈115MB(gz) | rate/cri2 점수를 새로 적재·갱신할 때만 — 상시 서비스 아님. 반입·기동: [`RUNBOOK_trade_rate_갱신.md`](RUNBOOK_trade_rate_갱신.md) §2-방법E |
 | `nice_ai_embed.tar.gz` | TEI 이미지 + **bge-m3 모델** | ≈1.5GB | 임베딩 자체호스팅 시 |
 | `nice_ai_llm.tar.gz` | ollama 이미지 + **qwen3:14b(q4_K_M) 모델** | ≈12GB | LLM 자체호스팅 시 |
 
