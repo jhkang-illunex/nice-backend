@@ -463,10 +463,8 @@
           },
           "shock_rate": {
             "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
             "title": "Shock Rate",
-            "description": "충격 비율 (전 시드 공통, 0~1 강제). 시드별 주입액 = total_amount(손익계산서 매출액) × Σrate(backend 조회, 각 0~1) × shock_rate"
+            "description": "충격 비율 (전 시드 공통). 유한 실수면 제한 없음 — 음수(완화)·1 초과 허용, NaN/±inf 만 422. 시드별 주입액 = total_amount(손익계산서 매출액) × Σrate(backend 조회, 각 0~1) × shock_rate"
           },
           "seed_list": {
             "items": {
@@ -730,10 +728,8 @@
           },
           "shock_rate": {
             "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
             "title": "Shock Rate",
-            "description": "이 기업의 충격 비율 (0~1 강제, 0=무변화, 예: 0.2=20%). 주입액(충격 금액) = total_amount(총매출) × shock_rate"
+            "description": "이 기업의 충격 비율. 유한 실수면 제한 없음 — 음수(감소분)·1 초과 허용, NaN/±inf 만 422 (0=무변화, 예: 0.2=20%). 주입액(충격 금액) = total_amount(총매출) × shock_rate"
           }
         },
         "type": "object",

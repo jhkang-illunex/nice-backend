@@ -5,11 +5,11 @@
                             = total_amount(손익계산서 매출액, 인자)
                             × Σrate(HS10 품목별 수출입 비중 — bse_yr 기준으로 backend
                               POST /trade/weight 일괄 조회, 각 0~1, iokind 방향분만)
-                            × shock_rate(충격 비율, 인자 0~1)
+                            × shock_rate(충격 비율, 인자 — 유한 실수, NaN/inf 만 거부)
                             ※ backend 가 H10 단일 계층만 반환하고 요청 내 중복 코드는
                             dedup 하므로 이중계상(중복/prefix) 여지 없음.
   POST /api/shock/volume  : 거래량 변동(국내 충격) — 시드별 주입액
-                            = total_amount(총매출) × shock_rate (기업별 인자, 0~1 강제)
+                            = total_amount(총매출) × shock_rate (기업별 인자 — 유한 실수)
   GET  /health
 
 입력 그래프(triple_list)를 클라이언트가 제공하므로 stateless — 수평 확장 자유.
@@ -18,9 +18,13 @@
 from __future__ import annotations
 
 import logging
+import math
 from typing import Annotated, Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from nice_shock.cri import compute_cri
@@ -40,6 +44,27 @@ app = FastAPI(
     version="1.0.0",
     description="triple_list 입력 순수 쇼크 전파 — 관세충격 / 거래량변동.",
 )
+
+
+def _finite_safe(o):
+    """422 detail 안의 비유한 float(NaN/±inf)를 문자열로 치환 — strict JSON 직렬화 보호."""
+    if isinstance(o, float) and not math.isfinite(o):
+        return str(o)
+    if isinstance(o, dict):
+        return {k: _finite_safe(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_finite_safe(v) for v in o]
+    return o
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    # 기본 핸들러와 동일 형상({"detail": errors}) 유지. 단 NaN/inf 입력이 거부될 때
+    # 오류 detail 에 echo 되는 원본 값이 strict JSON 직렬화를 깨며 422 대신 500 이
+    # 나던 문제를 막기 위해 비유한 float 만 문자열로 치환한다.
+    return JSONResponse(
+        status_code=422, content={"detail": _finite_safe(jsonable_encoder(exc.errors()))}
+    )
 
 # ── Swagger 예제 (a·b·c 그래프, b에 충격 1 → 등비급수 수렴) ───────────────────
 _EX_EDGES = [
@@ -220,10 +245,10 @@ class TariffRequest(BaseModel):
     )
     shock_rate: float = Field(
         ...,
-        ge=0.0,
-        le=1.0,
-        description="충격 비율 (전 시드 공통, 0~1 강제). 시드별 주입액 = "
-        "total_amount(손익계산서 매출액) × Σrate(backend 조회, 각 0~1) × shock_rate",
+        allow_inf_nan=False,
+        description="충격 비율 (전 시드 공통). 유한 실수면 제한 없음 — 음수(완화)·1 초과 "
+        "허용, NaN/±inf 만 422. 시드별 주입액 = total_amount(손익계산서 매출액) × "
+        "Σrate(backend 조회, 각 0~1) × shock_rate",
     )
     seed_list: list[TariffSeedIn] = Field(
         ...,
@@ -306,9 +331,9 @@ class VolumeSeedIn(BaseModel):
     )
     shock_rate: float = Field(
         ...,
-        ge=0.0,
-        le=1.0,
-        description="이 기업의 충격 비율 (0~1 강제, 0=무변화, 예: 0.2=20%). "
+        allow_inf_nan=False,
+        description="이 기업의 충격 비율. 유한 실수면 제한 없음 — 음수(감소분)·1 초과 "
+        "허용, NaN/±inf 만 422 (0=무변화, 예: 0.2=20%). "
         "주입액(충격 금액) = total_amount(총매출) × shock_rate",
     )
 
