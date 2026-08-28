@@ -32,7 +32,7 @@ RUN pip install \
         "requests>=2.32"
 
 COPY src/nice_migrate ./src/nice_migrate
-# --cri(cri2 누적망 점수) 가 nice_ingest.pipelines.cri.pipeline(순수 stdlib) 를 import.
+# --cri(cri2 누적망 점수) 가 nice_ingest.pipelines.cri.pipeline(stdlib+numpy — 희소 엔진) 를 import.
 COPY src/nice_ingest ./src/nice_ingest
 
 RUN useradd --create-home --uid 1000 nice

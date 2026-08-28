@@ -1,4 +1,4 @@
-"""회사·거래내역 CSV → 누적 판매망/구매망 CRI 등급 산출 (DB 미사용, 순수 stdlib).
+"""회사·거래내역 CSV → 누적 판매망/구매망 CRI 등급 산출 (DB 미사용, stdlib+numpy).
 
 원본: NICE 제공 공급망 CRI 샘플 구현(구 ``nice_shock/cri2.py`` — 여기로 이관)을
 함수화하고 CSV 입출력으로 래핑. 알고리즘 해석은 원본 주석을 따른다:
@@ -24,6 +24,8 @@ import csv
 import logging
 import re
 from pathlib import Path
+
+import numpy as np
 
 log = logging.getLogger(__name__)
 
@@ -56,77 +58,208 @@ def score_to_grade(avg_score) -> str:
     return "D"
 
 
-# ── 행렬 연산 (dict-of-dict) — 원본 cri2 구현 이관 ─────────────────────────────
+# ── 희소(sparse) 누적망 엔진 — numpy mat-vec (2026-08-28 대규모 대응 재작성) ────
+# 원본 cri2 의 dense dict 행렬(O(N²) 메모리 · O(N³) 파이썬 곱)은 대규모에서 불가
+# (실사례 2026-08-28: 노드 5백만·엣지 4백만 입력에서 400GB+ 점유 후에도 미종료).
+# 최종 지표는 노드별 (유효 가중합, 가중 점수합) 두 값뿐이므로 누적행렬
+# T = W + W² + … 를 만들지 않고 벡터 반복  x ← W·x  누적(T·v, O(E)/회)으로 계산한다.
+# 자기 자신 기여 제외(원본 규칙, T_ii)는 순환(비자명 SCC·자기루프) 위의 등급 보유
+# 노드에 한해서만 0 이 아니므로, SCC 부분그래프 열-배치로 정확 계산한다.
+# 수렴 규칙(epsilon 컷오프·max_iter, 체크→누적→곱 순서)은 원본과 동일 — 소규모
+# 회귀 테스트(cri2 스펙 5노드 샘플)가 dense 구현과의 값 일치를 보증한다.
+
+DEFAULT_EPSILON = 1e-8
+DEFAULT_MAX_ITER = 1000
+_DIAG_CHUNK = 128  # SCC 열-배치 폭
 
 
-def _empty_matrix(nodes: list[str]) -> dict[str, dict[str, float]]:
-    return {i: {j: 0.0 for j in nodes} for i in nodes}
+def _matvec(n: int, rows, cols, w, x):
+    """(W·x)_i = Σ_{(i,j,w)} w·x_j — 희소 엣지 배열 기반, O(E)."""
+    if len(rows) == 0:
+        return np.zeros(n)
+    return np.bincount(rows, weights=w * x[cols], minlength=n)
 
 
-def _matmul(a, b, nodes):
-    """A @ B. self-return 을 제거하지 않아 A→B→A→… loop 경로가 자연 누적된다."""
-    c = _empty_matrix(nodes)
-    for i in nodes:
-        for k in nodes:
-            if a[i][k] == 0:
-                continue
-            for j in nodes:
-                if b[k][j] == 0:
-                    continue
-                c[i][j] += a[i][k] * b[k][j]
-    return c
-
-
-def _cumulative(w, nodes, *, epsilon: float = 1e-8, max_iter: int = 1000):
-    """누적 거래망 T = W + W² + W³ + … (단계 전파량 < epsilon 이면 수렴 종료)."""
-    total = _empty_matrix(nodes)
-    current = {i: dict(w[i]) for i in nodes}
+def _accumulate(n, rows, cols, w, x0, *, epsilon: float, max_iter: int):
+    """Σ_{k≥1} Wᵏ·x0 — 원본 _cumulative 와 동일한 종료 규칙(체크→누적→곱)."""
+    total = np.zeros(n)
+    cur = _matvec(n, rows, cols, w, x0)
     for _ in range(max_iter):
-        if sum(abs(current[i][j]) for i in nodes for j in nodes) < epsilon:
+        if np.abs(cur).sum() < epsilon:
             break
-        for i in nodes:
-            for j in nodes:
-                total[i][j] += current[i][j]
-        current = _matmul(current, w, nodes)
+        total += cur
+        cur = _matvec(n, rows, cols, w, cur)
     return total
 
 
-def build_matrices(companies: dict[str, dict], edges: list[tuple[str, str, float]]):
-    """판매망 S·구매망 P 행렬 생성.
-
-    S[판매][구매] = 거래비중(판매자 총금액 대비).
-    P[구매][판매] = 거래금액 / 구매자 총금액  (거래금액 = 판매자 총금액 × 거래비중).
-    """
-    nodes = list(companies)
-    s = _empty_matrix(nodes)
-    p = _empty_matrix(nodes)
-    for seller, buyer, share in edges:
-        seller_sales = float(companies[seller]["sales"])
-        buyer_sales = float(companies[buyer]["sales"])
-        if buyer_sales <= 0:
-            raise ValueError(
-                f"구매자 {buyer!r} 의 거래총금액이 0 이하 — 구매망 가중치(분모) 계산 불가"
-            )
-        amount = seller_sales * share
-        s[seller][buyer] += share
-        p[buyer][seller] += amount / buyer_sales
-    return s, p
-
-
-def _grade_of(m, i, nodes, score_by_id) -> tuple[str, float | None]:
-    """행렬 M 의 i 행에서 (표시등급, 평균점수). 자기 자신 기여분은 제외."""
-    valid_w = wscore = 0.0
-    for j in nodes:
-        if i == j or m[i][j] == 0:
+def _scc_labels(n: int, rows, cols) -> tuple[list[int], list[int]]:
+    """반복형 Tarjan — 각 노드의 SCC id 와 SCC 크기. (역그래프도 SCC 동일)"""
+    adj: list[list[int]] = [[] for _ in range(n)]
+    for a, b in zip(rows.tolist(), cols.tolist(), strict=True):
+        adj[a].append(b)
+    index = [-1] * n
+    low = [0] * n
+    on_stack = [False] * n
+    comp = [-1] * n
+    stack: list[int] = []
+    counter = 0
+    n_comp = 0
+    sizes: list[int] = []
+    for root in range(n):
+        if index[root] != -1:
             continue
-        sc = score_by_id.get(j)
-        if sc is not None:
-            valid_w += m[i][j]
-            wscore += m[i][j] * sc
-    if valid_w <= 0:
-        return "-", None
-    avg = wscore / valid_w
-    return score_to_grade(avg), avg
+        work = [(root, 0)]
+        while work:
+            v, pi = work[-1]
+            if pi == 0:
+                index[v] = low[v] = counter
+                counter += 1
+                stack.append(v)
+                on_stack[v] = True
+            recurse = False
+            for i in range(pi, len(adj[v])):
+                u = adj[v][i]
+                if index[u] == -1:
+                    work[-1] = (v, i + 1)
+                    work.append((u, 0))
+                    recurse = True
+                    break
+                if on_stack[u]:
+                    low[v] = min(low[v], index[u])
+            if recurse:
+                continue
+            work.pop()
+            if work:
+                pv = work[-1][0]
+                low[pv] = min(low[pv], low[v])
+            if low[v] == index[v]:
+                size = 0
+                while True:
+                    u = stack.pop()
+                    on_stack[u] = False
+                    comp[u] = n_comp
+                    size += 1
+                    if u == v:
+                        break
+                sizes.append(size)
+                n_comp += 1
+    return comp, sizes
+
+
+def _diag_cumulative(
+    n, rows, cols, w, targets, comp, comp_size, has_self_loop,
+    *, epsilon: float, max_iter: int,
+):
+    """T_ii = Σ_k (Wᵏ)_ii — targets 노드만. i→…→i 보행은 i 의 SCC 안에 갇히므로
+    비자명 SCC(크기≥2 또는 자기루프)별 부분그래프에서 열-배치로 계산."""
+    d = np.zeros(n)
+    need = [t for t in targets if comp_size[comp[t]] >= 2 or has_self_loop[t]]
+    if not need:
+        return d
+    by_comp: dict[int, list[int]] = {}
+    for t in need:
+        by_comp.setdefault(comp[t], []).append(t)
+    comp_arr = np.asarray(comp)
+    for cid, ts in by_comp.items():
+        mask = (comp_arr[rows] == cid) & (comp_arr[cols] == cid)
+        r_g, c_g, w_g = rows[mask], cols[mask], w[mask]
+        local_nodes = np.unique(np.concatenate([r_g, c_g, np.asarray(ts)]))
+        remap = {g: i for i, g in enumerate(local_nodes.tolist())}
+        nl = len(local_nodes)
+        r_l = np.asarray([remap[v] for v in r_g.tolist()])
+        c_l = np.asarray([remap[v] for v in c_g.tolist()])
+        for s in range(0, len(ts), _DIAG_CHUNK):
+            chunk = ts[s:s + _DIAG_CHUNK]
+            m = len(chunk)
+            pos = [remap[t] for t in chunk]
+            cur = np.zeros((nl, m))
+            for k, pmark in enumerate(pos):
+                cur[pmark, k] = 1.0
+            # cur ← W_local·cur (열별 독립) — 종료 규칙은 _accumulate 와 동일
+            nxt = np.zeros((nl, m))
+            np.add.at(nxt, r_l, w_g[:, None] * cur[c_l])
+            cur = nxt
+            acc = np.zeros(m)
+            for _ in range(max_iter):
+                if np.abs(cur).sum() < epsilon:
+                    break
+                acc += cur[pos, range(m)]
+                nxt = np.zeros((nl, m))
+                np.add.at(nxt, r_l, w_g[:, None] * cur[c_l])
+                cur = nxt
+            for k, t in enumerate(chunk):
+                d[t] = acc[k]
+    return d
+
+
+def cumulative_scores_from_edges(
+    nodes: list[str],
+    s_edges: list[tuple[str, str, float]],
+    p_edges: list[tuple[str, str, float]],
+    score_by_id: dict[str, int | None],
+    *,
+    epsilon: float = DEFAULT_EPSILON,
+    max_iter: int = DEFAULT_MAX_ITER,
+) -> dict[str, dict]:
+    """엣지 리스트 입력의 cri2 core — 대규모 안전(O(N+E) 메모리).
+
+    s_edges: (판매자, 구매자, 판매비중)  → S[판매][구매]
+    p_edges: (구매자, 판매자, 구매가중)  → P[구매][판매]
+    중복 엣지는 원본과 동일하게 합산. score_by_id 에 None/부재 = 무등급.
+    """
+    n = len(nodes)
+    idx = {nid: i for i, nid in enumerate(nodes)}
+
+    def arrays(edges):
+        if not edges:
+            z = np.zeros(0, dtype=np.int64)
+            return z, z, np.zeros(0)
+        r = np.fromiter((idx[a] for a, _, _ in edges), dtype=np.int64, count=len(edges))
+        c = np.fromiter((idx[b] for _, b, _ in edges), dtype=np.int64, count=len(edges))
+        wv = np.fromiter((float(v) for _, _, v in edges), dtype=np.float64, count=len(edges))
+        return r, c, wv
+
+    sr, sc, sw = arrays(s_edges)
+    pr, pc, pw = arrays(p_edges)
+
+    scores = np.zeros(n)
+    graded = np.zeros(n)
+    for nid, sc_val in score_by_id.items():
+        if sc_val is not None and nid in idx:
+            scores[idx[nid]] = float(sc_val)
+            graded[idx[nid]] = 1.0
+    u = scores * graded
+
+    # SCC 는 방향 그래프와 그 역그래프에서 동일 — S 방향 구조로 1회 계산해 공용.
+    comp, comp_size = _scc_labels(n, sr, sc)
+    self_s = np.zeros(n, dtype=bool)
+    self_s[sr[sr == sc]] = True
+    self_p = np.zeros(n, dtype=bool)
+    self_p[pr[pr == pc]] = True
+    graded_idx = np.nonzero(graded)[0].tolist()
+
+    out: dict[str, dict] = {}
+    results = {}
+    for key, (r, c, wv, selfloop) in {
+        "sell": (sr, sc, sw, self_s), "buy": (pr, pc, pw, self_p),
+    }.items():
+        acc_u = _accumulate(n, r, c, wv, u, epsilon=epsilon, max_iter=max_iter)
+        acc_v = _accumulate(n, r, c, wv, graded, epsilon=epsilon, max_iter=max_iter)
+        d = _diag_cumulative(n, r, c, wv, graded_idx, comp, comp_size, selfloop,
+                             epsilon=epsilon, max_iter=max_iter)
+        results[key] = (acc_u - d * u, acc_v - d * graded)
+
+    for i, nid in enumerate(nodes):
+        row: dict = {}
+        for key in ("sell", "buy"):
+            wsc, wsum = results[key][0][i], results[key][1][i]
+            if wsum > 0:
+                avg = float(wsc / wsum)
+                row[f"{key}_grade"], row[f"{key}_score"] = score_to_grade(avg), avg
+            else:
+                row[f"{key}_grade"], row[f"{key}_score"] = "-", None
+        out[nid] = row
+    return out
 
 
 def cumulative_scores(
@@ -135,29 +268,39 @@ def cumulative_scores(
     nodes: list[str],
     score_by_id: dict[str, int | None],
 ) -> dict[str, dict]:
-    """판매망 S·구매망 P 행렬에서 회사별 누적망 등급·점수 — cri2 핵심 (행렬 입력 공용 API).
+    """dict 행렬 입력 어댑터(하위호환) — 0 이 아닌 셀만 엣지로 변환해 sparse core 호출.
 
-    행렬을 이미 갖고 있는 호출자(예: nice_migrate.cri 의 DB sell_rate/buy_rate)가
-    sales 유도(build_matrices) 없이 core 만 재사용할 수 있게 분리.
+    대규모 데이터는 행렬 dict 구성 자체가 O(N²)라 이 어댑터 대신
+    cumulative_scores_from_edges 를 직접 쓸 것 (nice_migrate.cri 는 그렇게 전환됨).
     """
-    cum_s = _cumulative(s, nodes)
-    cum_p = _cumulative(p, nodes)
-    out: dict[str, dict] = {}
-    for i in nodes:
-        sg, ss = _grade_of(cum_s, i, nodes, score_by_id)
-        bg, bs = _grade_of(cum_p, i, nodes, score_by_id)
-        out[i] = {"sell_grade": sg, "sell_score": ss, "buy_grade": bg, "buy_score": bs}
-    return out
+    def to_edges(m):
+        return [(i, j, v) for i, row in m.items() for j, v in row.items() if v != 0.0]
+
+    return cumulative_scores_from_edges(nodes, to_edges(s), to_edges(p), score_by_id)
 
 
 def compute_cumulative_cri(
     companies: dict[str, dict], edges: list[tuple[str, str, float]]
 ) -> dict[str, dict]:
-    """회사별 {sell_grade, sell_score, buy_grade, buy_score} (누적망 기준)."""
+    """회사별 {sell_grade, sell_score, buy_grade, buy_score} (누적망 기준).
+
+    S[판매][구매] = 거래비중(판매자 총금액 대비) /
+    P[구매][판매] = 거래금액 ÷ 구매자 총금액 (거래금액 = 판매자 총금액 × 거래비중).
+    """
     nodes = list(companies)
     score_by_id = {i: grade_to_score(companies[i].get("grade")) for i in nodes}
-    s, p = build_matrices(companies, edges)
-    return cumulative_scores(s, p, nodes, score_by_id)
+    s_edges: list[tuple[str, str, float]] = []
+    p_edges: list[tuple[str, str, float]] = []
+    for seller, buyer, share in edges:
+        buyer_sales = float(companies[buyer]["sales"])
+        if buyer_sales <= 0:
+            raise ValueError(
+                f"구매자 {buyer!r} 의 거래총금액이 0 이하 — 구매망 가중치(분모) 계산 불가"
+            )
+        amount = float(companies[seller]["sales"]) * share
+        s_edges.append((seller, buyer, share))
+        p_edges.append((buyer, seller, amount / buyer_sales))
+    return cumulative_scores_from_edges(nodes, s_edges, p_edges, score_by_id)
 
 
 # ── CSV 입출력 ────────────────────────────────────────────────────────────────
