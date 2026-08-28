@@ -88,3 +88,72 @@ def test_unknown_company_in_edges_rejected(tmp_path: Path) -> None:
     companies = read_companies(comp)
     with pytest.raises(ValueError, match="없는 회사"):
         read_edges(edge, companies)
+
+
+def test_sparse_engine_matches_dense_reference() -> None:
+    """희소(wave-packing) 엔진 ≡ dense 참조 구현 — 무작위 다중 SCC 그래프 전수 대조.
+
+    같은 SCC 에 등급 노드 여러 개(wave 분리)·자기루프·순환 혼재 케이스에서
+    자기 기여 제외까지 원본 dense 의미와 일치하는지 검증.
+    """
+    import numpy as np
+
+    from nice_ingest.pipelines.cri.pipeline import (
+        cumulative_scores_from_edges,
+        score_to_grade,
+    )
+
+    rng = np.random.RandomState(3)
+    n = 40
+    nodes = [f"N{i}" for i in range(n)]
+    edges = []
+    for _ in range(120):  # 밀도 높여 순환 다수 유도
+        a, b = rng.randint(0, n), rng.randint(0, n)
+        edges.append((a, b, float(rng.uniform(0.05, 0.5))))
+    edges.append((5, 5, 0.3))  # 자기루프
+    # 같은 순환에 등급 노드 2개 이상 보장
+    edges += [(0, 1, 0.4), (1, 0, 0.4)]
+    score_by_id = {nodes[i]: int(rng.randint(1, 11)) for i in rng.choice(n, 25, replace=False)}
+    score_by_id[nodes[0]] = 2
+    score_by_id[nodes[1]] = 7
+
+    s_edges = [(nodes[a], nodes[b], w) for a, b, w in edges]
+    p_edges = [(nodes[b], nodes[a], w * 0.7) for a, b, w in edges]
+    got = cumulative_scores_from_edges(nodes, s_edges, p_edges, score_by_id)
+
+    # dense 참조: 원본 cri2 규칙 그대로 (행렬 누적 + 자기 기여 제외)
+    def dense_ref(edge_list):
+        w_mat = np.zeros((n, n))
+        for a, b, w in edge_list:
+            w_mat[a][b] += w
+        total = np.zeros((n, n))
+        cur = w_mat.copy()
+        for _ in range(1000):
+            if np.abs(cur).sum() < 1e-8:
+                break
+            total += cur
+            cur = cur @ w_mat
+        out = {}
+        for i in range(n):
+            vw = ws = 0.0
+            for j in range(n):
+                if i == j:
+                    continue
+                sc = score_by_id.get(nodes[j])
+                if sc is not None and total[i][j] != 0:
+                    vw += total[i][j]
+                    ws += total[i][j] * sc
+            out[i] = (ws / vw) if vw > 0 else None
+        return out
+
+    ref_s = dense_ref([(a, b, w) for a, b, w in edges])
+    ref_p = dense_ref([(b, a, w * 0.7) for a, b, w in edges])
+    for i in range(n):
+        for key, ref in (("sell", ref_s), ("buy", ref_p)):
+            exp = ref[i]
+            act = got[nodes[i]][f"{key}_score"]
+            if exp is None:
+                assert act is None, (i, key, act)
+            else:
+                assert act is not None and abs(act - exp) < 1e-6, (i, key, act, exp)
+                assert got[nodes[i]][f"{key}_grade"] == score_to_grade(exp)
