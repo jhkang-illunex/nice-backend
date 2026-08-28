@@ -3,8 +3,9 @@
 기존 모듈 조합 루틴 (2026-08-25):
   1) nice_migrate.rate.update_trade_rate 가 company_edge 에 채운 sell_rate/buy_rate 를
      연도별로 읽어 판매망 S·구매망 P 행렬을 직접 구성하고,
-  2) cri2 이관 구현(nice_ingest.pipelines.cri.pipeline — 순수 stdlib)의
-     cumulative_scores(누적망 T=W+W²+… + 등급 가중평균 core)를 그대로 호출해,
+  2) cri2 이관 구현(nice_ingest.pipelines.cri.pipeline — stdlib+numpy)의
+     cumulative_scores_from_edges(희소 누적망 T=W+W²+… + 등급 가중평균 core,
+     O(N+E) 메모리 — 2026-08-28 대규모 대응 재작성)를 그대로 호출해,
   3) 결과 점수를 company_credit_cri(bizno, grd_st_year) 행에 기록한다.
 
 행렬 정의 (cri2 와 동일 — rate 가 DB 에 이미 계산돼 있어 sales 유도 불필요):
@@ -32,7 +33,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from nice_ingest.pipelines.cri.pipeline import cumulative_scores, grade_to_score
+from nice_ingest.pipelines.cri.pipeline import cumulative_scores_from_edges, grade_to_score
 
 log = logging.getLogger(__name__)
 
@@ -67,20 +68,24 @@ _UPDATE_SQL = """
 """
 
 
-def _build_matrices_from_rates(
+def _edges_from_rates(
     rows: Sequence[tuple[str, str, float, float] | Any],
-) -> tuple[dict, dict, list[str]]:
-    """(from, to, sell_rate, buy_rate) 행들로 S·P 행렬 구성. bizno 는 strip 정규화."""
+) -> tuple[list[tuple[str, str, float]], list[tuple[str, str, float]], list[str]]:
+    """(from, to, sell_rate, buy_rate) 행들로 S·P 엣지 리스트 구성. bizno 는 strip 정규화.
+
+    dense 행렬(dict N×N)을 만들지 않는다 — 대규모(수백만 노드)에서 O(N²) 메모리 폭발
+    방지. core(cumulative_scores_from_edges)가 O(N+E) 로 처리.
+    """
     nodes = sorted(
         {r[0].strip() for r in rows} | {r[1].strip() for r in rows}
     )
-    s = {i: {j: 0.0 for j in nodes} for i in nodes}
-    p = {i: {j: 0.0 for j in nodes} for i in nodes}
+    s_edges: list[tuple[str, str, float]] = []
+    p_edges: list[tuple[str, str, float]] = []
     for frm, to, sell_rate, buy_rate in rows:
         f, t = frm.strip(), to.strip()
-        s[f][t] += float(sell_rate)
-        p[t][f] += float(buy_rate)
-    return s, p, nodes
+        s_edges.append((f, t, float(sell_rate)))
+        p_edges.append((t, f, float(buy_rate)))
+    return s_edges, p_edges, nodes
 
 
 def update_cri_weights(
@@ -123,9 +128,9 @@ def update_cri_weights(
                 r[0].strip(): r[1]
                 for r in c.execute(text(_GRADES_SQL.format(schema=schema)), {"year": y})
             }
-            s, p, nodes = _build_matrices_from_rates(rows)
+            s_edges, p_edges, nodes = _edges_from_rates(rows)
             score_by_id = {n: grade_to_score(grades.get(n)) for n in nodes}
-            scores = cumulative_scores(s, p, nodes, score_by_id)
+            scores = cumulative_scores_from_edges(nodes, s_edges, p_edges, score_by_id)
             updated = 0
             no_grade_row = 0
             for n in nodes:

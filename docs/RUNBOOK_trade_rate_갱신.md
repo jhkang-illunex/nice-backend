@@ -13,7 +13,7 @@
 >   (판매/구매망 행렬). `--cri` 는 그 입력으로 cri2 누적망 점수(등급 가중평균)까지 계산해
 >   `company_credit_cri(bizno, grd_st_year)` 행에 기록한다 — rate 갱신이 항상 선행되므로
 >   낡은 rate 로 점수가 계산되는 일이 없다. 갱신 컬럼 외(등급 crigrd 등 원천)는 읽기만 한다.
-> **cri2 알고리즘 코드**는 `nice_ingest.pipelines.cri.pipeline`(순수 stdlib)에 있고
+> **cri2 알고리즘 코드**는 `nice_ingest.pipelines.cri.pipeline`(stdlib+numpy, 희소 O(N+E) 엔진 — 2026-08-28 대규모 대응 재작성)에 있고
 >   migrate 가 import 해 실행한다 — CSV 배치(`nice_ingest run cri`, DB 미사용)와 동일 core 공유.
 
 계산식 (**2026-08 현행 — 커밋 0268794 에서 buy_rate 분모 정정됨**):
