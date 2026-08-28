@@ -70,7 +70,6 @@ def score_to_grade(avg_score) -> str:
 
 DEFAULT_EPSILON = 1e-8
 DEFAULT_MAX_ITER = 1000
-_DIAG_CHUNK = 128  # SCC 열-배치 폭
 
 
 def _matvec(n: int, rows, cols, w, x):
@@ -151,44 +150,50 @@ def _diag_cumulative(
     *, epsilon: float, max_iter: int,
 ):
     """T_ii = Σ_k (Wᵏ)_ii — targets 노드만. i→…→i 보행은 i 의 SCC 안에 갇히므로
-    비자명 SCC(크기≥2 또는 자기루프)별 부분그래프에서 열-배치로 계산."""
+    비자명 SCC(크기≥2 또는 자기루프)별 부분그래프에서 열-배치로 계산.
+
+    성능(2026-08-28 재작성 — 현장 실측 14분의 원인 두 겹 제거):
+    1) 대상 SCC 내부 엣지를 **전역 1회 추출·압축** — SCC 마다 전체 엣지를 재스캔하지 않음.
+    2) **wave-packing**: SCC 블록끼리는 내부-엣지 그래프에서 서로 도달 불가(분리 블록)
+       이므로, 서로 다른 SCC 의 j 번째 타깃들을 한 벡터에 실어 bincount 반복 1회로 동시
+       계산. 파이썬 루프 횟수가 "SCC 수"가 아니라 "SCC 당 최대 타깃 수"(대개 한 자리)에
+       비례. 교차 오염 없음 — x0 의 서로 다른 SCC 성분은 영원히 자기 블록 안에 머문다.
+    """
     d = np.zeros(n)
+    comp_arr = np.asarray(comp)
     need = [t for t in targets if comp_size[comp[t]] >= 2 or has_self_loop[t]]
     if not need:
         return d
     by_comp: dict[int, list[int]] = {}
     for t in need:
         by_comp.setdefault(comp[t], []).append(t)
-    comp_arr = np.asarray(comp)
-    for cid, ts in by_comp.items():
-        mask = (comp_arr[rows] == cid) & (comp_arr[cols] == cid)
-        r_g, c_g, w_g = rows[mask], cols[mask], w[mask]
-        local_nodes = np.unique(np.concatenate([r_g, c_g, np.asarray(ts)]))
-        remap = {g: i for i, g in enumerate(local_nodes.tolist())}
-        nl = len(local_nodes)
-        r_l = np.asarray([remap[v] for v in r_g.tolist()])
-        c_l = np.asarray([remap[v] for v in c_g.tolist()])
-        for s in range(0, len(ts), _DIAG_CHUNK):
-            chunk = ts[s:s + _DIAG_CHUNK]
-            m = len(chunk)
-            pos = [remap[t] for t in chunk]
-            cur = np.zeros((nl, m))
-            for k, pmark in enumerate(pos):
-                cur[pmark, k] = 1.0
-            # cur ← W_local·cur (열별 독립) — 종료 규칙은 _accumulate 와 동일
-            nxt = np.zeros((nl, m))
-            np.add.at(nxt, r_l, w_g[:, None] * cur[c_l])
-            cur = nxt
-            acc = np.zeros(m)
-            for _ in range(max_iter):
-                if np.abs(cur).sum() < epsilon:
-                    break
-                acc += cur[pos, range(m)]
-                nxt = np.zeros((nl, m))
-                np.add.at(nxt, r_l, w_g[:, None] * cur[c_l])
-                cur = nxt
-            for k, t in enumerate(chunk):
-                d[t] = acc[k]
+    need_comps = np.asarray(sorted(by_comp))
+    # 대상 SCC 의 내부 엣지만 1회 추출 → 로컬 압축 인덱스(대상 SCC 노드만)
+    e_comp = comp_arr[rows]
+    keep = (e_comp == comp_arr[cols]) & np.isin(e_comp, need_comps)
+    r_k, c_k, w_k = rows[keep], cols[keep], w[keep]
+    local_nodes = np.unique(np.concatenate([r_k, c_k, np.asarray(need)]))
+    nl = len(local_nodes)
+    r_l = np.searchsorted(local_nodes, r_k)
+    c_l = np.searchsorted(local_nodes, c_k)
+    waves = max(len(ts) for ts in by_comp.values())
+    log.info("cri diag: 대상 SCC %d개 / 내부 엣지 %d / 대상 노드 %d / wave %d회",
+             len(by_comp), len(r_k), len(need), waves)
+    for j in range(waves):
+        pos = np.searchsorted(
+            local_nodes, np.asarray([ts[j] for ts in by_comp.values() if len(ts) > j])
+        )
+        tgt = np.asarray([ts[j] for ts in by_comp.values() if len(ts) > j])
+        cur = np.zeros(nl)
+        cur[pos] = 1.0
+        cur = _matvec(nl, r_l, c_l, w_k, cur)  # k=1 항 — 종료 규칙 _accumulate 동일
+        acc = np.zeros(len(pos))
+        for _ in range(max_iter):
+            if np.abs(cur).sum() < epsilon:
+                break
+            acc += cur[pos]
+            cur = _matvec(nl, r_l, c_l, w_k, cur)
+        d[tgt] = acc
     return d
 
 
