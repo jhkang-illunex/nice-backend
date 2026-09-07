@@ -45,6 +45,10 @@ def main(argv: list[str] | None = None) -> int:
                         "sell_rate/buy_rate 로 판매/구매망 등급 가중평균을 계산해 "
                         "company_credit_cri.weight_sell_avg/weight_buy_avg 갱신 "
                         "(연도 매칭: trade_year == grd_st_year).")
+    p.add_argument("--no-rate", action="store_true",
+                   help="trade_rate/sell_rate/buy_rate 갱신 생략 — company_edge 의 "
+                        "rate 가 이미 채워져 있을 때 --cri 와 함께 써서 cri2 점수만 "
+                        "재계산. --cri 없이 단독으로 쓰면 오류(실행할 게 없음).")
     p.add_argument("--dry-run", action="store_true", help="갱신 없이 대상 행 수만 출력.")
     p.add_argument("--shell", action="store_true",
                    help="갱신 없이 IPython 쉘 진입(engine/pd 준비된 상태) — 데이터 직접 조회·핸들링용.")
@@ -55,6 +59,10 @@ def main(argv: list[str] | None = None) -> int:
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+    if args.no_rate and not args.cri:
+        print("[error] --no-rate 는 --cri 와 함께 사용해야 합니다 (그 외엔 실행할 게 없음)",
+              file=sys.stderr)
+        return 1
     if args.env_file:
         load_env_file(args.env_file)
 
@@ -68,17 +76,25 @@ def main(argv: list[str] | None = None) -> int:
 
             start_shell(engine, schema=args.schema)
             return 0
-        stats = update_trade_rate(
-            engine, year=args.year, schema=args.schema,
-            dry_run=args.dry_run, alter_column=not args.no_alter,
-            fill_shares=not args.no_shares, fill_buy_fallback=args.buy_fallback,
-        )
         if args.cri:
             from nice_migrate.cri import update_cri_weights
 
-            stats = {"rate": stats, "cri": update_cri_weights(
+            stats: dict = {}
+            if not args.no_rate:
+                stats["rate"] = update_trade_rate(
+                    engine, year=args.year, schema=args.schema,
+                    dry_run=args.dry_run, alter_column=not args.no_alter,
+                    fill_shares=not args.no_shares, fill_buy_fallback=args.buy_fallback,
+                )
+            stats["cri"] = update_cri_weights(
                 engine, year=args.year, schema=args.schema, dry_run=args.dry_run,
-            )}
+            )
+        else:
+            stats = update_trade_rate(
+                engine, year=args.year, schema=args.schema,
+                dry_run=args.dry_run, alter_column=not args.no_alter,
+                fill_shares=not args.no_shares, fill_buy_fallback=args.buy_fallback,
+            )
     except Exception as exc:  # noqa: BLE001
         print(f"[error] {exc.__class__.__name__}: {exc}", file=sys.stderr)
         return 1
