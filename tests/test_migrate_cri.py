@@ -92,7 +92,9 @@ def test_year_matching_and_rate_guard(engine) -> None:
     assert stats["years_skipped"] == ["2023"]   # 등급 행 없음 → 기록 불가
     # 2023 을 강제 지정하면 rate 채워진 엣지가 없어 0 처리(예외 아님)
     stats2 = update_cri_weights(engine, year="2023")
-    assert stats2["per_year"]["2023"] == {"nodes": 0, "edges": 0, "rows_updated": 0}
+    skip = stats2["per_year"]["2023"]
+    assert skip["nodes"] == 0 and skip["edges"] == 0 and skip["rows_updated"] == 0
+    assert skip["compute_s"] == 0.0 and skip["db_write_s"] == 0.0  # 스킵 시 미실행 구간은 0
 
 
 def test_node_without_grade_row_skipped(engine) -> None:
@@ -106,3 +108,14 @@ def test_node_without_grade_row_skipped(engine) -> None:
     assert st["nodes_without_grade_row"] == 1
     assert st["rows_updated"] == 4
     assert "E" not in _weights(engine)
+
+
+def test_timing_fields_present_and_consistent(engine) -> None:
+    """알고리즘(compute_s)·DB 처리(db_read_s/db_write_s) 소요시간이 개별 기록되고
+    total_s = 합계가 성립. 값 자체는 SQLite+소규모라 0 근접이어도 필드 존재·항등식만 확인."""
+    stats = update_cri_weights(engine, year="2024")
+    st = stats["per_year"]["2024"]
+    for k in ("db_read_s", "compute_s", "db_write_s", "total_s"):
+        assert k in st and isinstance(st[k], float) and st[k] >= 0.0
+    assert abs(st["total_s"] - (st["db_read_s"] + st["compute_s"] + st["db_write_s"])) < 1e-6
+    assert abs(stats["total_s"] - st["total_s"]) < 1e-6  # 단일 연도 지정 시 전체=해당연도
