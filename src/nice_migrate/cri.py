@@ -28,6 +28,7 @@ cri2 규칙 유지:
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Sequence
 from typing import Any
 
@@ -116,13 +117,17 @@ def update_cri_weights(
 
     dry_run=True 면 계산까지만 하고 UPDATE 는 생략(통계만 반환).
     반환: {years, per_year: {연도: {nodes, edges, graded_nodes, scored_sell, scored_buy,
-      rows_updated, nodes_without_grade_row}}, years_skipped(등급 행 없는 거래연도)}.
+      rows_updated, nodes_without_grade_row, db_read_s, compute_s, db_write_s, total_s}},
+      years_skipped(등급 행 없는 거래연도), db_years_detect_s(연도 미지정 시 교집합
+      조회 시간), total_s(전 연도 합계)} — 소요 시간을 DB 처리(읽기/쓰기)와
+      알고리즘(cri2 core 계산)으로 분리 기록 — 병목 위치 파악용(2026-09-07).
     """
     out: dict = {"years": [], "per_year": {}, "years_skipped": [], "dry_run": dry_run}
     with engine.begin() as c:
         if year:
             years = [str(year)]
         else:
+            t_detect = time.perf_counter()
             years = [
                 r[0] for r in c.execute(text(_YEARS_SQL.format(schema=schema))).fetchall()
             ]
@@ -132,19 +137,29 @@ def update_cri_weights(
                 ).fetchall()
             ]
             out["years_skipped"] = [y for y in all_trade_years if y not in years]
+            out["db_years_detect_s"] = round(time.perf_counter() - t_detect, 3)
         for y in years:
+            t_read = time.perf_counter()
             rows = c.execute(
                 text(_EDGES_SQL.format(schema=schema)), {"year": y}
             ).fetchall()
             if not rows:
+                db_read_s = round(time.perf_counter() - t_read, 3)
                 log.warning("[cri] year=%s: sell_rate/buy_rate 채워진 엣지 0행 — "
                             "update_trade_rate 선행 필요. 건너뜀", y)
-                out["per_year"][y] = {"nodes": 0, "edges": 0, "rows_updated": 0}
+                out["per_year"][y] = {
+                    "nodes": 0, "edges": 0, "rows_updated": 0,
+                    "db_read_s": db_read_s, "compute_s": 0.0, "db_write_s": 0.0,
+                    "total_s": db_read_s,
+                }
                 continue
             grades = {
                 r[0].strip(): r[1]
                 for r in c.execute(text(_GRADES_SQL.format(schema=schema)), {"year": y})
             }
+            db_read_s = time.perf_counter() - t_read
+
+            t_compute = time.perf_counter()
             s_edges, p_edges, nodes = _edges_from_rates(rows)
             score_by_id = {n: grade_to_score(grades.get(n)) for n in nodes}
             scores = cumulative_scores_from_edges(nodes, s_edges, p_edges, score_by_id)
@@ -153,7 +168,12 @@ def update_cri_weights(
                 for n in nodes if n in grades  # 등급 테이블에 행 없음 → 기록할 곳 없음
             ]
             no_grade_row = len(nodes) - len(to_write)
+            compute_s = time.perf_counter() - t_compute
+
+            t_write = time.perf_counter()
             updated = _bulk_write(c, schema, y, to_write) if not dry_run else 0
+            db_write_s = time.perf_counter() - t_write
+
             stat = {
                 "nodes": len(nodes),
                 "edges": len(rows),
@@ -162,10 +182,19 @@ def update_cri_weights(
                 "scored_buy": sum(1 for n in nodes if scores[n]["buy_score"] is not None),
                 "rows_updated": updated,
                 "nodes_without_grade_row": no_grade_row,
+                "db_read_s": round(db_read_s, 3),
+                "compute_s": round(compute_s, 3),
+                "db_write_s": round(db_write_s, 3),
+                "total_s": round(db_read_s + compute_s + db_write_s, 3),
             }
             out["per_year"][y] = stat
             log.info("[cri] year=%s: %s", y, stat)
         out["years"] = years
+    out["total_s"] = round(
+        out.get("db_years_detect_s", 0.0)
+        + sum(s["total_s"] for s in out["per_year"].values()),
+        3,
+    )
     return out
 
 
