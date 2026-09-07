@@ -6,7 +6,8 @@
   2) cri2 이관 구현(nice_ingest.pipelines.cri.pipeline — stdlib+numpy)의
      cumulative_scores_from_edges(희소 누적망 T=W+W²+… + 등급 가중평균 core,
      O(N+E) 메모리 — 2026-08-28 대규모 대응 재작성)를 그대로 호출해,
-  3) 결과 점수를 company_credit_cri(bizno, grd_st_year) 행에 기록한다.
+  3) 결과 점수를 company_credit_cri(bizno, grd_st_year) 행에 기록한다 — 임시 테이블
+     COPY + 단일 JOIN UPDATE 로 벌크 반영(2026-09-07, 노드당 개별 UPDATE 왕복 제거).
 
 행렬 정의 (cri2 와 동일 — rate 가 DB 에 이미 계산돼 있어 sales 유도 불필요):
   S[판매][구매] = sell_rate (= 거래액 / 판매자 매출총액 Σ_out)
@@ -61,7 +62,23 @@ _GRADES_SQL = """
     ORDER BY bat_seq
 """
 
-_UPDATE_SQL = """
+# 임시 테이블 경유 벌크 갱신(2026-09-07) — 노드 수만큼 개별 UPDATE 왕복하던 방식은
+# 수백만 행에서 diag 계산 자체보다 더 큰 병목이었다(실측: v3 계산 8분대인데도 전체
+# 미완료). COPY(단일 스트림) → JOIN UPDATE(단일 문) 로 왕복을 O(N) → O(1) 로 줄인다.
+_CREATE_TMP_SQL = """
+    CREATE TEMP TABLE IF NOT EXISTS _cri_scores
+        (bizno text, sell double precision, buy double precision) ON COMMIT DROP
+"""
+_TRUNCATE_TMP_SQL = "TRUNCATE _cri_scores"
+_COPY_TMP_SQL = "COPY _cri_scores (bizno, sell, buy) FROM STDIN"
+_BULK_UPDATE_SQL = """
+    UPDATE {schema}.company_credit_cri c
+    SET weight_sell_avg = t.sell, weight_buy_avg = t.buy
+    FROM _cri_scores t
+    WHERE CAST(c.bizno AS text) = t.bizno AND CAST(c.grd_st_year AS text) = :year
+"""
+# SQLite(테스트 전용 — COPY/TEMP TABLE ON COMMIT DROP 미지원) 폴백. 프로덕션 경로 아님.
+_ROW_UPDATE_SQL = """
     UPDATE {schema}.company_credit_cri
     SET weight_sell_avg = :sell, weight_buy_avg = :buy
     WHERE CAST(bizno AS text) = :bizno AND CAST(grd_st_year AS text) = :year
@@ -131,19 +148,12 @@ def update_cri_weights(
             s_edges, p_edges, nodes = _edges_from_rates(rows)
             score_by_id = {n: grade_to_score(grades.get(n)) for n in nodes}
             scores = cumulative_scores_from_edges(nodes, s_edges, p_edges, score_by_id)
-            updated = 0
-            no_grade_row = 0
-            for n in nodes:
-                if n not in grades:  # 등급 테이블에 행 없음 → 기록할 곳 없음
-                    no_grade_row += 1
-                    continue
-                if not dry_run:
-                    res = c.execute(
-                        text(_UPDATE_SQL.format(schema=schema)),
-                        {"sell": scores[n]["sell_score"], "buy": scores[n]["buy_score"],
-                         "bizno": n, "year": y},
-                    )
-                    updated += res.rowcount
+            to_write = [
+                (n, scores[n]["sell_score"], scores[n]["buy_score"])
+                for n in nodes if n in grades  # 등급 테이블에 행 없음 → 기록할 곳 없음
+            ]
+            no_grade_row = len(nodes) - len(to_write)
+            updated = _bulk_write(c, schema, y, to_write) if not dry_run else 0
             stat = {
                 "nodes": len(nodes),
                 "edges": len(rows),
@@ -157,3 +167,34 @@ def update_cri_weights(
             log.info("[cri] year=%s: %s", y, stat)
         out["years"] = years
     return out
+
+
+def _bulk_write(
+    c, schema: str, year: str, rows: list[tuple[str, float | None, float | None]]
+) -> int:
+    """rows=[(bizno, sell, buy), ...] 를 반영. 반환값 = 실제 갱신된 행 수.
+
+    PostgreSQL: 임시 테이블 COPY(1 스트림) 후 단일 JOIN UPDATE — 개별 UPDATE 왕복
+    (노드당 1회)이 대규모(수백만 행)에서 지배적이던 라운드트립 비용을 제거.
+    그 외 dialect(SQLite — 단위테스트 전용, COPY/TEMP TABLE ON COMMIT DROP 미지원):
+    행별 UPDATE 폴백 — 소규모 고정에서만 쓰이므로 성능 무관.
+    """
+    if not rows:
+        return 0
+    if c.dialect.name != "postgresql":
+        updated = 0
+        for bizno, sell, buy in rows:
+            res = c.execute(
+                text(_ROW_UPDATE_SQL.format(schema=schema)),
+                {"sell": sell, "buy": buy, "bizno": bizno, "year": year},
+            )
+            updated += res.rowcount
+        return updated
+    c.exec_driver_sql(_CREATE_TMP_SQL)
+    c.exec_driver_sql(_TRUNCATE_TMP_SQL)
+    raw_cur = c.connection.cursor()
+    with raw_cur.copy(_COPY_TMP_SQL) as copy:
+        for row in rows:
+            copy.write_row(row)
+    res = c.execute(text(_BULK_UPDATE_SQL.format(schema=schema)), {"year": year})
+    return res.rowcount
