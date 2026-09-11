@@ -93,3 +93,42 @@ def test_cri_with_rate_runs_both(monkeypatch) -> None:
     rc = m.main(["--cri", "--dsn", "postgresql+psycopg://u:p@h:1/d"])
     assert rc == 0
     assert calls == ["rate", "cri"]
+
+
+def test_cri_engine_and_progress_flags_threaded(monkeypatch) -> None:
+    """--cri-engine/--no-progress 가 update_cri_weights(cri_engine=, show_progress=) 로 전달."""
+    import nice_migrate.__main__ as m
+    import nice_migrate.cri as cri_mod
+
+    seen: dict = {}
+    monkeypatch.setattr(m, "build_engine", lambda **kw: object())
+    monkeypatch.setattr(m, "update_trade_rate", lambda *a, **kw: {"updated": 1})
+    monkeypatch.setattr(
+        cri_mod, "update_cri_weights",
+        lambda *a, **kw: seen.update(kw) or {"years": []},
+    )
+    rc = m.main([
+        "--cri", "--cri-engine", "numpy", "--no-progress",
+        "--dsn", "postgresql+psycopg://u:p@h:1/d",
+    ])
+    assert rc == 0
+    assert seen["cri_engine"] == "numpy"
+    assert seen["show_progress"] is False
+
+
+def test_cri_engine_default_scipy(monkeypatch) -> None:
+    """--cri-engine 미지정 시 기본값 scipy."""
+    import nice_migrate.__main__ as m
+    import nice_migrate.cri as cri_mod
+
+    seen: dict = {}
+    monkeypatch.setattr(m, "build_engine", lambda **kw: object())
+    monkeypatch.setattr(m, "update_trade_rate", lambda *a, **kw: {"updated": 1})
+    monkeypatch.setattr(
+        cri_mod, "update_cri_weights",
+        lambda *a, **kw: seen.update(kw) or {"years": []},
+    )
+    rc = m.main(["--cri", "--dsn", "postgresql+psycopg://u:p@h:1/d"])
+    assert rc == 0
+    assert seen["cri_engine"] == "scipy"
+    assert seen["show_progress"] is True

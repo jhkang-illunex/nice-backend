@@ -1,7 +1,9 @@
 # migrate 잡 컨테이너 — company_edge.trade_rate/sell_rate/buy_rate 갱신 CLI(nice_migrate).
 # nice_migrate 는 sqlalchemy 만 의존하는 독립 CLI(다른 nice_* 패키지 미의존, tests/test_nice_migrate.py
 # ::test_migrate_is_db_driver_only 로 검증됨) → src/nice_migrate 만 복사, pyproject 전체 설치 안 함
-# (nice-poc 베이스 의존인 neo4j·fastapi·scipy 등은 이 이미지에 불필요 → 가볍게 유지).
+# (nice-poc 베이스 의존인 neo4j·fastapi 등은 이 이미지에 불필요 → 가볍게 유지).
+# ⚠ scipy·tqdm 은 예외 — --cri 가 쓰는 nice_ingest.pipelines.cri.pipeline(cri2 core) 의
+# 계산 엔진(engine="scipy", 2026-09 추가)·진행바 의존이라 명시적으로 설치함.
 # --shell(IPython+pandas 데이터 조회, requests 로 LLM/ollama 호출 테스트)까지 이미지에 포함해
 # 에어갭에서 pip install 없이 바로 사용.
 
@@ -22,17 +24,21 @@ RUN apt-get update \
 
 WORKDIR /app
 
-# nice_migrate 코드 자체 의존(sqlalchemy/psycopg/pandas) + --shell 전용(ipython/requests) —
-# pyproject 의 base/migrate-shell extra 와 버전 정합. `pip install .` 을 안 쓰는 이유는 위 주석 참고.
+# nice_migrate 코드 자체 의존(sqlalchemy/psycopg/pandas) + --shell 전용(ipython/requests)
+# + --cri 의 cri2 core 의존(scipy/tqdm) — pyproject 의 base extra 와 버전 정합.
+# `pip install .` 을 안 쓰는 이유는 위 주석 참고.
 RUN pip install \
         "sqlalchemy>=2.0" \
         "psycopg[binary,pool]>=3.2" \
         "pandas>=2.2" \
         "ipython>=8.26" \
-        "requests>=2.32"
+        "requests>=2.32" \
+        "scipy>=1.14" \
+        "tqdm>=4.66"
 
 COPY src/nice_migrate ./src/nice_migrate
-# --cri(cri2 누적망 점수) 가 nice_ingest.pipelines.cri.pipeline(stdlib+numpy — 희소 엔진) 를 import.
+# --cri(cri2 누적망 점수) 가 nice_ingest.pipelines.cri.pipeline(engine="scipy"(기본)/"numpy"
+# 이중화, tqdm 진행바) 를 import.
 COPY src/nice_ingest ./src/nice_ingest
 
 RUN useradd --create-home --uid 1000 nice
