@@ -3,9 +3,10 @@
 기존 모듈 조합 루틴 (2026-08-25):
   1) nice_migrate.rate.update_trade_rate 가 company_edge 에 채운 sell_rate/buy_rate 를
      연도별로 읽어 판매망 S·구매망 P 행렬을 직접 구성하고,
-  2) cri2 이관 구현(nice_ingest.pipelines.cri.pipeline — stdlib+numpy)의
+  2) cri2 이관 구현(nice_ingest.pipelines.cri.pipeline — stdlib+numpy(+scipy 선택))의
      cumulative_scores_from_edges(희소 누적망 T=W+W²+… + 등급 가중평균 core,
-     O(N+E) 메모리 — 2026-08-28 대규모 대응 재작성)를 그대로 호출해,
+     O(N+E) 메모리 — 2026-08-28 대규모 대응 재작성, 2026-09 scipy 엔진 이중화)를
+     그대로 호출해,
   3) 결과 점수를 company_credit_cri(bizno, grd_st_year) 행에 기록한다 — 임시 테이블
      COPY + 단일 JOIN UPDATE 로 벌크 반영(2026-09-07, 노드당 개별 UPDATE 왕복 제거).
 
@@ -30,7 +31,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
@@ -112,10 +113,17 @@ def update_cri_weights(
     year: str | None = None,
     schema: str = "public",
     dry_run: bool = False,
+    cri_engine: Literal["scipy", "numpy"] = "scipy",
+    show_progress: bool = True,
 ) -> dict:
     """연도별 cri2 누적망 점수를 산출해 company_credit_cri 에 기록.
 
     dry_run=True 면 계산까지만 하고 UPDATE 는 생략(통계만 반환).
+    cri_engine="scipy"(기본, 2026-09): SCC 소수·거대 케이스도 빠른 열-배치 계산.
+      "numpy": 기존 wave-packing — scipy 미설치 대비/비교용으로 보존.
+      (매개변수명이 cri_engine 인 이유: 위 `engine` 인자가 이미 SQLAlchemy DB 커넥션이라
+      cri2 계산 엔진 선택과 이름이 겹치지 않게 구분.)
+    show_progress=True: diag 계산에 tqdm 진행바 표시.
     반환: {years, per_year: {연도: {nodes, edges, graded_nodes, scored_sell, scored_buy,
       rows_updated, nodes_without_grade_row, db_read_s, compute_s, db_write_s, total_s}},
       years_skipped(등급 행 없는 거래연도), db_years_detect_s(연도 미지정 시 교집합
@@ -162,7 +170,10 @@ def update_cri_weights(
             t_compute = time.perf_counter()
             s_edges, p_edges, nodes = _edges_from_rates(rows)
             score_by_id = {n: grade_to_score(grades.get(n)) for n in nodes}
-            scores = cumulative_scores_from_edges(nodes, s_edges, p_edges, score_by_id)
+            scores = cumulative_scores_from_edges(
+                nodes, s_edges, p_edges, score_by_id,
+                engine=cri_engine, show_progress=show_progress,
+            )
             to_write = [
                 (n, scores[n]["sell_score"], scores[n]["buy_score"])
                 for n in nodes if n in grades  # 등급 테이블에 행 없음 → 기록할 곳 없음

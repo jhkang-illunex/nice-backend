@@ -7,6 +7,7 @@
   python -m nice_migrate --env-file .env --dry-run
   python -m nice_migrate --year 2026 --buy-fallback   # 무매출 target 도 buy_rate 채움
   python -m nice_migrate --shell                      # 갱신 없이 IPython 데이터 조회 쉘
+  python -m nice_migrate --cri --cri-engine numpy      # cri2 계산에 기존 numpy 엔진 사용
 """
 from __future__ import annotations
 
@@ -49,6 +50,11 @@ def main(argv: list[str] | None = None) -> int:
                    help="trade_rate/sell_rate/buy_rate 갱신 생략 — company_edge 의 "
                         "rate 가 이미 채워져 있을 때 --cri 와 함께 써서 cri2 점수만 "
                         "재계산. --cri 없이 단독으로 쓰면 오류(실행할 게 없음).")
+    p.add_argument("--cri-engine", choices=("scipy", "numpy"), default="scipy",
+                   help="--cri 계산 엔진 (기본 scipy — SCC 소수·거대 케이스도 빠름). "
+                        "numpy 는 기존 wave-packing(비교·scipy 미설치 대비용). --cri 와만 관련.")
+    p.add_argument("--no-progress", action="store_true",
+                   help="--cri 계산 중 tqdm 진행바 비활성화.")
     p.add_argument("--dry-run", action="store_true", help="갱신 없이 대상 행 수만 출력.")
     p.add_argument("--shell", action="store_true",
                    help="갱신 없이 IPython 쉘 진입(engine/pd 준비된 상태) — 데이터 직접 조회·핸들링용.")
@@ -88,6 +94,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
             stats["cri"] = update_cri_weights(
                 engine, year=args.year, schema=args.schema, dry_run=args.dry_run,
+                cri_engine=args.cri_engine, show_progress=not args.no_progress,
             )
         else:
             stats = update_trade_rate(

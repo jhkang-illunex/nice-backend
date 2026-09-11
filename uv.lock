@@ -1084,6 +1084,7 @@ dev = [
 ]
 ingest = [
     { name = "openpyxl" },
+    { name = "tqdm" },
 ]
 migrate-shell = [
     { name = "ipython" },
@@ -1123,6 +1124,7 @@ requires-dist = [
     { name = "sqlalchemy", specifier = ">=2.0" },
     { name = "streamlit", marker = "extra == 'demo'", specifier = ">=1.41" },
     { name = "streamlit-agraph", marker = "extra == 'demo'", specifier = ">=0.0.45" },
+    { name = "tqdm", marker = "extra == 'ingest'", specifier = ">=4.66" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
 ]
 

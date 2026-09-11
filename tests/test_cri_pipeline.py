@@ -8,6 +8,8 @@ import argparse
 import csv
 from pathlib import Path
 
+import pytest
+
 from nice_ingest.pipelines.cri.pipeline import (
     compute_cumulative_cri,
     grade_to_score,
@@ -90,8 +92,10 @@ def test_unknown_company_in_edges_rejected(tmp_path: Path) -> None:
         read_edges(edge, companies)
 
 
-def test_sparse_engine_matches_dense_reference() -> None:
-    """희소(wave-packing) 엔진 ≡ dense 참조 구현 — 무작위 다중 SCC 그래프 전수 대조.
+@pytest.mark.parametrize("engine", ["scipy", "numpy"])
+def test_sparse_engine_matches_dense_reference(engine) -> None:
+    """희소(scipy 열-배치 / numpy wave-packing) 엔진 ≡ dense 참조 구현 — 무작위
+    다중 SCC 그래프 전수 대조. 두 엔진 모두(2026-09 이중화) 대상.
 
     같은 SCC 에 등급 노드 여러 개(wave 분리)·자기루프·순환 혼재 케이스에서
     자기 기여 제외까지 원본 dense 의미와 일치하는지 검증.
@@ -119,7 +123,9 @@ def test_sparse_engine_matches_dense_reference() -> None:
 
     s_edges = [(nodes[a], nodes[b], w) for a, b, w in edges]
     p_edges = [(nodes[b], nodes[a], w * 0.7) for a, b, w in edges]
-    got = cumulative_scores_from_edges(nodes, s_edges, p_edges, score_by_id)
+    got = cumulative_scores_from_edges(
+        nodes, s_edges, p_edges, score_by_id, engine=engine, show_progress=False,
+    )
 
     # dense 참조: 원본 cri2 규칙 그대로 (행렬 누적 + 자기 기여 제외)
     def dense_ref(edge_list):
@@ -157,3 +163,74 @@ def test_sparse_engine_matches_dense_reference() -> None:
             else:
                 assert act is not None and abs(act - exp) < 1e-6, (i, key, act, exp)
                 assert got[nodes[i]][f"{key}_grade"] == score_to_grade(exp)
+
+
+def test_scipy_and_numpy_engines_agree() -> None:
+    """engine='scipy' 와 engine='numpy' 가 서로 완전히 동일한 값을 낸다 —
+    "scipy 로 바꿔도 결과는 같은가?" 질문에 대한 실측 근거.
+
+    SCC 소수·거대 케이스(등급 노드 다수가 같은 순환에 몰림)를 일부러 구성해,
+    numpy wave-packing 의 약점(같은 SCC 내 타깃 미배치)이 노출되는 조건에서도
+    scipy 열-배치 결과가 정확히 같은지 확인.
+    """
+    import numpy as np
+
+    from nice_ingest.pipelines.cri.pipeline import cumulative_scores_from_edges
+
+    rng = np.random.RandomState(11)
+    n = 30
+    nodes = [f"N{i}" for i in range(n)]
+    # 0..19 를 하나의 큰 순환(링)으로 묶어 SCC 하나에 타깃 다수가 몰리게 구성.
+    ring_edges = [(i, (i + 1) % 20, float(rng.uniform(0.1, 0.4))) for i in range(20)]
+    extra = [(rng.randint(0, n), rng.randint(0, n), float(rng.uniform(0.05, 0.3)))
+             for _ in range(40)]
+    edges = ring_edges + extra
+    s_edges = [(nodes[a], nodes[b], w) for a, b, w in edges]
+    p_edges = [(nodes[b], nodes[a], w * 0.6) for a, b, w in edges]
+    score_by_id = {nodes[i]: int(rng.randint(1, 11)) for i in range(20)}  # 링 위에 몰림
+
+    got_scipy = cumulative_scores_from_edges(
+        nodes, s_edges, p_edges, score_by_id, engine="scipy", show_progress=False,
+    )
+    got_numpy = cumulative_scores_from_edges(
+        nodes, s_edges, p_edges, score_by_id, engine="numpy", show_progress=False,
+    )
+    assert set(got_scipy) == set(got_numpy)
+    for nid in nodes:
+        a, b = got_scipy[nid], got_numpy[nid]
+        assert a["sell_grade"] == b["sell_grade"]
+        assert a["buy_grade"] == b["buy_grade"]
+        for key in ("sell_score", "buy_score"):
+            if a[key] is None or b[key] is None:
+                assert a[key] is None and b[key] is None, (nid, key, a[key], b[key])
+            else:
+                assert abs(a[key] - b[key]) < 1e-6, (nid, key, a[key], b[key])
+
+
+def test_engine_cli_flags(tmp_path, monkeypatch) -> None:
+    """--engine/--no-progress CLI 플래그가 정상 통과되고, run() 이 두 값 모두 처리."""
+    import nice_ingest.pipelines.cri.pipeline as p
+
+    comp = tmp_path / "c.csv"
+    comp.write_text("회사,신용등급,거래총금액\nA,AA,1000\nB,BBB,800\n", encoding="utf-8")
+    edge = tmp_path / "e.csv"
+    edge.write_text("회사1,회사2,거래비중\nA,B,0.3\n", encoding="utf-8")
+
+    parser = argparse.ArgumentParser()
+    p.add_args(parser)
+    ns = parser.parse_args([
+        "--companies", str(comp), "--edges", str(edge), "--engine", "numpy", "--no-progress",
+    ])
+    assert ns.engine == "numpy"
+    assert ns.no_progress is True
+
+    seen = {}
+    real = p.compute_cumulative_cri
+
+    def spy(*a, **kw):
+        seen.update(kw)
+        return real(*a, **kw)
+
+    monkeypatch.setattr(p, "compute_cumulative_cri", spy)
+    assert p.run(ns) == 0
+    assert seen == {"engine": "numpy", "show_progress": False}

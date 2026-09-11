@@ -1,4 +1,8 @@
-"""회사·거래내역 CSV → 누적 판매망/구매망 CRI 등급 산출 (DB 미사용, stdlib+numpy).
+"""회사·거래내역 CSV → 누적 판매망/구매망 CRI 등급 산출 (DB 미사용, stdlib+numpy(+scipy 선택)).
+
+계산 엔진 이중화(2026-09): engine="scipy"(기본) / engine="numpy"(기존 wave-packing,
+scipy 미설치 대비·비교용 보존). 결과는 두 엔진 모두 동일 — dense 참조 테스트로 보증.
+진행 상황은 tqdm 으로 표시(show_progress=True 기본, 없으면 진행바 없이 그대로 동작).
 
 원본: NICE 제공 공급망 CRI 샘플 구현(구 ``nice_shock/cri2.py`` — 여기로 이관)을
 함수화하고 CSV 입출력으로 래핑. 알고리즘 해석은 원본 주석을 따른다:
@@ -24,10 +28,41 @@ import csv
 import logging
 import re
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 
+try:
+    from scipy import sparse as _sparse
+    from scipy.sparse.csgraph import connected_components as _sp_connected_components
+    _HAS_SCIPY = True
+except ImportError:  # pragma: no cover — scipy 미설치 이미지 대비(numpy 엔진만 사용 가능)
+    _sparse = None
+    _sp_connected_components = None
+    _HAS_SCIPY = False
+
+try:
+    from tqdm import tqdm
+except ImportError:  # pragma: no cover — tqdm 미설치 시 진행바 없이 그대로 동작
+    class tqdm:  # type: ignore[no-redef]  # noqa: N801 — 실제 tqdm 과 동일한 이름으로 드롭인 대체
+        """최소 폴백 — 이터러블 래핑(`tqdm(range(n))`)과 total+update 패턴
+        (`tqdm(total=n)` 후 `.update()`/`.close()`) 둘 다 진행바 없이 동작."""
+
+        def __init__(self, iterable=None, *, total=None, **_kwargs):
+            self._iterable = iterable
+
+        def __iter__(self):
+            return iter(self._iterable if self._iterable is not None else [])
+
+        def update(self, n=1):
+            pass
+
+        def close(self):
+            pass
+
 log = logging.getLogger(__name__)
+
+Engine = Literal["scipy", "numpy"]
 
 # 등급 → 점수 (클수록 위험). R/NR 등 미매핑은 무등급(유효 제외).
 GRADE_SCORE: dict[str, int] = {
@@ -79,20 +114,49 @@ def _matvec(n: int, rows, cols, w, x):
     return np.bincount(rows, weights=w * x[cols], minlength=n)
 
 
-def _accumulate(n, rows, cols, w, x0, *, epsilon: float, max_iter: int):
-    """Σ_{k≥1} Wᵏ·x0 — 원본 _cumulative 와 동일한 종료 규칙(체크→누적→곱)."""
+def _accumulate(n, rows, cols, w, x0, *, epsilon: float, max_iter: int, show_progress: bool = False):
+    """Σ_{k≥1} Wᵏ·x0 — 원본 _cumulative 와 동일한 종료 규칙(체크→누적→곱).
+
+    show_progress 기본 False — 보통 diag 배치/wave 루프보다 훨씬 빨라 진행바가
+    거의 안 보이고 뜨자마자 사라짐(노이즈). 필요 시(대규모 n)만 켤 것.
+    """
     total = np.zeros(n)
     cur = _matvec(n, rows, cols, w, x0)
-    for _ in range(max_iter):
-        if np.abs(cur).sum() < epsilon:
-            break
-        total += cur
-        cur = _matvec(n, rows, cols, w, cur)
+    bar = tqdm(total=max_iter, desc="cri accumulate", unit="iter", disable=not show_progress)
+    try:
+        for _ in range(max_iter):
+            if np.abs(cur).sum() < epsilon:
+                break
+            total += cur
+            cur = _matvec(n, rows, cols, w, cur)
+            bar.update(1)
+    finally:
+        bar.close()
     return total
 
 
-def _scc_labels(n: int, rows, cols) -> tuple[list[int], list[int]]:
-    """반복형 Tarjan — 각 노드의 SCC id 와 SCC 크기. (역그래프도 SCC 동일)"""
+def _scc_labels_scipy(n: int, rows, cols) -> tuple[list[int], list[int]]:
+    """scipy.sparse.csgraph 기반 SCC 분해 — 컴파일된 구현이라 대규모(수백만 엣지)에서
+    순수 파이썬 Tarjan(_scc_labels_python)보다 훨씬 빠름(2026-09 추가).
+
+    SCC 분할은 그래프 도달가능성만으로 정해지는 수학적으로 유일한 결과라, 알고리즘이
+    달라도 "어떤 노드들이 같은 그룹인가"는 항상 동일하다 — 그룹 번호만 다를 수 있는데
+    호출부는 comp[i]==comp[j] 로만 비교하므로 번호 차이는 결과에 영향 없다.
+    """
+    if len(rows) == 0:
+        return list(range(n)), [1] * n
+    graph = _sparse.csr_matrix((np.ones(len(rows)), (rows, cols)), shape=(n, n))
+    _, labels = _sp_connected_components(graph, directed=True, connection="strong")
+    sizes = np.bincount(labels, minlength=labels.max() + 1 if n else 0).tolist()
+    return labels.tolist(), sizes
+
+
+def _scc_labels_python(n: int, rows, cols) -> tuple[list[int], list[int]]:
+    """반복형 Tarjan — 각 노드의 SCC id 와 SCC 크기. (역그래프도 SCC 동일)
+
+    scipy 미설치 환경을 위한 폴백(engine="numpy") — 대규모(수백만 엣지)에서
+    _scc_labels_scipy 보다 크게 느림(순수 파이썬 O(N+E)).
+    """
     adj: list[list[int]] = [[] for _ in range(n)]
     for a, b in zip(rows.tolist(), cols.tolist(), strict=True):
         adj[a].append(b)
@@ -104,7 +168,7 @@ def _scc_labels(n: int, rows, cols) -> tuple[list[int], list[int]]:
     counter = 0
     n_comp = 0
     sizes: list[int] = []
-    for root in range(n):
+    for root in tqdm(range(n), desc="cri scc(python)", unit="node", disable=n < 100_000):
         if index[root] != -1:
             continue
         work = [(root, 0)]
@@ -145,11 +209,12 @@ def _scc_labels(n: int, rows, cols) -> tuple[list[int], list[int]]:
     return comp, sizes
 
 
-def _diag_cumulative(
+def _diag_cumulative_numpy(
     n, rows, cols, w, targets, comp, comp_size, has_self_loop,
-    *, epsilon: float, max_iter: int,
+    *, epsilon: float, max_iter: int, show_progress: bool = True,
 ):
-    """T_ii = Σ_k (Wᵏ)_ii — targets 노드만. i→…→i 보행은 i 의 SCC 안에 갇히므로
+    """T_ii = Σ_k (Wᵏ)_ii — targets 노드만 (numpy wave-packing 엔진, engine="numpy").
+
     비자명 SCC(크기≥2 또는 자기루프)별 부분그래프에서 열-배치로 계산.
 
     성능(2026-08-28 재작성 — 현장 실측 14분의 원인 두 겹 제거):
@@ -158,6 +223,10 @@ def _diag_cumulative(
        이므로, 서로 다른 SCC 의 j 번째 타깃들을 한 벡터에 실어 bincount 반복 1회로 동시
        계산. 파이썬 루프 횟수가 "SCC 수"가 아니라 "SCC 당 최대 타깃 수"(대개 한 자리)에
        비례. 교차 오염 없음 — x0 의 서로 다른 SCC 성분은 영원히 자기 블록 안에 머문다.
+
+    ⚠ 한계(2026-09 확인, engine="scipy" 도입 계기): 이 배치는 "서로 다른 SCC" 끼리만
+    묶는다 — **같은 SCC 안**에 타깃이 수만 개 몰리면(예: SCC 소수·거대 케이스) wave 수가
+    그만큼 커져 사실상 타깃마다 순차 처리가 된다. 그런 데이터는 engine="scipy" 권장.
     """
     d = np.zeros(n)
     comp_arr = np.asarray(comp)
@@ -177,9 +246,11 @@ def _diag_cumulative(
     r_l = np.searchsorted(local_nodes, r_k)
     c_l = np.searchsorted(local_nodes, c_k)
     waves = max(len(ts) for ts in by_comp.values())
-    log.info("cri diag: 대상 SCC %d개 / 내부 엣지 %d / 대상 노드 %d / wave %d회",
+    log.info("cri diag[numpy]: 대상 SCC %d개 / 내부 엣지 %d / 대상 노드 %d / wave %d회",
              len(by_comp), len(r_k), len(need), waves)
-    for j in range(waves):
+    wave_range = tqdm(range(waves), desc="cri diag(numpy)", unit="wave",
+                       disable=not show_progress)
+    for j in wave_range:
         pos = np.searchsorted(
             local_nodes, np.asarray([ts[j] for ts in by_comp.values() if len(ts) > j])
         )
@@ -197,6 +268,68 @@ def _diag_cumulative(
     return d
 
 
+# 열-배치 폭 상한 — 배치당 dense 버퍼는 nl×_DIAG_BATCH_MAX 크기이므로 nl 이 크면
+# 동적으로 더 줄인다(_diag_batch_size). 원소 예산(대략 400MB/배치, float64 기준).
+_DIAG_BATCH_MAX = 256
+_DIAG_MEM_BUDGET_ELEMS = 50_000_000
+
+
+def _diag_batch_size(nl: int) -> int:
+    return max(1, min(_DIAG_BATCH_MAX, _DIAG_MEM_BUDGET_ELEMS // max(nl, 1)))
+
+
+def _diag_cumulative_scipy(
+    n, rows, cols, w, targets, comp, comp_size, has_self_loop,
+    *, epsilon: float, max_iter: int, show_progress: bool = True,
+):
+    """T_ii = Σ_k (Wᵏ)_ii — targets 노드만 (scipy 열-배치 엔진, engine="scipy", 2026-09 추가).
+
+    numpy wave-packing 과 달리 **같은 SCC 안의 다수 타깃도 함께 묶는다**: 대상 SCC 전체를
+    합친 국소 부분그래프 하나로 압축한 뒤, 타깃을 최대 _DIAG_BATCH_MAX 개씩 열로 묶어
+    W_local(sparse) @ X(dense, nl×배치폭) 행렬곱(BLAS) 1회로 배치 내 전 타깃을 동시 반복.
+    파이썬 루프 횟수 = ⌈타깃수/배치폭⌉ — SCC 가 많든 적든, 크든 작든 이 공식으로 수렴한다
+    (numpy 엔진은 SCC 소수·거대 케이스에서 타깃마다 순차 처리가 되어 느림).
+
+    결과는 numpy 엔진과 수학적으로 동일 — dense 참조 테스트
+    (test_sparse_engine_matches_dense_reference)로 보증.
+    """
+    d = np.zeros(n)
+    comp_arr = np.asarray(comp)
+    need = np.asarray([t for t in targets if comp_size[comp[t]] >= 2 or has_self_loop[t]])
+    if len(need) == 0:
+        return d
+    need_comps = np.unique(comp_arr[need])
+    e_comp = comp_arr[rows]
+    keep = (e_comp == comp_arr[cols]) & np.isin(e_comp, need_comps)
+    r_k, c_k, w_k = rows[keep], cols[keep], w[keep]
+    local_nodes = np.unique(np.concatenate([r_k, c_k, need]))
+    nl = len(local_nodes)
+    r_l = np.searchsorted(local_nodes, r_k)
+    c_l = np.searchsorted(local_nodes, c_k)
+    w_local = _sparse.csr_matrix((w_k, (r_l, c_l)), shape=(nl, nl))
+    pos_all = np.searchsorted(local_nodes, need)
+    batch = _diag_batch_size(nl)
+    n_batches = -(-len(need) // batch)
+    log.info("cri diag[scipy]: 대상 SCC %d개 / 내부 엣지 %d / 대상 노드 %d / 로컬 노드 %d / "
+             "열-배치 %d회(폭 %d)", len(need_comps), len(r_k), len(need), nl, n_batches, batch)
+    batch_starts = tqdm(range(0, len(need), batch), total=n_batches,
+                         desc="cri diag(scipy)", unit="batch", disable=not show_progress)
+    for s in batch_starts:
+        pos = pos_all[s:s + batch]
+        m = len(pos)
+        cur = np.zeros((nl, m))
+        cur[pos, np.arange(m)] = 1.0
+        cur = w_local @ cur  # k=1 항(sparse×dense, BLAS) — 종료 규칙은 _accumulate 동일
+        acc = np.zeros(m)
+        for _ in range(max_iter):
+            if np.abs(cur).sum() < epsilon:
+                break
+            acc += cur[pos, np.arange(m)]
+            cur = w_local @ cur
+        d[need[s:s + batch]] = acc
+    return d
+
+
 def cumulative_scores_from_edges(
     nodes: list[str],
     s_edges: list[tuple[str, str, float]],
@@ -205,13 +338,26 @@ def cumulative_scores_from_edges(
     *,
     epsilon: float = DEFAULT_EPSILON,
     max_iter: int = DEFAULT_MAX_ITER,
+    engine: Engine = "scipy",
+    show_progress: bool = True,
 ) -> dict[str, dict]:
     """엣지 리스트 입력의 cri2 core — 대규모 안전(O(N+E) 메모리).
 
     s_edges: (판매자, 구매자, 판매비중)  → S[판매][구매]
     p_edges: (구매자, 판매자, 구매가중)  → P[구매][판매]
     중복 엣지는 원본과 동일하게 합산. score_by_id 에 None/부재 = 무등급.
+
+    engine="scipy"(기본, 2026-09): SCC 소수·거대 케이스에서도 빠름(열-배치 sparse@dense).
+    engine="numpy": 기존 wave-packing — scipy 미설치 이미지 대비/비교용으로 보존.
+      scipy 미설치인데 engine="scipy" 요청되면 자동으로 numpy 로 폴백(경고 로그).
+    show_progress: diag 배치/wave 루프에 tqdm 진행바 표시(기본 표시, 대규모 데이터일수록 유용).
     """
+    if engine == "scipy" and not _HAS_SCIPY:
+        log.warning("cri: engine='scipy' 요청됐으나 scipy 미설치 — engine='numpy' 로 폴백")
+        engine = "numpy"
+    scc_fn = _scc_labels_scipy if engine == "scipy" else _scc_labels_python
+    diag_fn = _diag_cumulative_scipy if engine == "scipy" else _diag_cumulative_numpy
+
     n = len(nodes)
     idx = {nid: i for i, nid in enumerate(nodes)}
 
@@ -236,7 +382,7 @@ def cumulative_scores_from_edges(
     u = scores * graded
 
     # SCC 는 방향 그래프와 그 역그래프에서 동일 — S 방향 구조로 1회 계산해 공용.
-    comp, comp_size = _scc_labels(n, sr, sc)
+    comp, comp_size = scc_fn(n, sr, sc)
     self_s = np.zeros(n, dtype=bool)
     self_s[sr[sr == sc]] = True
     self_p = np.zeros(n, dtype=bool)
@@ -250,8 +396,8 @@ def cumulative_scores_from_edges(
     }.items():
         acc_u = _accumulate(n, r, c, wv, u, epsilon=epsilon, max_iter=max_iter)
         acc_v = _accumulate(n, r, c, wv, graded, epsilon=epsilon, max_iter=max_iter)
-        d = _diag_cumulative(n, r, c, wv, graded_idx, comp, comp_size, selfloop,
-                             epsilon=epsilon, max_iter=max_iter)
+        d = diag_fn(n, r, c, wv, graded_idx, comp, comp_size, selfloop,
+                    epsilon=epsilon, max_iter=max_iter, show_progress=show_progress)
         results[key] = (acc_u - d * u, acc_v - d * graded)
 
     for i, nid in enumerate(nodes):
@@ -272,6 +418,9 @@ def cumulative_scores(
     p: dict[str, dict[str, float]],
     nodes: list[str],
     score_by_id: dict[str, int | None],
+    *,
+    engine: Engine = "scipy",
+    show_progress: bool = True,
 ) -> dict[str, dict]:
     """dict 행렬 입력 어댑터(하위호환) — 0 이 아닌 셀만 엣지로 변환해 sparse core 호출.
 
@@ -281,11 +430,18 @@ def cumulative_scores(
     def to_edges(m):
         return [(i, j, v) for i, row in m.items() for j, v in row.items() if v != 0.0]
 
-    return cumulative_scores_from_edges(nodes, to_edges(s), to_edges(p), score_by_id)
+    return cumulative_scores_from_edges(
+        nodes, to_edges(s), to_edges(p), score_by_id,
+        engine=engine, show_progress=show_progress,
+    )
 
 
 def compute_cumulative_cri(
-    companies: dict[str, dict], edges: list[tuple[str, str, float]]
+    companies: dict[str, dict],
+    edges: list[tuple[str, str, float]],
+    *,
+    engine: Engine = "scipy",
+    show_progress: bool = True,
 ) -> dict[str, dict]:
     """회사별 {sell_grade, sell_score, buy_grade, buy_score} (누적망 기준).
 
@@ -305,7 +461,9 @@ def compute_cumulative_cri(
         amount = float(companies[seller]["sales"]) * share
         s_edges.append((seller, buyer, share))
         p_edges.append((buyer, seller, amount / buyer_sales))
-    return cumulative_scores_from_edges(nodes, s_edges, p_edges, score_by_id)
+    return cumulative_scores_from_edges(
+        nodes, s_edges, p_edges, score_by_id, engine=engine, show_progress=show_progress,
+    )
 
 
 # ── CSV 입출력 ────────────────────────────────────────────────────────────────
@@ -396,12 +554,21 @@ def add_args(parser: argparse.ArgumentParser) -> None:
                         help="거래내역 CSV — 회사1(판매자), 회사2(구매자), 거래비중(회사1 총금액 대비)")
     parser.add_argument("--out", type=Path, default=None,
                         help="결과 CSV 경로 (생략 시 stdout 표만 출력)")
+    parser.add_argument("--engine", choices=("scipy", "numpy"), default="scipy",
+                        help="계산 엔진 (기본 scipy — SCC 소수·거대 케이스도 빠름). "
+                             "numpy 는 기존 wave-packing(비교·scipy 미설치 대비용).")
+    parser.add_argument("--no-progress", action="store_true",
+                        help="tqdm 진행바 비활성화.")
 
 
 def run(ns: argparse.Namespace) -> int:
     companies = read_companies(ns.companies)
     edges = read_edges(ns.edges, companies)
-    result = compute_cumulative_cri(companies, edges)
+    result = compute_cumulative_cri(
+        companies, edges,
+        engine=getattr(ns, "engine", "scipy"),
+        show_progress=not getattr(ns, "no_progress", False),
+    )
 
     rows = _out_rows(result)
     widths = [max(len(h), *(len(r[k]) for r in rows)) for k, h in enumerate(_OUT_HEADER)]
